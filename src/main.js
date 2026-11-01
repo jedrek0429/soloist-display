@@ -5,7 +5,7 @@ import {Spectrum} from './spectrum.js';
 const config=await fetch('./config.json').then(r=>r.json()).catch(()=>({}));
 const $=id=>document.getElementById(id);
 const director=new DiscDirector({discs:[$('disc-a'),$('disc-b')],backdrops:[$('backdrop-a'),$('backdrop-b')],info:$('info')});
-const spectrum=new Spectrum($('visualizer'));
+const spectrum=new Spectrum($('visualizer'), config.visualizerSensitivity ?? 1);
 let currentUri=null,position=0,positionTime=performance.now(),duration=0,playing=false;
 let lastTrack=null;
 function updateItem(item){

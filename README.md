@@ -33,10 +33,9 @@ Install the dependencies for your distribution, then use the same installer on x
 sudo pacman -Syu --needed base-devel git curl xdg-utils pipewire pipewire-pulse wireplumber libpulse rust
 git clone https://github.com/jedrek0429/soloist-display.git
 cd soloist-display
-bash packaging/install-linux.sh
 ```
 
-You can also install the Arch package with `makepkg -si` after cloning the repository.
+Arch users can alternatively install the display with `makepkg -si` after setting up Soloist.
 
 ### Ubuntu / Debian
 
@@ -45,7 +44,6 @@ sudo apt update
 sudo apt install -y git curl xdg-utils build-essential pkg-config libpulse0 pulseaudio-utils pipewire pipewire-pulse wireplumber cargo rustc
 git clone https://github.com/jedrek0429/soloist-display.git
 cd soloist-display
-bash packaging/install-linux.sh
 ```
 
 ### Fedora
@@ -55,10 +53,9 @@ sudo dnf upgrade --refresh -y
 sudo dnf install -y git curl xdg-utils gcc make pkgconf-pkg-config pulseaudio-libs pulseaudio-utils pipewire pipewire-pulseaudio wireplumber cargo rust
 git clone https://github.com/jedrek0429/soloist-display.git
 cd soloist-display
-bash packaging/install-linux.sh
 ```
 
-All three paths install into `~/.local/bin`. A working systemd user session, PipeWire/PulseAudio and a browser are required. Other systemd-based Linux distributions may work. Windows and macOS are not supported.
+The commands above prepare the system and clone the repository. Install Soloist below, then run `bash packaging/install.sh` to install the display into `~/.local/bin`. A working systemd user session, PipeWire/PulseAudio and a browser are required. Other systemd-based Linux distributions may work. Windows and macOS are not supported.
 
 ### Set up Spotify Connect playback
 
@@ -89,6 +86,16 @@ systemctl --user enable --now soloist.service
 ```
 
 Choose the device in Spotify Connect.
+
+### Install Soloist Display
+
+Once Soloist is installed, run:
+
+```sh
+bash packaging/install.sh
+```
+
+The installer checks that Soloist is present before building the display.
 
 ## Run
 

@@ -75,22 +75,30 @@ function handleSoloist(event){
   if(event.type==='position_sync'||event.type==='position_changed'){const ms=positionMs(event.position??event);if(Number.isFinite(ms)){position=ms;positionTime=performance.now()}}
   if(event.type==='playback_changed'&&event.status!==undefined){playing=isPlaying(event.status);director.setPlaying(playing)}
 }
-function connect(url,onData,onOpen){
+function connect(url,onData,onOpen,onDisconnect){
   let retry=500;
   function open(){
-    let socket;try{socket=new WebSocket(url)}catch{setTimeout(open,retry);return}
+    let socket;try{socket=new WebSocket(url)}catch{onDisconnect?.();setTimeout(open,retry);return}
     socket.onopen=()=>{retry=500;onOpen?.(socket)};
     socket.onmessage=e=>{try{onData(JSON.parse(e.data))}catch(err){console.warn('WebSocket event',err)}};
-    socket.onclose=()=>{setTimeout(open,retry);retry=Math.min(retry*1.7,12000)};
+    socket.onclose=()=>{onDisconnect?.();setTimeout(open,retry);retry=Math.min(retry*1.7,12000)};
     socket.onerror=()=>socket.close();
   }
   open();
 }
-connect(config.soloistWebSocket||'ws://127.0.0.1:9090',handleSoloist,s=>s.send(JSON.stringify({type:'command',command:'get_state'})));
+connect(config.soloistWebSocket||'ws://127.0.0.1:9090',handleSoloist,s=>{
+  $('track').textContent=currentUri?$('track').textContent:'Waiting for playback';
+  s.send(JSON.stringify({type:'command',command:'get_state'}));
+},()=>{
+  playing=false;director.setPlaying(false);
+  $('track').textContent='Soloist disconnected';
+  $('artist').textContent='Reconnecting automatically…';
+});
 if(config.visualizer!==false){
   let retry=500;
   function connectAudio(){
-    const socket=new WebSocket(config.audioWebSocket||'ws://127.0.0.1:9091');
+    let socket;
+    try{socket=new WebSocket(config.audioWebSocket||'ws://127.0.0.1:9091')}catch(error){console.warn('Audio connection failed',error);setTimeout(connectAudio,retry);retry=Math.min(12000,retry*1.7);return;}
     socket.onopen=()=>{retry=500};
     socket.onmessage=event=>{try{spectrum.receive(JSON.parse(event.data))}catch(error){console.warn('Invalid spectrum frame',error)}};
     socket.onclose=()=>{setTimeout(connectAudio,retry);retry=Math.min(12000,retry*1.7)};

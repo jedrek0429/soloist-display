@@ -17,9 +17,9 @@
   "transitionStyle": "fly",
   "discAppearance": "dot",
   "burnInProtection": false,
-  "transitionDuration": 2500,
+  "transitionDuration": 2000,
   "backdropTransitionStyle": "fade",
-  "backdropTransitionDuration": 1850,
+  "backdropTransitionDuration": 2000,
   "panelTransitionStyle": "slide",
-  "panelTransitionDuration": 1200
+  "panelTransitionDuration": 2050
 }

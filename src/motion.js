@@ -86,16 +86,6 @@ export class DiscDirector{
     outgoing.classList.add('active');
     this.info.style.opacity='0';
     try{
-      await delay(220);
-      if(token!==this.token)return;
-      const lifted=await this.animateDisc(outgoing,[
-        [-50,-50,1,0],[-50,-65,.88,43],[-145,-98,.72,65]
-      ],1050,token);
-      if(!lifted)return;
-      outgoing.classList.remove('active');
-      incoming.classList.add('active');
-      // Set the initial pose before the first animation frame: no artwork flash.
-      incoming.style.transform='translate(55%,-115%) scale(.72) rotateX(65deg)';
       // Keep outgoing artwork underneath while the new artwork slowly fades in.
       const previousBg=this.backdrops[outgoingIndex];
       const nextBg=this.backdrops[incomingIndex];
@@ -106,7 +96,7 @@ export class DiscDirector{
       nextBg.classList.remove('active');
       void nextBg.offsetWidth;
       requestAnimationFrame(()=>requestAnimationFrame(()=>{
-        nextBg.style.transition='opacity 2900ms ease-in-out';
+        nextBg.style.transition='opacity 1850ms ease-in-out';
         nextBg.style.opacity='1';
       }));
       this.fadeTimer=setTimeout(()=>{
@@ -116,7 +106,18 @@ export class DiscDirector{
         nextBg.classList.add('active');
         nextBg.style.transition='';
         nextBg.style.opacity='';
-      },3100);
+      },2050);
+
+      await delay(220);
+      if(token!==this.token)return;
+      const lifted=await this.animateDisc(outgoing,[
+        [-50,-50,1,0],[-50,-65,.88,43],[-145,-98,.72,65]
+      ],1050,token);
+      if(!lifted)return;
+      outgoing.classList.remove('active');
+      incoming.classList.add('active');
+      // Set the initial pose before the first animation frame: no artwork flash.
+      incoming.style.transform='translate(55%,-115%) scale(.72) rotateX(65deg)';
       const landed=await this.animateDisc(incoming,[
         [55,-115,.72,65],[-50,-64,.9,30],[-50,-50,1,0]
       ],1250,token);

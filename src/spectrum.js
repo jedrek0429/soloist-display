@@ -12,6 +12,8 @@ export class Spectrum {
     this.nextTime = 0;
     this.frequency = null;
     this.pcmBands = new Float32Array(6);
+    this.pcmHistory = Array.from({length:6},()=>new Float32Array(5));
+    this.historyIndex = 0;
     this.sampleWindow = new Float32Array(1024);
     this.windowCursor = 0;
     requestAnimationFrame(t => this.draw(t));
@@ -89,13 +91,18 @@ export class Spectrum {
     for(let b=0;b<6;b++){
       const lo=Math.max(1,Math.floor(edges[b]*n/22050));
       const hi=Math.min(n/2,Math.ceil(edges[b+1]*n/22050));
-      let sum=0,count=0;
+      let sum=0,count=0,peak=0;
       for(let k=lo;k<hi;k++){
-        sum+=Math.hypot(real[k],imag[k]);count++;
+        const magnitude=Math.hypot(real[k],imag[k]);
+        sum+=magnitude*magnitude;peak=Math.max(peak,magnitude);count++;
       }
-      const magnitude=count?sum/count:0;
-      this.pcmBands[b]=Math.min(1,Math.pow(magnitude/2.6,.72));
+      const rms=count?Math.sqrt(sum/count):0;
+      // Preserve short transients and expand the small amplitudes seen on PipeWire.
+      const level=Math.min(1,Math.pow((rms*.65+peak*.35)/.85,.55));
+      this.pcmHistory[b][this.historyIndex%5]=level;
+      this.pcmBands[b]=Math.max(...this.pcmHistory[b]);
     }
+    this.historyIndex++;
   }
   draw(now) {
     const dt = Math.min(.08, (now - this.lastFrame) / 1000);
@@ -127,6 +134,7 @@ export class Spectrum {
       }
       const level = count ? energy / count : 0;
       const webAudioLevel = Math.min(1, Math.pow(Math.max(0, (level - .025) * 2.3), .8));
+      // The direct PCM FFT remains responsive even if Firefox suspends its audio graph.
       const target = live ? Math.max(webAudioLevel, this.pcmBands[i]) : 0;
       this.values[i] += (target - this.values[i]) * (1 - Math.exp(-dt * (target > this.values[i] ? 23 : 9)));
       const height = Math.max(2, this.values[i] * h);

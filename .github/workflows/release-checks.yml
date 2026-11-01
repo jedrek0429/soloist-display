@@ -66,3 +66,24 @@ jobs:
           soloist-display --version
           test -f /usr/lib/systemd/user/soloist-display.service
           pacman -R --noconfirm soloist-display-git
+
+  arm-build:
+    name: ARM64 native / ARMv7 cross build
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: armv7-unknown-linux-gnueabihf
+      - name: ARM64 tests and release build
+        run: |
+          cargo test --manifest-path audio-bridge/Cargo.toml
+          cargo build --release --manifest-path audio-bridge/Cargo.toml
+          file audio-bridge/target/release/soloist-audio-bridge
+      - name: ARMv7 cross-compile
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-linux-gnueabihf
+          CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc \
+            cargo build --release --manifest-path audio-bridge/Cargo.toml --target armv7-unknown-linux-gnueabihf
+          file audio-bridge/target/armv7-unknown-linux-gnueabihf/release/soloist-audio-bridge

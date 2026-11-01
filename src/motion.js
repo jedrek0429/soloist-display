@@ -10,7 +10,7 @@ function preload(url){
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 export class DiscDirector{
   constructor({discs,backdrops,info,settings={}}){
-    this.settings={discRotationSeconds:12,transitionDuration:2500,backdropTransitionStyle:'fade',backdropLinked:true,transitionStyle:'fly',metadataAnimation:true,reducedMotion:false,...settings};
+    this.settings={discRotationSeconds:12,transitionDuration:2500,backdropTransitionStyle:'fade',backdropLinked:true,backdropTransitionDuration:1850,transitionStyle:'fly',metadataAnimation:true,reducedMotion:false,...settings};
     this.motionEnabled=!this.settings.reducedMotion;
     this.metadataEnabled=this.settings.metadataAnimation&&!this.settings.reducedMotion;
     this.discs=discs;this.backdrops=backdrops;this.info=info;
@@ -79,7 +79,8 @@ export class DiscDirector{
     if(!this.started){this.started=true;commit();return}
     const duration=this.motionEnabled?this.settings.transitionDuration:0;
     const discStyle=this.motionEnabled?this.settings.transitionStyle:'instant';
-    const backdropStyle=this.motionEnabled?(this.settings.backdropLinked?(discStyle==='slide'?'slide':discStyle==='instant'?'instant':'fade'):this.settings.backdropTransitionStyle):'instant';
+    const backdropStyle=this.motionEnabled?this.settings.backdropTransitionStyle:'instant';
+    const backdropDuration=this.motionEnabled?(this.settings.backdropLinked?duration:this.settings.backdropTransitionDuration):0;
     this.changing=discStyle==='slide'||discStyle==='fly';
     this.pendingShow=commit;
     outgoing.classList.add('active');incoming.classList.add('active');
@@ -90,7 +91,6 @@ export class DiscDirector{
     if(discStyle==='slide')incoming.style.transform='translate(65%,-50%)';
     if(discStyle==='fly')incoming.style.transform='translate(55%,-115%) scale(.72) rotateX(65deg)';
     if(backdropStyle==='fade')nextBg.style.opacity='0';
-    if(backdropStyle==='slide')nextBg.style.transform='translateX(100%)';
     // Ensure the initial frame is committed before starting the animations.
     void incoming.offsetWidth;
     const jobs=[];
@@ -109,10 +109,7 @@ export class DiscDirector{
       })());
     }
     if(backdropStyle==='fade'){
-      jobs.push(this.animate(nextBg,[{opacity:0},{opacity:1}],duration,token));
-    }else if(backdropStyle==='slide'){
-      jobs.push(this.animate(previousBg,[{transform:'translateX(0)'},{transform:'translateX(-100%)'}],duration,token));
-      jobs.push(this.animate(nextBg,[{transform:'translateX(100%)'},{transform:'translateX(0)'}],duration,token));
+      jobs.push(this.animate(nextBg,[{opacity:0},{opacity:1}],backdropDuration,token));
     }
     if(discStyle==='instant'&&backdropStyle==='instant'){commit();return}
     if(this.metadataEnabled&&discStyle!=='instant'){

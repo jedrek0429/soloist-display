@@ -24,7 +24,7 @@ export class DiscDirector{
     const target=this.changing?0:this.playing?Math.PI*2/this.settings.discRotationSeconds:0;
     this.velocity+=(target-this.velocity)*(1-Math.exp(-dt*(this.changing?12:5)));
     this.angle=(this.angle+this.velocity*dt)%(2*Math.PI);
-    for(const disc of this.discs)disc.querySelector('.rotor').style.transform=`rotate(${this.angle}rad)`;
+    for(const disc of this.discs)disc.querySelector('.rotor').style.transform=`rotate(${disc.dataset.angleOffset?this.angle-Number(disc.dataset.angleOffset):this.angle}rad)`;
     requestAnimationFrame(t=>this.spin(t));
   }
   setPlaying(value){this.playing=value}
@@ -104,6 +104,8 @@ export class DiscDirector{
     for(const disc of this.discs){disc.style.transform='';disc.classList.remove('active')}
     for(const bg of this.backdrops){bg.style.transition='none';bg.style.opacity='';bg.style.zIndex='';}
     incoming.querySelector('.disc-image').style.backgroundImage=imageStyle(url);
+    // New artwork starts at zero degrees, regardless of outgoing rotation.
+    incoming.dataset.angleOffset=String(this.angle);
     this.backdrops[incomingIndex].style.backgroundImage=imageStyle(url);
     if(!this.started){
       this.started=true;this.current=incomingIndex;
@@ -111,10 +113,19 @@ export class DiscDirector{
       this.backdrops.forEach((b,i)=>b.classList.toggle('active',i===incomingIndex));
       onShow();return;
     }
-    if(!this.motionEnabled){
+    if(!this.motionEnabled||this.settings.transitionStyle==='instant'){
       outgoing.classList.remove('active');incoming.classList.add('active');
       this.backdrops.forEach((b,i)=>b.classList.toggle('active',i===incomingIndex));
       this.current=incomingIndex;onShow();return;
+    }
+    if(this.settings.transitionStyle==='fade'){
+      this.current=incomingIndex;onShow();
+      outgoing.classList.add('active');incoming.classList.add('active');
+      incoming.style.opacity='0';incoming.style.transition='opacity 600ms ease';
+      this.backdrops.forEach((b,i)=>b.classList.toggle('active',i===incomingIndex));
+      requestAnimationFrame(()=>{incoming.style.opacity='1'});
+      setTimeout(()=>{if(token!==this.token)return;outgoing.classList.remove('active');incoming.style.transition='';incoming.style.opacity='';},650);
+      return;
     }
     this.changing=true;
     // Commit the new album even if the next track interrupts the choreography.

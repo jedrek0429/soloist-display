@@ -17,7 +17,6 @@
   "reducedMotion": false,
   "visualizerAutoNormalize": false,
   "visualizerPeakHold": false,
-  "visualizerBarCount": 6,
   "transitionStyle": "fly",
   "discAppearance": "dot",
   "burnInProtection": false

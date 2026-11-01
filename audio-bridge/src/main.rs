@@ -65,12 +65,10 @@ async fn put_config(State(state): State<WebState>, Json(input): Json<Value>) -> 
             "animationSpeed" => Some((0.1, 5.)), "backgroundDim" => Some((0., 1.)),
             "backgroundBlur" => Some((0., 150.)), "backgroundFadeDuration" => Some((0., 10000.)),
             "metadataOpacity" => Some((0., 1.)), "metadataScale" => Some((0.5, 2.)),
-            "visualizerBarCount" => Some((6., 16.)),
             _ => None
         } {
             if !value.as_f64().is_some_and(|n| n >= lo && n <= hi) { return Err((StatusCode::BAD_REQUEST, format!("Out of range: {key}"))); }
         }
-        if key == "visualizerBarCount" && ![6,10,16].contains(&value.as_i64().unwrap_or(-1)) { return Err((StatusCode::BAD_REQUEST, "Unsupported bar count".into())); }
         if key == "transitionStyle" && !["fly","fade","instant"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported transition style".into())); }
         if key == "discAppearance" && !["dot","basic","cd","vinyl"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported disc appearance".into())); }
         output_map.insert(key, value);

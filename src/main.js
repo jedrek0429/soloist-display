@@ -24,6 +24,7 @@ const settings={
   backgroundBlur:bounded(config.backgroundBlur,50,0,150),
   metadataOpacity:bounded(config.metadataOpacity,.58,0,1),
   metadataScale:bounded(config.metadataScale,1,.5,2),
+  panelFontSize:bounded(config.panelFontSize,1,.6,1.6),
   panelTransitionStyle:config.panelTransitionStyle||'slide',
   panelTransitionDuration:bounded(config.panelTransitionDuration,2050,100,10000),
   reducedMotion:config.reducedMotion===true,
@@ -31,12 +32,16 @@ const settings={
 };
 const root=document.documentElement;
 root.dataset.discAppearance=['dot','basic','cd','vinyl'].includes(config.discAppearance)?config.discAppearance:'dot';
+root.dataset.panelPosition=['bottom-right','bottom-left','top-right','top-left'].includes(config.panelPosition)?config.panelPosition:'bottom-right';
+const holeKey='centerHole'+root.dataset.discAppearance[0].toUpperCase()+root.dataset.discAppearance.slice(1);
+root.style.setProperty('--center-hole-radius',bounded(config[holeKey],root.dataset.discAppearance==='cd'?12:root.dataset.discAppearance==='vinyl'?.6:0,0,20)/2+'%');
 if(config.burnInProtection===true)root.classList.add('burn-in-protection');
 for(const [key,value] of Object.entries({
   '--disc-size':settings.discSize+'dvh',
   '--background-dim':settings.backgroundDim,
   '--background-blur':settings.backgroundBlur+'px',
   '--metadata-opacity':settings.metadataOpacity,
+  '--metadata-font-size':settings.panelFontSize,
   '--metadata-scale':settings.metadataScale
 }))root.style.setProperty(key,value);
 const director=new DiscDirector({discs:[$('disc-a'),$('disc-b')],backdrops:[$('backdrop-a'),$('backdrop-b')],info:$('info'),settings});

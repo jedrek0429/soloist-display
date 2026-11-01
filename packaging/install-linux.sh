@@ -12,6 +12,10 @@ if [[ "$(uname -s)" != Linux ]]; then
   echo 'Soloist Display currently supports Linux only.' >&2
   exit 1
 fi
+if ! systemctl --user show-environment >/dev/null 2>&1; then
+  echo "A working systemd user session is required. Log into a graphical or user systemd session and retry." >&2
+  exit 1
+fi
 root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 cargo build --release --manifest-path audio-bridge/Cargo.toml

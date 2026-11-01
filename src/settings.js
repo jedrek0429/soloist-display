@@ -37,7 +37,6 @@ const sections=[
       ['backdropTransitionStyle','Backdrop transition','select',['fade','instant']],
       ['panelTransitionStyle','Panel transition','select',['slide','fade','instant']],
       ['transitionDuration','Disc duration','range',100,10000,50,'ms'],
-      ['backdropLinked','Link durations','link'],
       ['backdropTransitionDuration','Backdrop duration','range',100,10000,50,'ms'],
       ['panelTransitionDuration','Panel duration','range',100,10000,50,'ms'],
       ['discRotationSeconds','Rotation speed','range',1,120,1,'sec'],
@@ -110,13 +109,6 @@ function renderSection(){
     const input=document.createElement('input');
     input.id=key;
     input.dataset.key=key;
-    if(type==='link'){
-      line.classList.add('linked-field');
-      const button=document.createElement('button');button.type='button';button.className='link-button';
-      const update=()=>{button.textContent=draft.backdropLinked?'↗ Linked':'↗ Unlinked';button.setAttribute('aria-pressed',String(!!draft.backdropLinked));button.title='Link disc and backdrop durations';};
-      button.addEventListener('click',()=>{draft.backdropLinked=!draft.backdropLinked;if(draft.backdropLinked)draft.backdropTransitionDuration=draft.transitionDuration;status.textContent='Unsaved changes';renderSection();});
-      update();line.append(button);controls.append(line);continue;
-    }
     if(type==='toggle'){
       input.type='checkbox';
       input.checked=draft[key]===true;
@@ -142,8 +134,7 @@ function renderSection(){
       input.min=min;
       input.max=max;
       input.step=step;
-      input.value=key==='backdropTransitionDuration'&&draft.backdropLinked?draft.transitionDuration:(draft[key]??min);
-      if(key==='backdropTransitionDuration'&&draft.backdropLinked)input.disabled=true;
+      input.value=draft[key]??min;
       line.append(input);
     }else{
       input.type='text';
@@ -156,12 +147,11 @@ function renderSection(){
     output.htmlFor=key;
     const refresh=()=>{
       const value=type==='toggle'?input.checked:type==='range'?Number(input.value):input.value;
-      draft[key]=key==='backdropTransitionDuration'&&draft.backdropLinked?draft.transitionDuration:value;
+      draft[key]=value;
       output.textContent=type==='toggle'?(value?'On':'Off'):type==='text'?'Local':format(value,suffix);
     };
     input.addEventListener('input',()=>{
       refresh();
-      if(key==='transitionDuration'&&draft.backdropLinked){draft.backdropTransitionDuration=draft.transitionDuration;const other=controls.querySelector('#backdropTransitionDuration');if(other){other.value=draft.transitionDuration;other.nextElementSibling.textContent=format(draft.transitionDuration,'ms');}}
       status.textContent='Unsaved changes';
     });
     refresh();
@@ -179,6 +169,7 @@ async function load(){
   const response=await fetch('/config.json',{cache:'no-store'});
   if(!response.ok)throw Error('Cannot load settings');
   draft=await response.json();
+  delete draft.backdropLinked;
   render();
 }
 
@@ -191,6 +182,7 @@ document.querySelector('#save').addEventListener('click',async()=>{
     });
     if(!response.ok)throw Error(await response.text());
     draft=await response.json();
+    delete draft.backdropLinked;
     renderSection();
     status.textContent='Saved · display updates automatically';
   }catch(error){
@@ -211,6 +203,7 @@ document.querySelector('#reset').addEventListener('click',async()=>{
     });
     if(!save.ok)throw Error(await save.text());
     draft=await save.json();
+    delete draft.backdropLinked;
     render();
     status.textContent='Defaults restored';
   }catch(error){

@@ -1,71 +1,87 @@
 # Soloist Display
 
-Minimal fullscreen now-playing display for Spotify Soloist, designed for 4:3 CRT televisions.
+Minimal Spotify now-playing display for a CRT. Album art, live spectrum, track progress.
 
-## Visual design
+**Arch Linux · Firefox · Spotify Soloist**
 
-- One enormous, **centred, rotating album disc**, intentionally cropped at the top and bottom.
-- Full-bleed **album artwork background** with strong Gaussian blur and a uniform semi-transparent black overlay. No generated grey/green palette, glow, fake grooves, or CRT filters.
-- Small, unboxed lower-right metadata: song title, artist, real-audio miniature spectrum, and thin progress line. No clock.
-- Track changes use two separate disc elements: outgoing disc exits, incoming disc enters oversized, pauses for a one-second hero showcase, then settles. Text reveals only after the disc arrives.
-- On initial load, the current track appears immediately instead of playing an unnecessary entrance sequence.
+> Already running Soloist with `--ws 127.0.0.1:9090`? **Skip to [3. Install Display](#3-install-display).**
 
-## Architecture
+## 1. Prepare Arch
 
-- `src/soloist.js`: Soloist event and nested artist/album parsing.
-- `src/motion.js`: Disc exchange choreography and continuous rotation.
-- `src/spectrum.js`: six-band Canvas rendering and interpolation; no browser audio analysis.
-- `src/main.js`: WebSocket connections, playback state and progress.
-- `audio-bridge/`: Rust PipeWire/PulseAudio monitor capture, overlapping 2048-sample FFT windows every 512 samples (~43 Hz), per-band smoothing and JSON WebSocket output.
+```sh
+sudo pacman -S --needed base-devel git firefox pipewire pipewire-pulse libpulse curl
+```
 
-## Install on Arch Linux
+You need **Spotify Premium** to pair Soloist and a **Soloist API key** from [Spotify for Developers](https://developer.spotify.com/documentation/soloist).
 
-Spotify Soloist must already be running and expose its local WebSocket on port 9090.
+## 2. Set up Spotify Soloist
 
-From a checkout of the **feat/now-playing-display** branch:
+1. Download **Linux x86_64** from [official Soloist downloads](https://developer.spotify.com/documentation/soloist/reference/downloads-and-updates).
+2. Extract the archive. Install its `soloist` executable:
+
+```sh
+mkdir -p ~/.local/bin ~/.config/soloist ~/.config/systemd/user
+install -m 755 /path/to/extracted/soloist ~/.local/bin/soloist
+```
+
+3. Create `~/.config/soloist/env`:
+
+```ini
+SOLOIST_NAME=ThinkCentre CRT
+SOLOIST_API_KEY=PASTE_YOUR_KEY_HERE
+```
+
+```sh
+chmod 600 ~/.config/soloist/env
+```
+
+4. Install the background service:
+
+```sh
+git clone https://github.com/jedrek0429/soloist-display.git
+cd soloist-display
+git switch feat/now-playing-display
+cp packaging/soloist.service.example ~/.config/systemd/user/soloist.service
+systemctl --user daemon-reload
+systemctl --user enable --now soloist.service
+```
+
+Open Spotify on your phone → **Connect to a device** → **ThinkCentre CRT**. Play something. Spotify Soloist must expose port **9090**.
+
+## 3. Install Display
+
+If you completed step 2, stay in the repository directory. Otherwise:
+
+```sh
+git clone https://github.com/jedrek0429/soloist-display.git
+cd soloist-display
+git switch feat/now-playing-display
+```
+
+Install:
 
 ```sh
 makepkg -si
 ```
 
-Open **Soloist Display** or **Soloist Display Settings** from Rofi. Both desktop
-entries are installed by the package. The launcher starts the background systemd
-user service, waits until the local HTTP server is ready, then opens Firefox.
-The main display uses Firefox kiosk mode. Closing Firefox does not stop the
-background audio/server service; it can be stopped with:
+Open **Rofi → Soloist Display**. For appearance controls, open **Rofi → Soloist Display Settings**.
+
+No terminal needs to stay open. The display service starts when launched.
+
+## Settings
+
+Sliders for disc, background, transitions, metadata and live audio spectrum. **Save** applies changes to the display; **Reset** restores defaults.
+
+Settings file: `~/.config/soloist-display/config.json`.
+
+## Troubleshooting
 
 ```sh
-systemctl --user stop soloist-display
+systemctl --user status soloist
+systemctl --user status soloist-display
+journalctl --user -u soloist-display -n 40
 ```
 
-Logs: `journalctl --user -u soloist-display -f`.
+No music metadata? Check Soloist is running with `--ws 127.0.0.1:9090`. No spectrum? Check the default audio sink with `pactl get-default-sink`.
 
-The one Rust binary starts the audio spectrum WebSocket on
-`127.0.0.1:9091`, and serves the display and settings at
-`http://127.0.0.1:8080/` and `http://127.0.0.1:8080/settings`.
-The separate Python HTTP server is no longer required. The WebSocket
-connection to Spotify Soloist on port 9090 remains a separate service.
-
-Settings are edited in the browser, persisted at
-`~/.config/soloist-display/config.json`, and applied to the display
-automatically (via a page refresh when settings change). A reset-to-defaults
-button is available. The built-in defaults are bundled with the binary; manual
-JSON editing is optional.
-
-The audio bridge discovers the default PipeWire/PulseAudio sink monitor.
-Override it with `SOLOIST_DISPLAY_MONITOR` in a systemd user service override
-if necessary. Both HTTP and spectrum services bind to localhost only.
-
-For development without installing:
-
-```sh
-cargo run --release --manifest-path audio-bridge/Cargo.toml
-```
-
-Open `http://127.0.0.1:8080/` and `http://127.0.0.1:8080/settings`.
-The Rust process serves the bundled frontend; the app does not require
-`python -m http.server`.
-
-## Validation status
-
-This branch has not yet been compiled or tested on the physical CRT. Verify the Rust build, WebSocket message cadence, artist metadata and actual disc transitions before merging PR #1. Both WebSocket endpoints are localhost-only and must not be exposed publicly.
+**Note:** Soloist builds expire after 90 days; replace the executable with a newer official build. [Spotify documentation](https://developer.spotify.com/documentation/soloist).

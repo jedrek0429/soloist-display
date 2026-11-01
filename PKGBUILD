@@ -1,6 +1,6 @@
 # Maintainer: Soloist Display contributors
 pkgname=soloist-display-git
-pkgver=0.1.0.r0.g0000000
+pkgver=r0.g0000000
 pkgrel=1
 pkgdesc='Spotify Soloist now-playing display and PipeWire visualiser'
 arch=('x86_64')
@@ -14,7 +14,7 @@ source=("soloist-display::git+${url}.git#branch=main")
 sha256sums=('SKIP')
 pkgver(){
   cd "$srcdir/soloist-display"
-  printf '0.1.0.r%s.g%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+  printf 'r%s.g%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
 }
 build(){
   cd "$srcdir/soloist-display"

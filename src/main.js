@@ -25,7 +25,8 @@ const settings={
   backgroundBlur:bounded(config.backgroundBlur,50,0,150),
   metadataOpacity:bounded(config.metadataOpacity,.58,0,1),
   metadataScale:bounded(config.metadataScale,1,.5,2),
-  metadataAnimation:config.metadataAnimation!==false,
+  panelTransitionStyle:config.panelTransitionStyle||'slide',
+  panelTransitionDuration:bounded(config.panelTransitionDuration,1200,100,10000),
   reducedMotion:config.reducedMotion===true,
   transitionStyle:config.transitionStyle||'fly'
 };

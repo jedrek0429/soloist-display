@@ -1,0 +1,6 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111318"><title>Soloist Display</title><link rel="stylesheet" href="./styles.css"></head>
+<body><main class="display">
+<section class="art-panel" aria-label="Album artwork"><div class="record" id="record"><div class="record-image" id="art"></div><div class="spindle"></div></div></section>
+<section class="info-panel"><div class="clock" id="clock" aria-label="Local time">--:--</div><div class="track-block" id="track-block"><div class="track" id="track">Not playing</div><div class="artist" id="artist">Waiting for Soloist</div></div><canvas id="visualizer" aria-label="Audio spectrum visualizer"></canvas><div class="progress" role="progressbar" aria-label="Track progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress"><div id="progress-fill"></div></div></section>
+</main><script type="module" src="./src/main.js"></script></body></html>

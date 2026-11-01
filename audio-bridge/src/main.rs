@@ -44,7 +44,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn capture(sender: broadcast::Sender<String>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut cmd = Command::new("parec");
-    cmd.args(["--raw", "--format=s16le", "--rate", "22050", "--channels=1"]);
+    cmd.args(["--raw", "--format=s16le", "--rate", "22050", "--channels=1", "--latency-msec=25", "--process-time-msec=10"]);
     let source = env::var("SOLOIST_DISPLAY_MONITOR").ok().filter(|s| !s.is_empty()).or_else(|| {
         let output = std::process::Command::new("pactl").arg("get-default-sink").output().ok()?;
         if !output.status.success() { return None; }
@@ -73,6 +73,8 @@ async fn capture(sender: broadcast::Sender<String>) -> Result<(), Box<dyn std::e
     let mut peak = 0f32;
     let mut frames = 0u64;
     let mut report = Instant::now();
+    let mut previous_frame = Instant::now();
+    let mut max_gap = Duration::ZERO;
     loop {
         stdout.read_exact(&mut raw).await?;
         for bytes in raw.chunks_exact(2) {
@@ -83,6 +85,9 @@ async fn capture(sender: broadcast::Sender<String>) -> Result<(), Box<dyn std::e
             filled = (filled + 1).min(WINDOW);
         }
         if filled < WINDOW { continue; }
+        let now = Instant::now();
+        max_gap = max_gap.max(now.duration_since(previous_frame));
+        previous_frame = now;
         for i in 0..WINDOW {
             frame[i] = Complex32::new(ring[(cursor + i) % WINDOW] * hann[i], 0.);
         }
@@ -117,14 +122,15 @@ async fn capture(sender: broadcast::Sender<String>) -> Result<(), Box<dyn std::e
         }
         if report.elapsed() >= Duration::from_secs(5) {
             eprintln!(
-                "Audio: {:.1} frames/s | peak: {:.3} | bands: {:.2} {:.2} {:.2} {:.2} {:.2} {:.2} | clients: {}",
-                frames as f32 / report.elapsed().as_secs_f32(), peak,
+                "Audio: {:.1} frames/s | max gap: {:.0}ms | peak: {:.3} | bands: {:.2} {:.2} {:.2} {:.2} {:.2} {:.2} | clients: {}",
+                frames as f32 / report.elapsed().as_secs_f32(), max_gap.as_secs_f64() * 1000., peak,
                 bands[0], bands[1], bands[2], bands[3], bands[4], bands[5],
                 sender.receiver_count()
             );
             report = Instant::now();
             frames = 0;
             peak = 0.;
+            max_gap = Duration::ZERO;
         }
     }
 }

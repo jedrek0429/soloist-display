@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+systemctl --user start soloist-display.service
+if [ "${1:-}" = "--settings" ]; then
+  exec firefox --new-window http://127.0.0.1:8080/settings
+fi
+exec firefox --kiosk http://127.0.0.1:8080/

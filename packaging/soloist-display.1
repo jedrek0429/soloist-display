@@ -3,7 +3,7 @@
 soloist-display \- launch the Soloist now-playing display or its settings
 .SH SYNOPSIS
 .B soloist-display
-.RI [ --settings ]
+.RI [ --settings | --help | --version ]
 .SH DESCRIPTION
 .B soloist-display
 starts the per-user
@@ -17,6 +17,12 @@ The display is served at
 .B --settings
 Open the settings interface at
 .IR http://127.0.0.1:8080/settings .
+.TP
+.BR -h , " --help"
+Show command usage without starting the service.
+.TP
+.BR -V , " --version"
+Show the installed package version without starting the service.
 .SH FILES
 .TP
 .I ~/.config/soloist-display/config.json

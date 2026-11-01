@@ -1,0 +1,44 @@
+name: Distribution smoke tests
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: distro-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  distro:
+    name: Install/uninstall (${{ matrix.distro }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [debian:stable, fedora:latest]
+    container:
+      image: ${{ matrix.distro }}
+    steps:
+      - name: Install dependencies
+        run: |
+          if command -v apt-get >/dev/null; then
+            apt-get update
+            DEBIAN_FRONTEND=noninteractive apt-get install -y git curl xdg-utils build-essential pkg-config libpulse0 pulseaudio-utils pipewire wireplumber cargo rustc systemd file
+          else
+            dnf install -y git curl xdg-utils gcc make pkgconf-pkg-config pulseaudio-libs pulseaudio-utils pipewire wireplumber cargo rust file systemd
+          fi
+      - uses: actions/checkout@v4
+      - name: Build audio bridge
+        run: cargo build --release --manifest-path audio-bridge/Cargo.toml
+      - name: Validate installer prerequisites and user session handling
+        run: |
+          bash -n packaging/install-linux.sh
+          if bash packaging/install-linux.sh >/tmp/install.log 2>&1; then
+            echo "Unexpected successful installation without systemd user session"
+            exit 1
+          fi
+          grep -q 'systemd user session' /tmp/install.log
+      - name: Validate executable and desktop assets
+        run: |
+          test -x audio-bridge/target/release/soloist-audio-bridge
+          sh packaging/soloist-display-launcher --help | grep -q -- '--settings'
+          test -f packaging/soloist-display.service
+          test -f packaging/soloist-display.desktop

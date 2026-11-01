@@ -104,9 +104,9 @@ function progressFrame(now){
   const ratio=duration?Math.max(0,Math.min(1,(position+elapsed)/duration)):0;
   $('progress-fill').style.width=`${ratio*100}%`;
   if(root.dataset.timeDisplay!=='off'){
-    const elapsed=Math.max(0,Math.min(duration||0,position+elapsed));
-    $('time-elapsed').textContent=formatTime(elapsed);
-    $('time-end').textContent=root.dataset.timeDisplay==='remaining'?'−'+formatTime(Math.max(0,duration-elapsed)):formatTime(duration);
+    const elapsedMs=Math.max(0,Math.min(duration||0,position+elapsed));
+    $('time-elapsed').textContent=formatTime(elapsedMs);
+    $('time-end').textContent=root.dataset.timeDisplay==='remaining'?'−'+formatTime(Math.max(0,duration-elapsedMs)):formatTime(duration);
   }
   $('progress').setAttribute('aria-valuenow',String(Math.round(ratio*100)));
   requestAnimationFrame(progressFrame);

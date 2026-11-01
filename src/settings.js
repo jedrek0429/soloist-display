@@ -3,7 +3,8 @@ const sections=[
     title:'Disc',
     fields:[
       ['discAppearance','Appearance','select',['dot','basic','cd','vinyl']],
-      ['discSize','Diameter','range',50,200,1,'dvh']
+      ['discSize','Diameter','range',50,200,1,'dvh'],
+      ['centerHole','Center hole','range',0,20,.5,'%']
     ]
   },
   {
@@ -17,7 +18,9 @@ const sections=[
     title:'Panel',
     fields:[
       ['metadataOpacity','Opacity','range',0,1,.01],
-      ['metadataScale','Scale','range',.5,2,.05,'×']
+      ['metadataScale','Scale','range',.5,2,.05,'×'],
+      ['panelPosition','Position','select',['bottom-right','bottom-left','top-right','top-left']],
+      ['panelFontSize','Font size','range',.6,1.6,.05,'×']
     ]
   },
   {
@@ -62,6 +65,8 @@ const nav=document.querySelector('#section-nav');
 const status=document.querySelector('#status');
 let draft={};
 let activeSection=0;
+const holeKey=style=>'centerHole'+style[0].toUpperCase()+style.slice(1);
+const selectedHoleKey=()=>holeKey(draft.discAppearance||'dot');
 
 function format(value,suffix=''){
   const text=typeof value==='number'?String(Number(value.toFixed(2))):String(value);
@@ -127,14 +132,14 @@ function renderSection(){
       line.append(select);
       const output=document.createElement('output');output.htmlFor=key;
       const refresh=()=>{draft[key]=typeof min[0]==='number'?Number(select.value):select.value;output.textContent=String(draft[key]);};
-      select.addEventListener('change',()=>{refresh();status.textContent='Unsaved changes';});
+      select.addEventListener('change',()=>{refresh();if(key==='discAppearance')renderSection();status.textContent='Unsaved changes';});
       refresh();controls.append(line);continue;
     }else if(type==='range'){
       input.type='range';
       input.min=min;
       input.max=max;
       input.step=step;
-      input.value=draft[key]??min;
+      input.value=(key==='centerHole'?draft[selectedHoleKey()]:draft[key])??min;
       line.append(input);
     }else{
       input.type='text';
@@ -147,14 +152,14 @@ function renderSection(){
     output.htmlFor=key;
     const refresh=()=>{
       const value=type==='toggle'?input.checked:type==='range'?Number(input.value):input.value;
-      draft[key]=value;
+      draft[key==='centerHole'?selectedHoleKey():key]=value;
       output.textContent=type==='toggle'?(value?'On':'Off'):type==='text'?'Local':format(value,suffix);
     };
     input.addEventListener('input',()=>{
       refresh();
       status.textContent='Unsaved changes';
     });
-    refresh();
+    if(key!=='centerHole')refresh();else output.textContent=format(Number(input.value),suffix);
     if(type!=='toggle')line.append(output);
     controls.append(line);
   }

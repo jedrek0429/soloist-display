@@ -19,5 +19,6 @@
   "burnInProtection": false,
   "transitionDuration": 2500,
   "backdropTransitionStyle": "fade",
-  "backdropLinked": true
+  "backdropLinked": true,
+  "backdropTransitionDuration": 1850
 }

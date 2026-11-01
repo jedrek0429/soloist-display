@@ -30,8 +30,8 @@ jobs:
         run: cargo build --release --manifest-path audio-bridge/Cargo.toml
       - name: Validate installer prerequisites and user session handling
         run: |
-          bash -n packaging/install-linux.sh
-          if bash packaging/install-linux.sh >/tmp/install.log 2>&1; then
+          bash -n packaging/install.sh
+          if bash packaging/install.sh >/tmp/install.log 2>&1; then
             echo "Unexpected successful installation without systemd user session"
             exit 1
           fi

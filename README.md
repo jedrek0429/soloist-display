@@ -31,7 +31,7 @@ install -Dm755 soloist "$HOME/.local/bin/soloist"
 Clone this repository and install its Soloist user service:
 
 ```sh
-git clone --branch feat/now-playing-display --single-branch https://github.com/jedrek0429/soloist-display.git "$HOME/soloist-display"
+git clone https://github.com/jedrek0429/soloist-display.git "$HOME/soloist-display"
 install -Dm644 "$HOME/soloist-display/packaging/soloist.service.example" "$HOME/.config/systemd/user/soloist.service"
 install -Dm600 /dev/null "$HOME/.config/soloist/env"
 ```
@@ -57,7 +57,7 @@ In Spotify, open **Connect to a device** and choose the value of `SOLOIST_NAME`.
 If you skipped Step 2, clone the repository first:
 
 ```sh
-git clone --branch feat/now-playing-display --single-branch https://github.com/jedrek0429/soloist-display.git "$HOME/soloist-display"
+git clone https://github.com/jedrek0429/soloist-display.git "$HOME/soloist-display"
 ```
 
 Build and install:
@@ -72,6 +72,25 @@ Choose **Soloist Display** from your desktop application menu, or run `soloist-d
 <img src="docs/screenshots/settings.webp" alt="Soloist Display settings" width="520">
 
 Settings are stored in `~/.config/soloist-display/config.json`.
+
+## Uninstall
+
+Remove Soloist Display while keeping Spotify Soloist and your saved settings:
+
+```sh
+systemctl --user disable --now soloist-display.service
+sudo pacman -Rns soloist-display-git
+systemctl --user daemon-reload
+```
+
+For a complete cleanup, the following also deletes your settings, Soloist API key, Soloist binary, downloads and repository checkout:
+
+```sh
+systemctl --user disable --now soloist.service
+rm -f -- "$HOME/.config/systemd/user/soloist.service" "$HOME/.local/bin/soloist"
+rm -rf -- "$HOME/.config/soloist" "$HOME/.config/soloist-display" "$HOME/Downloads/soloist" "$HOME/soloist-display"
+systemctl --user daemon-reload
+```
 
 ## Troubleshooting
 

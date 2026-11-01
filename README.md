@@ -2,11 +2,11 @@
 
 Turn a Linux computer into a Spotify Connect player with a simple, full-screen now-playing display. Pick music on your phone. The computer plays it and shows album art, track info and a live audio spectrum.
 
-The screen is for display, not playback controls. Good for a CRT, spare monitor or dedicated music setup.
+The screen is for display, not playback controls. Good for a spare monitor or a dedicated music setup.
 
 ![Soloist Display](docs/screenshots/now-playing.webp)
 
-It uses [Spotify Soloist](https://developer.spotify.com/documentation/soloist) for playback and Spotify Connect. Soloist Display adds the screen. You install both; no Spotify Web API setup is needed for the display.
+It uses [Spotify Soloist](https://developer.spotify.com/documentation/soloist) for playback and Spotify Connect. Soloist Display adds the screen. You install both.
 
 ## Features
 

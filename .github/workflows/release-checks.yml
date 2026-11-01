@@ -94,6 +94,8 @@ jobs:
           file audio-bridge/target/release/soloist-audio-bridge
       - name: ARMv7 cross-compile
         run: |
+          rustup target add armv7-unknown-linux-gnueabihf
+          rustup target list --installed | grep -Fx armv7-unknown-linux-gnueabihf
           sudo apt-get update
           sudo apt-get install -y gcc-arm-linux-gnueabihf
           CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc \

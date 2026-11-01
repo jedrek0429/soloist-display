@@ -28,7 +28,7 @@ jobs:
       - name: Shell syntax
         run: |
           sh -n packaging/soloist-display-launcher
-          bash -n packaging/install-linux.sh
+          bash -n packaging/install.sh
           bash -n packaging/install-soloist.sh
       - name: CLI help and invalid arguments
         run: |

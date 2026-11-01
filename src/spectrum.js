@@ -1,7 +1,9 @@
 // Rendering only. Frequency analysis and smoothing happen in the Rust bridge.
 export class Spectrum {
-  constructor(canvas) {
+  constructor(canvas, sensitivity = 1) {
     this.canvas = canvas;
+    const gain = Number(sensitivity);
+    this.sensitivity = Number.isFinite(gain) && gain >= 0 ? Math.min(gain, 10) : 1;
     this.ctx = canvas.getContext('2d');
     this.targets = new Float32Array(6);
     this.values = new Float32Array(6);
@@ -13,7 +15,7 @@ export class Spectrum {
     if (!packet || !Array.isArray(packet.bands) || packet.bands.length !== 6) return;
     for (let i = 0; i < 6; i++) {
       const value = Number(packet.bands[i]);
-      this.targets[i] = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
+      this.targets[i] = Number.isFinite(value) ? Math.max(0, Math.min(1, value * this.sensitivity)) : 0;
     }
     this.lastPacket = performance.now();
   }

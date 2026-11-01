@@ -43,17 +43,12 @@ if(config.visualizer!==false){
   let retry=500;
   function connectAudio(){
     const socket=new WebSocket(config.audioWebSocket||'ws://127.0.0.1:9091');
-    socket.binaryType='arraybuffer';
     socket.onopen=()=>{retry=500};
-    socket.onmessage=event=>spectrum.receive(event.data);
+    socket.onmessage=event=>{try{spectrum.receive(JSON.parse(event.data))}catch(error){console.warn('Invalid spectrum frame',error)}};
     socket.onclose=()=>{setTimeout(connectAudio,retry);retry=Math.min(12000,retry*1.7)};
     socket.onerror=()=>socket.close();
   }
   connectAudio();
-  // Firefox may initially suspend Web Audio until the first user interaction.
-  const unlock=()=>spectrum.context?.resume().catch(()=>{});
-  window.addEventListener('pointerdown',unlock);
-  window.addEventListener('keydown',unlock);
 }
 function progressFrame(now){
   const elapsed=playing?now-positionTime:0;

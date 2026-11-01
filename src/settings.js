@@ -21,7 +21,10 @@ const sections=[
       ['metadataOpacity','Opacity','range',0,1,.01],
       ['metadataScale','Scale','range',.5,2,.05,'×'],
       ['panelPosition','Position','select',['bottom-right','bottom-left','top-right','top-left']],
-      ['panelFontSize','Font size','range',.6,1.6,.05,'×']
+      ['panelFontSize','Font size','range',.6,1.6,.05,'×'],
+      ['progressBar','Progress bar','toggle'],
+      ['timeDisplay','Time display','select',['off','remaining','total']],
+      ['timeLayout','Time layout','select',['split','together']]
     ]
   },
   {
@@ -37,9 +40,9 @@ const sections=[
   {
     title:'Motion',
     fields:[
-      ['transitionStyle','Disc transition','select',['fly','slide','fade','instant']],
-      ['backdropTransitionStyle','Backdrop transition','select',['fade','instant']],
-      ['panelTransitionStyle','Panel transition','select',['slide','fade','instant']],
+      ['transitionStyle','Disc transition','select',['fly','slide','fade','off']],
+      ['backdropTransitionStyle','Backdrop transition','select',['fade','off']],
+      ['panelTransitionStyle','Panel transition','select',['slide','fade','off']],
       ['transitionDuration','Disc duration','range',100,10000,50,'ms'],
       ['backdropTransitionDuration','Backdrop duration','range',100,10000,50,'ms'],
       ['panelTransitionDuration','Panel duration','range',100,10000,50,'ms'],
@@ -96,6 +99,10 @@ function renderNav(){
 }
 
 function renderSection(){
+  const hidden=key=>(key==='timeLayout'&&draft.timeDisplay==='off')||
+    (key==='transitionDuration'&&draft.transitionStyle==='off')||
+    (key==='backdropTransitionDuration'&&draft.backdropTransitionStyle==='off')||
+    (key==='panelTransitionDuration'&&draft.panelTransitionStyle==='off');
   const section=sections[activeSection];
   document.querySelector('#panel-kicker').textContent='';
   document.querySelector('#panel-title').textContent=section.title;
@@ -105,6 +112,7 @@ function renderSection(){
   for(const [key,label,type,min,max,step,suffix] of section.fields){
     const line=document.createElement('div');
     line.className='field';
+    if(hidden(key))line.hidden=true;
     const caption=document.createElement('label');
     caption.className='field-label';
     caption.htmlFor=key;
@@ -134,7 +142,7 @@ function renderSection(){
       line.append(select);
       const output=document.createElement('output');output.htmlFor=key;
       const refresh=()=>{const value=typeof min[0]==='number'?Number(select.value):select.value;draft[key==='centerHoleColor'?selectedHoleColorKey():key]=value;output.textContent=String(value);};
-      select.addEventListener('change',()=>{refresh();if(key==='discAppearance')renderSection();status.textContent='Unsaved changes';});
+      select.addEventListener('change',()=>{refresh();if(['discAppearance','timeDisplay','transitionStyle','backdropTransitionStyle','panelTransitionStyle'].includes(key))renderSection();status.textContent='Unsaved changes';});
       refresh();controls.append(line);continue;
     }else if(type==='range'){
       input.type='range';
@@ -177,6 +185,7 @@ async function load(){
   if(!response.ok)throw Error('Cannot load settings');
   draft=await response.json();
   delete draft.backdropLinked;
+  for(const key of ['transitionStyle','backdropTransitionStyle','panelTransitionStyle'])if(draft[key]==='instant')draft[key]='off';
   render();
 }
 
@@ -190,6 +199,7 @@ document.querySelector('#save').addEventListener('click',async()=>{
     if(!response.ok)throw Error(await response.text());
     draft=await response.json();
     delete draft.backdropLinked;
+    for(const key of ['transitionStyle','backdropTransitionStyle','panelTransitionStyle'])if(draft[key]==='instant')draft[key]='off';
     renderSection();
     status.textContent='Saved · display updates automatically';
   }catch(error){

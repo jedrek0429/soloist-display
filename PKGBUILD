@@ -10,7 +10,7 @@ depends=('xdg-utils' 'libpulse' 'pipewire-pulse' 'systemd' 'curl')
 makedepends=('cargo' 'git')
 provides=('soloist-display')
 conflicts=('soloist-display')
-source=("soloist-display::git+${url}.git#branch=main")
+source=("soloist-display::git+${url}.git#branch=feature/display-customization")
 sha256sums=('SKIP')
 build(){
   cd "$srcdir/soloist-display"

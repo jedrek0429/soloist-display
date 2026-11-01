@@ -6,18 +6,18 @@
   "visualizerSmoothing": 0.7,
   "discSize": 116,
   "discRotationSeconds": 12,
-  "animationSpeed": 1,
   "backgroundDim": 0.52,
   "backgroundBlur": 50,
-  "backgroundFadeDuration": 1850,
   "metadataOpacity": 0.58,
   "metadataScale": 1,
-  "discAnimation": true,
   "metadataAnimation": true,
   "reducedMotion": false,
   "visualizerAutoNormalize": false,
   "visualizerPeakHold": false,
   "transitionStyle": "fly",
   "discAppearance": "dot",
-  "burnInProtection": false
+  "burnInProtection": false,
+  "transitionDuration": 2500,
+  "backdropTransitionStyle": "fade",
+  "backdropLinked": true
 }

@@ -6,7 +6,10 @@ const sections=[
     fields:[
       ['visualizer','Visualiser','toggle'],
       ['visualizerSensitivity','Sensitivity','range',0,10,.1],
-      ['visualizerSmoothing','Smoothing','range',0,1,.05]
+      ['visualizerSmoothing','Smoothing','range',0,1,.05],
+      ['visualizerAutoNormalize','Automatic normalisation','toggle'],
+      ['visualizerPeakHold','Peak hold','toggle'],
+      ['visualizerBarCount','Bars','select',[6,10,16]]
     ]
   },
   {
@@ -18,6 +21,9 @@ const sections=[
       ['discRotationSeconds','Rotation speed','range',1,120,1,'sec'],
       ['animationSpeed','Transition speed','range',.1,5,.1,'×'],
       ['discAnimation','Disc exchange','toggle'],
+      ['transitionStyle','Transition style','select',['fly','fade','instant']],
+      ['discAppearance','Disc appearance','select',['dot','basic','cd','vinyl']],
+      ['burnInProtection','Screen burn-in protection','toggle'],
       ['metadataAnimation','Metadata reveal','toggle'],
       ['reducedMotion','Reduced motion','toggle']
     ]
@@ -108,6 +114,17 @@ function renderSection(){
       track.className='switch-track';
       wrapper.append(input,track);
       line.append(wrapper);
+    }else if(type==='select'){
+      const select=document.createElement('select');
+      select.id=key;select.dataset.key=key;
+      for(const choice of min){const option=document.createElement('option');option.value=String(choice);option.textContent=String(choice).replace(/^./,c=>c.toUpperCase());select.append(option)}
+      select.value=String(draft[key]??min[0]);
+      line.append(select);
+      input.replaceWith?.();
+      const output=document.createElement('output');output.htmlFor=key;
+      const refresh=()=>{draft[key]=typeof min[0]==='number'?Number(select.value):select.value;output.textContent=String(draft[key]);};
+      select.addEventListener('change',()=>{refresh();status.textContent='Unsaved changes'});
+      refresh();line.append(output);controls.append(line);continue;
     }else if(type==='range'){
       input.type='range';
       input.min=min;

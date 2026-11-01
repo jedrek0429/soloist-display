@@ -97,8 +97,6 @@ Once Soloist is installed, run:
 bash packaging/install.sh
 ```
 
-The installer checks that Soloist is present before building the display.
-
 ## Run
 
 ```sh

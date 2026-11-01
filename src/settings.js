@@ -42,7 +42,8 @@ const sections=[
       ['backdropLinked','Link durations','link'],
       ['backdropTransitionStyle','Backdrop transition','select',['fade','instant']],
       ['backdropTransitionDuration','Backdrop duration','range',100,10000,50,'ms'],
-      ['metadataAnimation','Metadata reveal','toggle'],
+      ['panelTransitionStyle','Panel transition','select',['slide','fade','instant']],
+      ['panelTransitionDuration','Panel duration','range',100,10000,50,'ms'],
       ['reducedMotion','Reduced motion','toggle']
     ]
   },

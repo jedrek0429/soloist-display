@@ -43,7 +43,7 @@ jobs:
           chown -R builder:builder "$GITHUB_WORKSPACE"
       - name: Validate PKGBUILD and build package
         run: |
-          su builder -s /bin/bash -c 'cd "$1" && makepkg --check && makepkg -s --noconfirm' -- "$GITHUB_WORKSPACE"
+          runuser -u builder -- bash -c 'cd "$1" && makepkg --check && makepkg -s --noconfirm' bash "$GITHUB_WORKSPACE"
       - name: Analyze package with namcap
         run: |
           namcap PKGBUILD

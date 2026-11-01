@@ -35,6 +35,9 @@ fn read_settings(path: &PathBuf) -> Value {
             if let Value::Object(ref mut object) = settings {
                 let old_dot = values.get("discAppearance").and_then(Value::as_str) == Some("dot");
                 for (key, value) in &values { if object.contains_key(key) { object.insert(key.clone(), value.clone()); } }
+                for key in ["transitionStyle","backdropTransitionStyle","panelTransitionStyle"] {
+                    if object.get(key).and_then(Value::as_str) == Some("instant") { object.insert(key.into(), Value::String("off".into())); }
+                }
                 if old_dot {
                     object.insert("discAppearance".into(), Value::String("basic".into()));
                     if let Some(size) = values.get("centerHoleDot").and_then(Value::as_f64) {
@@ -76,9 +79,11 @@ async fn put_config(State(state): State<WebState>, Json(input): Json<Value>) -> 
         } {
             if !value.as_f64().is_some_and(|n| n >= lo && n <= hi) { return Err((StatusCode::BAD_REQUEST, format!("Out of range: {key}"))); }
         }
-        if key == "transitionStyle" && !["fly","slide","fade","instant"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported transition style".into())); }
-        if key == "backdropTransitionStyle" && !["fade","instant"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported backdrop transition".into())); }
-        if key == "panelTransitionStyle" && !["slide","fade","instant"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported panel transition".into())); }
+        if key == "transitionStyle" && !["fly","slide","fade","off"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported transition style".into())); }
+        if key == "backdropTransitionStyle" && !["fade","off"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported backdrop transition".into())); }
+        if key == "panelTransitionStyle" && !["slide","fade","off"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported panel transition".into())); }
+        if key == "timeDisplay" && !["off","remaining","total"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported time display".into())); }
+        if key == "timeLayout" && !["split","together"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported time layout".into())); }
         if key == "panelPosition" && !["bottom-right","bottom-left","top-right","top-left"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported panel position".into())); }
         if key.starts_with("centerHoleColor") && !["white","black","transparent"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported hole colour".into())); }
         if key == "discAppearance" && !["basic","cd","vinyl"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported disc appearance".into())); }

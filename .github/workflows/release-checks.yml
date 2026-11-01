@@ -3,6 +3,9 @@ on:
   push:
     branches: [main]
   pull_request:
+concurrency:
+  group: release-checks-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate:
@@ -10,14 +13,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - name: Rust tests
         run: cargo test --manifest-path audio-bridge/Cargo.toml
       - name: Rust release build
         run: cargo build --release --manifest-path audio-bridge/Cargo.toml
+      - name: Architecture mapping (offline)
+        run: |
+          test "$(SOLOIST_TEST_MACHINE=x86_64 SOLOIST_TEST_BITS=64 bash packaging/install-soloist.sh --print-archive)" = x86_64
+          test "$(SOLOIST_TEST_MACHINE=aarch64 SOLOIST_TEST_BITS=64 bash packaging/install-soloist.sh --print-archive)" = arm64
+          test "$(SOLOIST_TEST_MACHINE=armv7l SOLOIST_TEST_BITS=32 bash packaging/install-soloist.sh --print-archive)" = arm32
+          test "$(SOLOIST_TEST_MACHINE=aarch64 SOLOIST_TEST_BITS=32 bash packaging/install-soloist.sh --print-archive)" = arm32
+          if SOLOIST_TEST_MACHINE=mips64 SOLOIST_TEST_BITS=64 bash packaging/install-soloist.sh --print-archive; then exit 1; fi
       - name: Shell syntax
         run: |
           sh -n packaging/soloist-display-launcher
-          bash -n packaging/install-linux.sh
+          bash -n packaging/install.sh
+          bash -n packaging/install-soloist.sh
       - name: CLI help and invalid arguments
         run: |
           sh packaging/soloist-display-launcher --help | grep -q -- '--settings'
@@ -65,3 +77,28 @@ jobs:
           soloist-display --version
           test -f /usr/lib/systemd/user/soloist-display.service
           pacman -R --noconfirm soloist-display-git
+
+  arm-build:
+    name: ARM64 native / ARMv7 cross build
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          targets: armv7-unknown-linux-gnueabihf
+      - name: ARM64 tests and release build
+        run: |
+          cargo test --manifest-path audio-bridge/Cargo.toml
+          cargo build --release --manifest-path audio-bridge/Cargo.toml
+          file audio-bridge/target/release/soloist-audio-bridge
+      - name: ARMv7 cross-compile
+        run: |
+          rustup target add armv7-unknown-linux-gnueabihf
+          rustup target list --installed | grep -Fx armv7-unknown-linux-gnueabihf
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-linux-gnueabihf
+          CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc \
+            cargo build --release --manifest-path audio-bridge/Cargo.toml --target armv7-unknown-linux-gnueabihf
+          file audio-bridge/target/armv7-unknown-linux-gnueabihf/release/soloist-audio-bridge
+

@@ -25,49 +25,50 @@ It uses [Spotify Soloist](https://developer.spotify.com/documentation/soloist) f
 
 Requires Linux, systemd, PipeWire/PulseAudio, a browser and Spotify Premium. You'll also install Spotify Soloist, the playback service, and get its API key.
 
-### Arch Linux
+### 1. Install dependencies and clone the repository
+
+Choose your distribution. The installation supports x86_64, ARM64 and ARMv7.
+
+#### Arch Linux
 
 ```sh
-sudo pacman -S --needed base-devel git curl xdg-utils pipewire pipewire-pulse wireplumber libpulse
+sudo pacman -Syu --needed base-devel git curl xdg-utils pipewire pipewire-pulse wireplumber libpulse rust
 git clone https://github.com/jedrek0429/soloist-display.git
 cd soloist-display
-makepkg -si
 ```
 
-### Ubuntu / Debian
+Arch users can alternatively install the display with `makepkg -si` after setting up Soloist.
+
+#### Ubuntu / Debian
 
 ```sh
 sudo apt update
-sudo apt install -y git curl xdg-utils build-essential pkg-config libpulse0 pulseaudio-utils pipewire pipewire-pulse wireplumber cargo
+sudo apt install -y git curl xdg-utils build-essential pkg-config libpulse0 pulseaudio-utils pipewire pipewire-pulse wireplumber cargo rustc
 git clone https://github.com/jedrek0429/soloist-display.git
 cd soloist-display
-bash packaging/install-linux.sh
 ```
 
-### Fedora
+#### Fedora
 
 ```sh
-sudo dnf install -y git curl xdg-utils gcc make pkgconf-pkg-config pulseaudio-libs pulseaudio-utils pipewire pipewire-pulseaudio wireplumber cargo
+sudo dnf upgrade --refresh -y
+sudo dnf install -y git curl xdg-utils gcc make pkgconf-pkg-config pulseaudio-libs pulseaudio-utils pipewire pipewire-pulseaudio wireplumber cargo rust
 git clone https://github.com/jedrek0429/soloist-display.git
 cd soloist-display
-bash packaging/install-linux.sh
 ```
 
-Arch packaging is CI-tested. The Debian and Fedora source installers are not yet tested on those distributions. Other systemd-based Linux distributions may work. Windows and macOS are not supported.
+The commands above prepare the system and clone the repository. Install Soloist below, then run `bash packaging/install.sh` to install the display into `~/.local/bin`. A working systemd user session, PipeWire/PulseAudio and a browser are required. Other systemd-based Linux distributions may work. Windows and macOS are not supported.
 
-### Set up Spotify Connect playback
+### 2. Set up Spotify Connect playback
 
 Spotify Soloist makes the computer appear as a Spotify Connect device. Skip this step if you already have it running with a WebSocket on `127.0.0.1:9090`.
 
-Get an API key from the [Spotify developer dashboard](https://developer.spotify.com/dashboard/soloist). Install the official x86_64 Linux build:
+Get an API key from the [Spotify developer dashboard](https://developer.spotify.com/dashboard/soloist). Download the matching Linux build automatically (x86_64, ARM64 or ARMv7):
 
 ```sh
-mkdir -p "$HOME/Downloads/soloist" "$HOME/.local/bin" "$HOME/.config/systemd/user" "$HOME/.config/soloist"
-cd "$HOME/Downloads/soloist"
-curl -fL -o soloist.tar.gz https://soloist-builds.spotifycdn.com/soloist_release_x86_64.tar.gz
-tar -xzf soloist.tar.gz
-install -Dm755 soloist "$HOME/.local/bin/soloist"
-install -Dm644 "$HOME/soloist-display/packaging/soloist.service.example" "$HOME/.config/systemd/user/soloist.service"
+bash packaging/install-soloist.sh
+mkdir -p "$HOME/.config/systemd/user" "$HOME/.config/soloist"
+install -Dm644 packaging/soloist.service.example "$HOME/.config/systemd/user/soloist.service"
 ${EDITOR:-nano} "$HOME/.config/soloist/env"
 ```
 
@@ -87,6 +88,16 @@ systemctl --user enable --now soloist.service
 ```
 
 Choose the device in Spotify Connect.
+
+### 3. Install Soloist Display
+
+Once Soloist is installed, run:
+
+```sh
+bash packaging/install.sh
+```
+
+The installer checks that Soloist is present before building the display.
 
 ## Run
 

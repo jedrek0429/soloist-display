@@ -46,6 +46,12 @@ jobs:
       - name: Validate PKGBUILD and build package
         run: |
           runuser -u builder -- bash -c 'cd "$1" && makepkg -s --noconfirm' bash "$GITHUB_WORKSPACE"
+      - name: Verify AUR metadata
+        run: |
+          runuser -u builder -- bash -c 'cd "$1" && makepkg --printsrcinfo' bash "$GITHUB_WORKSPACE" > /tmp/soloist-display.SRCINFO
+          sed -E '/^[[:space:]]*pkgver = /d' .SRCINFO > /tmp/soloist-display.committed.SRCINFO
+          sed -E '/^[[:space:]]*pkgver = /d' /tmp/soloist-display.SRCINFO > /tmp/soloist-display.generated.normalized.SRCINFO
+          diff -u /tmp/soloist-display.committed.SRCINFO /tmp/soloist-display.generated.normalized.SRCINFO
       - name: Analyze package with namcap
         run: |
           namcap PKGBUILD

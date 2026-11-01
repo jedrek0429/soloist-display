@@ -1,0 +1,21 @@
+pkgbase = soloist-display-git
+	pkgdesc = Spotify Soloist now-playing display and PipeWire visualiser
+	pkgver = r0.g0000000
+	pkgrel = 1
+	url = https://github.com/jedrek0429/soloist-display
+	arch = x86_64
+	license = MIT
+	makedepends = cargo
+	makedepends = git
+	depends = xdg-utils
+	depends = libpulse
+	depends = pipewire-pulse
+	depends = systemd
+	depends = curl
+	provides = soloist-display
+	conflicts = soloist-display
+	options = !debug
+	source = soloist-display::git+https://github.com/jedrek0429/soloist-display.git#branch=main
+	sha256sums = SKIP
+
+pkgname = soloist-display-git

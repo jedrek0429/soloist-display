@@ -17,13 +17,13 @@ const bounded=(value,fallback,min,max)=>Number.isFinite(Number(value))?Math.max(
 const settings={
   discSize:bounded(config.discSize,116,50,200),
   discRotationSeconds:bounded(config.discRotationSeconds,12,1,120),
-  animationSpeed:bounded(config.animationSpeed,1,0.1,5),
+  transitionDuration:bounded(config.transitionDuration,2500,100,10000),
+  backdropTransitionStyle:config.backdropTransitionStyle||'fade',
+  backdropLinked:config.backdropLinked!==false,
   backgroundDim:bounded(config.backgroundDim,.52,0,1),
   backgroundBlur:bounded(config.backgroundBlur,50,0,150),
-  backgroundFadeDuration:bounded(config.backgroundFadeDuration,1850,0,10000),
   metadataOpacity:bounded(config.metadataOpacity,.58,0,1),
   metadataScale:bounded(config.metadataScale,1,.5,2),
-  discAnimation:config.discAnimation!==false,
   metadataAnimation:config.metadataAnimation!==false,
   reducedMotion:config.reducedMotion===true,
   transitionStyle:config.transitionStyle||'fly'

@@ -59,6 +59,16 @@ async fn put_config(State(state): State<WebState>, Json(input): Json<Value>) -> 
         if !match default { Value::Bool(_) => value.is_boolean(), Value::Number(_) => value.as_f64().is_some_and(|x| x.is_finite()), Value::String(_) => value.is_string(), _ => false } {
             return Err((StatusCode::BAD_REQUEST, format!("Invalid type for {key}")));
         }
+        if let Some((lo, hi)) = match key.as_str() {
+            "visualizerSensitivity" => Some((0., 10.)), "visualizerSmoothing" => Some((0., 1.)),
+            "discSize" => Some((50., 200.)), "discRotationSeconds" => Some((1., 120.)),
+            "animationSpeed" => Some((0.1, 5.)), "backgroundDim" => Some((0., 1.)),
+            "backgroundBlur" => Some((0., 150.)), "backgroundFadeDuration" => Some((0., 10000.)),
+            "metadataOpacity" => Some((0., 1.)), "metadataScale" => Some((0.5, 2.)),
+            _ => None
+        } {
+            if !value.as_f64().is_some_and(|n| n >= lo && n <= hi) { return Err((StatusCode::BAD_REQUEST, format!("Out of range: {key}"))); }
+        }
         output_map.insert(key, value);
     }
     let parent = state.path.parent().unwrap();

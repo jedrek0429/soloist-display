@@ -19,7 +19,6 @@ const settings={
   discRotationSeconds:bounded(config.discRotationSeconds,12,1,120),
   transitionDuration:bounded(config.transitionDuration,2500,100,10000),
   backdropTransitionStyle:config.backdropTransitionStyle||'fade',
-  backdropLinked:config.backdropLinked!==false,
   backdropTransitionDuration:bounded(config.backdropTransitionDuration,1850,100,10000),
   backgroundDim:bounded(config.backgroundDim,.52,0,1),
   backgroundBlur:bounded(config.backgroundBlur,50,0,150),

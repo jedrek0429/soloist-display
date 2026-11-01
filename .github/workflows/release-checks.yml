@@ -11,9 +11,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Rust tests
-        run: cargo test --locked --manifest-path audio-bridge/Cargo.toml
+        run: cargo test --manifest-path audio-bridge/Cargo.toml
       - name: Rust release build
-        run: cargo build --release --locked --manifest-path audio-bridge/Cargo.toml
+        run: cargo build --release --manifest-path audio-bridge/Cargo.toml
       - name: Shell syntax
         run: sh -n packaging/soloist-display-launcher
       - name: CLI help and invalid arguments

@@ -111,6 +111,11 @@ export class DiscDirector{
     if(backdropStyle==='fade'){
       jobs.push(this.animate(nextBg,[{opacity:0},{opacity:1}],backdropDuration,token));
     }
+    if(discStyle==='instant'){
+      // Disc changes immediately even when the backdrop continues fading.
+      outgoing.classList.remove('active');incoming.classList.add('active');
+      this.current=incomingIndex;onShow();
+    }
     if(discStyle==='instant'&&backdropStyle==='instant'){commit();return}
     if(this.metadataEnabled&&discStyle!=='instant'){
       this.info.style.animationDuration=duration+'ms';

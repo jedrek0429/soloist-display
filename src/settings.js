@@ -19,7 +19,6 @@ const sections=[
       ['discSize','Disc diameter','range',50,200,1,'dvh'],
       ['discRotationSeconds','Rotation speed','range',1,120,1,'sec'],
       ['discAppearance','Disc appearance','select',['dot','basic','cd','vinyl']],
-      ['burnInProtection','Screen burn-in protection','toggle'],
     ]
   },
   {
@@ -47,8 +46,16 @@ const sections=[
     ]
   },
   {
+    title:'Display',
+    kicker:'05 · Display',
+    description:'Screen-wide display options.',
+    fields:[
+      ['burnInProtection','Screen burn-in protection','toggle']
+    ]
+  },
+  {
     title:'Connections',
-    kicker:'05 · Network',
+    kicker:'06 · Network',
     description:'Local WebSocket endpoints used for playback state and spectrum data.',
     fields:[
       ['soloistWebSocket','Soloist','text'],

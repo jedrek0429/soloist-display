@@ -50,7 +50,8 @@ export class DiscDirector{
       this.backdrops[newIndex].classList.add('active');onShow();return;
     }
     this.changing=true;
-    const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // Disc exchange is the primary navigation language, not a decorative effect.
+    const reduced=false;
     this.info.style.opacity='0';
     oldDisc.classList.add('active');
     newDisc.classList.remove('active');

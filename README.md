@@ -1,10 +1,12 @@
 # Soloist Display
 
-A now-playing display for Spotify Soloist on Linux. Album art, animated CDs and vinyl, track info and a live PipeWire audio spectrum. Works well on a CRT or second monitor.
+Turn a Linux computer into a Spotify Connect player with a simple, full-screen now-playing display. Pick music on your phone. The computer plays it and shows album art, track info and a live audio spectrum.
+
+The screen is for display, not playback controls. Good for a spare monitor or a dedicated music setup.
 
 ![Soloist Display](docs/screenshots/now-playing.webp)
 
-Soloist handles Spotify Connect and playback. This app connects to its local WebSocket and displays what's playing. It doesn't use the Spotify Web API.
+It uses [Spotify Soloist](https://developer.spotify.com/documentation/soloist) for playback and Spotify Connect. Soloist Display adds the screen. You install both.
 
 ## Features
 
@@ -21,7 +23,7 @@ Soloist handles Spotify Connect and playback. This app connects to its local Web
 
 ## Install
 
-Requires Linux, systemd, PipeWire/PulseAudio, a browser and [Spotify Soloist](https://developer.spotify.com/documentation/soloist) running locally. Soloist requires Spotify Premium and an API key.
+Requires Linux, systemd, PipeWire/PulseAudio, a browser and Spotify Premium. You'll also install Spotify Soloist, the playback service, and get its API key.
 
 ### Arch Linux
 
@@ -53,9 +55,9 @@ bash packaging/install-linux.sh
 
 Arch packaging is CI-tested. The Debian and Fedora source installers are not yet tested on those distributions. Other systemd-based Linux distributions may work. Windows and macOS are not supported.
 
-### Set up Soloist
+### Set up Spotify Connect playback
 
-Skip this if Soloist already works and exposes its WebSocket on `127.0.0.1:9090`.
+Spotify Soloist makes the computer appear as a Spotify Connect device. Skip this step if you already have it running with a WebSocket on `127.0.0.1:9090`.
 
 Get an API key from the [Spotify developer dashboard](https://developer.spotify.com/dashboard/soloist). Install the official x86_64 Linux build:
 

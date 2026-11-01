@@ -39,7 +39,7 @@ for(const [key,value] of Object.entries({
   '--metadata-scale':settings.metadataScale
 }))root.style.setProperty(key,value);
 const director=new DiscDirector({discs:[$('disc-a'),$('disc-b')],backdrops:[$('backdrop-a'),$('backdrop-b')],info:$('info'),settings});
-const spectrum=new Spectrum($('visualizer'), config.visualizerSensitivity ?? 1, config.visualizerSmoothing ?? 0.7, {autoNormalize:config.visualizerAutoNormalize===true,peakHold:config.visualizerPeakHold===true,barCount:config.visualizerBarCount||6});
+const spectrum=new Spectrum($('visualizer'), config.visualizerSensitivity ?? 1, config.visualizerSmoothing ?? 0.7, {autoNormalize:config.visualizerAutoNormalize===true,peakHold:config.visualizerPeakHold===true});
 let currentUri=null,position=0,positionTime=performance.now(),duration=0,playing=false;
 let lastTrack=null;
 function updateItem(item){

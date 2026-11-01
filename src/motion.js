@@ -18,6 +18,7 @@ export class DiscDirector{
     const token=++this.token;
     for(const disc of this.discs)disc.getAnimations().forEach(a=>a.cancel());
     this.info.getAnimations().forEach(a=>a.cancel());
+    this.discs.forEach((disc,i)=>{disc.style.transform='';disc.style.opacity='';disc.classList.toggle('active',i===this.current)});
     this.info.classList.remove('revealing');
     const incoming=this.started?1-this.current:this.current;
     const outgoing=this.discs[this.current],next=this.discs[incoming];
@@ -53,7 +54,7 @@ export class DiscDirector{
       if(token!==this.token)return;
       settle.cancel();incomingAnimation.cancel();
     }else{outgoing.classList.remove('active')}
-    this.current=incoming;onShow();this.info.style.opacity='1';
+    this.current=incoming;this.discs.forEach((disc,i)=>disc.classList.toggle('active',i===incoming));onShow();this.info.style.opacity='1';
     this.info.classList.remove('revealing');void this.info.offsetWidth;this.info.classList.add('revealing');
   }
 }

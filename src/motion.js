@@ -104,6 +104,7 @@ export class DiscDirector{
     for(const disc of this.discs){disc.style.transform='';disc.classList.remove('active')}
     for(const bg of this.backdrops){bg.style.transition='none';bg.style.opacity='';bg.style.zIndex='';}
     incoming.querySelector('.disc-image').style.backgroundImage=imageStyle(url);
+    incoming.querySelector('.disc-label').style.backgroundImage=imageStyle(url);
     // New artwork starts at zero degrees, regardless of outgoing rotation.
     incoming.dataset.angleOffset=String(this.angle);
     this.backdrops[incomingIndex].style.backgroundImage=imageStyle(url);

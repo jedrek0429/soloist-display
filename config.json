@@ -3,7 +3,6 @@
   "audioWebSocket": "ws://127.0.0.1:9091",
   "visualizer": true,
   "visualizerSensitivity": 1,
-  "locale": "en-GB",
   "visualizerSmoothing": 0.7,
   "discSize": 116,
   "discRotationSeconds": 12,

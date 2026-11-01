@@ -40,7 +40,7 @@ export class DiscDirector{
         clearTimeout(watchdog);
         resolve(ok);
       };
-      // A throttled or interrupted Firefox animation must never strand the disc.
+      // A throttled or interrupted browser animation must never strand the disc.
       const watchdog=setTimeout(()=>{
         if(token===this.token){
           const last=frames[frames.length-1];
@@ -64,7 +64,7 @@ export class DiscDirector{
     });
   }
   // Compositor-driven exit. Resolve on a fixed deadline, independently of
-  // Firefox's animation.finished event, so entrance always begins on time.
+  // the browser's animation.finished event, so entrance always begins on time.
   animateExit(disc,token){
     return new Promise(resolve=>{
       const duration=1050/this.settings.animationSpeed;
@@ -73,7 +73,7 @@ export class DiscDirector{
         {transform:'translate(-50%,-65%) scale(.88) rotateX(43deg)',offset:.52},
         {transform:'translate(-145%,-98%) scale(.72) rotateX(65deg)',offset:1}
       ],{duration,easing:'ease-in-out',fill:'forwards'});
-      // Do not await animation.finished: on some Firefox builds it can stall.
+      // Do not await animation.finished: on some browser builds it can stall.
       // Cancel only after the outgoing disc is hidden, in the caller.
       this.exitAnimation=animation;
       setTimeout(()=>{

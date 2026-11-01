@@ -12,7 +12,7 @@ From a fresh installation:
 
 ```sh
 sudo pacman -Syu
-sudo pacman -S --needed base-devel git curl firefox pipewire pipewire-pulse wireplumber libpulse rofi nano
+sudo pacman -S --needed base-devel git curl xdg-utils pipewire pipewire-pulse wireplumber libpulse
 ```
 
 ## 2. Install Spotify Soloist
@@ -34,10 +34,9 @@ Clone this repository and install its Soloist user service:
 git clone --branch feat/now-playing-display --single-branch https://github.com/jedrek0429/soloist-display.git "$HOME/soloist-display"
 install -Dm644 "$HOME/soloist-display/packaging/soloist.service.example" "$HOME/.config/systemd/user/soloist.service"
 install -Dm600 /dev/null "$HOME/.config/soloist/env"
-nano "$HOME/.config/soloist/env"
 ```
 
-Add your device name and key:
+Open `~/.config/soloist/env` in a text editor and add your device name and key:
 
 ```ini
 SOLOIST_NAME="Soloist Display"
@@ -68,7 +67,7 @@ cd "$HOME/soloist-display"
 makepkg -si
 ```
 
-Open Rofi with `rofi -show drun`, then choose **Soloist Display**. Choose **Soloist Display Settings** to adjust its appearance.
+Choose **Soloist Display** from your desktop application menu, or run `soloist-display`. Open **Soloist Display Settings** or run `soloist-display --settings` to adjust its appearance.
 
 <img src="docs/screenshots/settings.webp" alt="Soloist Display settings" width="520">
 

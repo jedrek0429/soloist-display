@@ -14,9 +14,9 @@ Minimal fullscreen now-playing display for Spotify Soloist, designed for 4:3 CRT
 
 - `src/soloist.js`: Soloist event and nested artist/album parsing.
 - `src/motion.js`: Disc exchange choreography and continuous rotation.
-- `src/spectrum.js`: browser Web Audio API FFT analysis, six-band Canvas rendering and smoothing.
+- `src/spectrum.js`: six-band Canvas rendering and interpolation; no browser audio analysis.
 - `src/main.js`: WebSocket connections, playback state and progress.
-- `audio-bridge/`: Rust PipeWire/PulseAudio raw mono PCM capture and binary localhost WebSocket; FFT runs in Firefox.
+- `audio-bridge/`: Rust PipeWire/PulseAudio monitor capture, overlapping 2048-sample FFT windows every 512 samples (~43 Hz), per-band smoothing and JSON WebSocket output.
 
 ## Run
 
@@ -36,9 +36,9 @@ pactl list short sources
 SOLOIST_DISPLAY_MONITOR='YOUR_OUTPUT.monitor' cargo run --release --manifest-path audio-bridge/Cargo.toml
 ```
 
-Replace `YOUR_OUTPUT.monitor` with the actual output monitor for the Spotify audio stream. If it is wrong or silent, the visualiser will not work. The Rust bridge is not yet verified against the user's physical PipeWire setup; the previous intermittent-audio issue requires a live capture test.
+Replace `YOUR_OUTPUT.monitor` with the actual output monitor for the Spotify audio stream. If it is wrong or silent, the visualiser will not work. The Rust bridge reports actual FFT frame rate, signal peak, six frequency-band levels and connected clients every five seconds for troubleshooting.
 
-`config.json` configures the Soloist and raw PCM WebSocket URLs. Restart the Rust bridge after updating: the old JSON spectrum protocol is incompatible with the new binary PCM protocol. Firefox may require one click or key press to resume its Web Audio context.
+`config.json` configures the Soloist and spectrum WebSocket URLs. Restart the Rust bridge after updating: the old binary PCM protocol is incompatible with the new JSON six-band spectrum protocol. No browser audio permission or Web Audio activation is required.
 
 ## Validation status
 

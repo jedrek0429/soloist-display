@@ -25,6 +25,7 @@ package(){
   install -Dm755 audio-bridge/target/release/soloist-audio-bridge "$pkgdir/usr/bin/soloist-audio-bridge"
   install -Dm755 packaging/soloist-display-launcher "$pkgdir/usr/bin/soloist-display"
   install -Dm644 packaging/soloist-display.1 "$pkgdir/usr/share/man/man1/soloist-display.1"
+  install -Dm644 packaging/_soloist-display "$pkgdir/usr/share/zsh/site-functions/_soloist-display"
   install -Dm644 packaging/soloist-display.service "$pkgdir/usr/lib/systemd/user/soloist-display.service"
   install -Dm644 packaging/soloist-display.desktop "$pkgdir/usr/share/applications/soloist-display.desktop"
   install -Dm644 packaging/soloist-display-settings.desktop "$pkgdir/usr/share/applications/soloist-display-settings.desktop"

@@ -52,7 +52,7 @@ export class DiscDirector{
       this.pendingShow=null;
     }
     this.changing=false;
-    this.info.style.opacity='1';
+    this.info.classList.remove('metadata-exiting','metadata-entering','revealing');
     clearTimeout(this.fadeTimer);
     await preload(url);
     if(token!==this.token)return;
@@ -80,11 +80,11 @@ export class DiscDirector{
       incoming.classList.add('active');
       this.backdrops.forEach((b,i)=>b.classList.toggle('active',i===incomingIndex));
       this.changing=false;
-      this.info.style.opacity='1';
+      this.info.classList.remove('metadata-exiting','metadata-entering','revealing');
       onShow();
     };
     outgoing.classList.add('active');
-    this.info.style.opacity='0';
+    this.info.classList.remove('metadata-entering','revealing');
     try{
       // Keep outgoing artwork underneath while the new artwork slowly fades in.
       const previousBg=this.backdrops[outgoingIndex];
@@ -110,6 +110,7 @@ export class DiscDirector{
 
       await delay(220);
       if(token!==this.token)return;
+      this.info.classList.add('metadata-exiting');
       const lifted=await this.animateDisc(outgoing,[
         [-50,-50,1,0],[-50,-65,.88,43],[-145,-98,.72,65]
       ],1050,token);
@@ -118,6 +119,10 @@ export class DiscDirector{
       incoming.classList.add('active');
       // Set the initial pose before the first animation frame: no artwork flash.
       incoming.style.transform='translate(55%,-115%) scale(.72) rotateX(65deg)';
+      // Replace the copy off-screen, then bring the new card in with the disc.
+      this.info.classList.remove('metadata-exiting');
+      onShow();
+      this.info.classList.add('metadata-entering');
       const landed=await this.animateDisc(incoming,[
         [55,-115,.72,65],[-50,-64,.9,30],[-50,-50,1,0]
       ],1250,token);
@@ -131,12 +136,9 @@ export class DiscDirector{
         incoming.classList.add('active');
         this.current=incomingIndex;
         this.changing=false;
-        this.info.style.opacity='1';
+        this.info.classList.remove('metadata-exiting','metadata-entering','revealing');
         this.pendingShow=null;
         onShow();
-        this.info.classList.remove('revealing');
-        void this.info.offsetWidth;
-        this.info.classList.add('revealing');
       }
     }
   }

@@ -21,5 +21,11 @@
   "backdropTransitionStyle": "fade",
   "backdropTransitionDuration": 2000,
   "panelTransitionStyle": "slide",
-  "panelTransitionDuration": 2050
+  "panelTransitionDuration": 2050,
+  "centerHoleDot": 0,
+  "centerHoleBasic": 0,
+  "centerHoleCd": 12,
+  "centerHoleVinyl": 0.6,
+  "panelPosition": "bottom-right",
+  "panelFontSize": 1
 }

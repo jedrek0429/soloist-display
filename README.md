@@ -53,7 +53,7 @@ cd soloist-display
 bash packaging/install-linux.sh
 ```
 
-Arch x86_64 packaging is CI-tested. ARM64 and ARMv7 builds are enabled but not yet hardware-tested. The Debian and Fedora source installers are not yet tested on those distributions. Other systemd-based Linux distributions may work. Windows and macOS are not supported.
+Arch x86_64 packaging is CI-tested. CI also builds the audio bridge natively on ARM64 and cross-compiles it for ARMv7. Playback and display on Raspberry Pi hardware have not been tested. The Debian and Fedora source installers are not yet tested on those distributions. Other systemd-based Linux distributions may work. Windows and macOS are not supported.
 
 ### Set up Spotify Connect playback
 

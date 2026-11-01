@@ -25,3 +25,35 @@ jobs:
           for file in src/*.js; do
             node --check --input-type=module < "$file"
           done
+
+  arch-package:
+    name: Arch package build and namcap
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    steps:
+      - name: Install packaging tools
+        run: pacman -Syu --noconfirm --needed base-devel git namcap sudo
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Create unprivileged builder
+        run: |
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+      - name: Validate PKGBUILD and build package
+        run: |
+          su builder -s /bin/bash -c 'cd "$1" && makepkg --check && makepkg -s --noconfirm' -- "$GITHUB_WORKSPACE"
+      - name: Analyze package with namcap
+        run: |
+          namcap PKGBUILD
+          namcap ./*.pkg.tar.zst
+      - name: Install package and verify files
+        run: |
+          pacman -U --noconfirm ./*.pkg.tar.zst
+          command -v soloist-display
+          command -v soloist-audio-bridge
+          soloist-display --help
+          soloist-display --version
+          test -f /usr/lib/systemd/user/soloist-display.service
+          pacman -R --noconfirm soloist-display-git

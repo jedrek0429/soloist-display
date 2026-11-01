@@ -41,7 +41,7 @@ async fn capture(sender: broadcast::Sender<String>) -> Result<(), Box<dyn std::e
         let sink = String::from_utf8(output.stdout).ok()?;
         Some(format!("{}.monitor", sink.trim()))
     });
-    if let Some(source) = &source { cmd.args(["--device", source]); eprintln!("Capturing monitor source: {source}"); }
+    if let Some(source) = &source { cmd.arg("--device").arg(source); eprintln!("Capturing monitor source: {source}"); }
     else { eprintln!("Warning: no output monitor found; set SOLOIST_DISPLAY_MONITOR explicitly"); }
     cmd.stdout(Stdio::piped()).stderr(Stdio::inherit());
     let mut child = cmd.spawn()?;

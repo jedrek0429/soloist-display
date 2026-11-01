@@ -14,9 +14,9 @@ Minimal fullscreen now-playing display for Spotify Soloist, designed for 4:3 CRT
 
 - `src/soloist.js`: Soloist event and nested artist/album parsing.
 - `src/motion.js`: Disc exchange choreography and continuous rotation.
-- `src/spectrum.js`: 32-bar browser-side rendering and smoothing.
+- `src/spectrum.js`: browser Web Audio API FFT analysis, six-band Canvas rendering and smoothing.
 - `src/main.js`: WebSocket connections, playback state and progress.
-- `audio-bridge/`: Rust PipeWire/PulseAudio capture, FFT and localhost spectrum WebSocket.
+- `audio-bridge/`: Rust PipeWire/PulseAudio raw mono PCM capture and binary localhost WebSocket; FFT runs in Firefox.
 
 ## Run
 
@@ -38,7 +38,7 @@ SOLOIST_DISPLAY_MONITOR='YOUR_OUTPUT.monitor' cargo run --release --manifest-pat
 
 Replace `YOUR_OUTPUT.monitor` with the actual output monitor for the Spotify audio stream. If it is wrong or silent, the visualiser will not work. The Rust bridge is not yet verified against the user's physical PipeWire setup; the previous intermittent-audio issue requires a live capture test.
 
-`config.json` configures the Soloist and spectrum WebSocket URLs.
+`config.json` configures the Soloist and raw PCM WebSocket URLs. Restart the Rust bridge after updating: the old JSON spectrum protocol is incompatible with the new binary PCM protocol. Firefox may require one click or key press to resume its Web Audio context.
 
 ## Validation status
 

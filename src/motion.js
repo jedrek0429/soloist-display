@@ -66,9 +66,9 @@ export class DiscDirector{
     this.info.classList.remove('metadata-exiting','metadata-entering','revealing');
     this.info.style.transform='';
     this.info.style.opacity='';
-    const style=this.motionEnabled?this.settings.panelTransitionStyle:'instant';
+    const style=this.motionEnabled?this.settings.panelTransitionStyle:'off';
     const duration=this.motionEnabled?this.settings.panelTransitionDuration:0;
-    if(style==='instant'||duration<=0){show();return}
+    if(style==='off'||duration<=0){show();return}
     const half=duration/2;
     const distance='calc(100% + 6vh + 60px)';
     const exit=style==='slide'
@@ -131,8 +131,8 @@ export class DiscDirector{
     // Panel timing is independent of the disc and backdrop transitions.
     void this.transitionPanel(onShow);
     const duration=this.motionEnabled?this.settings.transitionDuration:0;
-    const discStyle=this.motionEnabled?this.settings.transitionStyle:'instant';
-    const backdropStyle=this.motionEnabled?this.settings.backdropTransitionStyle:'instant';
+    const discStyle=this.motionEnabled?this.settings.transitionStyle:'off';
+    const backdropStyle=this.motionEnabled?this.settings.backdropTransitionStyle:'off';
     const backdropDuration=this.motionEnabled?(this.settings.backdropTransitionDuration):0;
     this.changing=discStyle==='slide'||discStyle==='fly';
     this.pendingShow=commit;
@@ -166,12 +166,12 @@ export class DiscDirector{
       nextBg.style.opacity='1';
       previousBg.style.opacity='0';
     }
-    if(discStyle==='instant'){
+    if(discStyle==='off'){
       // Disc changes immediately even when the backdrop continues fading.
       outgoing.classList.remove('active');incoming.classList.add('active');
       this.current=incomingIndex;
     }
-    if(discStyle==='instant'&&backdropStyle==='instant'){commit();return}
+    if(discStyle==='off'&&backdropStyle==='off'){commit();return}
     await Promise.all(jobs);
     if(token===this.token)commit();
   }

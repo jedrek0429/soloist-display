@@ -25,15 +25,39 @@ It uses [Spotify Soloist](https://developer.spotify.com/documentation/soloist) f
 
 Requires Linux, systemd, PipeWire/PulseAudio, a browser and Spotify Premium. You'll also install Spotify Soloist, the playback service, and get its API key.
 
-Install Rust, Git, a C compiler, PipeWire/PulseAudio tools, systemd and a browser using your distribution's package manager. Then run the same installer on Arch, Debian, Ubuntu or Fedora, on x86_64, ARM64 or ARMv7:
+Install the dependencies for your distribution, then use the same installer on x86_64, ARM64 or ARMv7.
+
+### Arch Linux
 
 ```sh
+sudo pacman -S --needed base-devel git curl xdg-utils pipewire pipewire-pulse wireplumber libpulse rust
 git clone https://github.com/jedrek0429/soloist-display.git
 cd soloist-display
 bash packaging/install-linux.sh
 ```
 
-The installer builds for your machine and installs into `~/.local/bin`. Arch users can also use `makepkg -si`. A systemd user session and `pactl` are required. Other distributions may work if they provide the same dependencies. Windows and macOS are not supported.
+You can also install the Arch package with `makepkg -si` after cloning the repository.
+
+### Ubuntu / Debian
+
+```sh
+sudo apt update
+sudo apt install -y git curl xdg-utils build-essential pkg-config libpulse0 pulseaudio-utils pipewire pipewire-pulse wireplumber cargo rustc
+git clone https://github.com/jedrek0429/soloist-display.git
+cd soloist-display
+bash packaging/install-linux.sh
+```
+
+### Fedora
+
+```sh
+sudo dnf install -y git curl xdg-utils gcc make pkgconf-pkg-config pulseaudio-libs pulseaudio-utils pipewire pipewire-pulseaudio wireplumber cargo rust
+git clone https://github.com/jedrek0429/soloist-display.git
+cd soloist-display
+bash packaging/install-linux.sh
+```
+
+All three paths install into `~/.local/bin`. A working systemd user session, PipeWire/PulseAudio and a browser are required. Other systemd-based Linux distributions may work. Windows and macOS are not supported.
 
 ### Set up Spotify Connect playback
 

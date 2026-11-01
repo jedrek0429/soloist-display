@@ -153,7 +153,9 @@ export class DiscDirector{
       await delay(220);
       if(token!==this.token)return;
       this.info.classList.add('metadata-exiting');
-      const lifted=await this.animateExit(outgoing,token);
+      const lifted=await this.animateDisc(outgoing,[
+        [-50,-50,1,0],[-50,-65,.88,43],[-145,-98,.72,65]
+      ],1050,token);
       if(!lifted)return;
       outgoing.classList.remove('active');
       incoming.classList.add('active');

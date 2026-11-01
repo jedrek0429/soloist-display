@@ -8,8 +8,7 @@ const sections=[
       ['visualizerSensitivity','Sensitivity','range',0,10,.1],
       ['visualizerSmoothing','Smoothing','range',0,1,.05],
       ['visualizerAutoNormalize','Automatic normalisation','toggle'],
-      ['visualizerPeakHold','Peak hold','toggle'],
-      ['visualizerBarCount','Bars','select',[6,10,16]]
+      ['visualizerPeakHold','Peak hold','toggle']
     ]
   },
   {
@@ -69,13 +68,10 @@ function renderNav(){
     button.type='button';
     button.className='nav-button';
     button.setAttribute('aria-current',index===activeSection?'page':'false');
-    const number=document.createElement('span');
-    number.className='nav-index';
-    number.textContent=String(index+1).padStart(2,'0');
     const title=document.createElement('span');
     title.className='nav-title';
     title.textContent=section.title;
-    button.append(number,title);
+    button.append(title);
     button.addEventListener('click',()=>{
       activeSection=index;
       renderNav();
@@ -120,11 +116,10 @@ function renderSection(){
       for(const choice of min){const option=document.createElement('option');option.value=String(choice);option.textContent=String(choice).replace(/^./,c=>c.toUpperCase());select.append(option)}
       select.value=String(draft[key]??min[0]);
       line.append(select);
-      input.replaceWith?.();
       const output=document.createElement('output');output.htmlFor=key;
       const refresh=()=>{draft[key]=typeof min[0]==='number'?Number(select.value):select.value;output.textContent=String(draft[key]);};
       select.addEventListener('change',()=>{refresh();status.textContent='Unsaved changes'});
-      refresh();line.append(output);controls.append(line);continue;
+      refresh();controls.append(line);continue;
     }else if(type==='range'){
       input.type='range';
       input.min=min;
@@ -151,7 +146,7 @@ function renderSection(){
       status.textContent='Unsaved changes';
     });
     refresh();
-    line.append(output);
+    if(type!=='toggle')line.append(output);
     controls.append(line);
   }
 }

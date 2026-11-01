@@ -11,6 +11,9 @@ export class Spectrum {
     this.analyser = null;
     this.nextTime = 0;
     this.frequency = null;
+    this.pcmBands = new Float32Array(6);
+    this.sampleWindow = new Float32Array(1024);
+    this.windowCursor = 0;
     requestAnimationFrame(t => this.draw(t));
   }
   init() {
@@ -39,7 +42,12 @@ export class Spectrum {
     const samples = packet.byteLength / 2;
     const buffer = this.context.createBuffer(1, samples, 22050);
     const channel = buffer.getChannelData(0);
-    for (let i = 0; i < samples; i++) channel[i] = view.getInt16(i * 2, true) / 32768;
+    for (let i = 0; i < samples; i++) {
+      const value = view.getInt16(i * 2, true) / 32768;
+      channel[i] = value;
+      this.sampleWindow[this.windowCursor++ % 1024] = value;
+    }
+    this.analysePCM();
     const now = this.context.currentTime;
     // A small jitter buffer keeps Web Audio fed continuously despite WebSocket timing.
     if (this.nextTime < now + .055 || this.nextTime > now + .35)
@@ -51,6 +59,43 @@ export class Spectrum {
     this.nextTime += buffer.duration;
     source.onended = () => source.disconnect();
     this.lastPacket = performance.now();
+  }
+  analysePCM() {
+    // Browser-side FFT fallback works even when Firefox suspends Web Audio autoplay.
+    // No fake animation or time-driven random levels: every bar is derived from PCM.
+    const n=1024, real=new Float32Array(n), imag=new Float32Array(n);
+    for(let i=0;i<n;i++){
+      real[i]=this.sampleWindow[(this.windowCursor+i)%n]*(.5-.5*Math.cos(2*Math.PI*i/(n-1)));
+    }
+    for(let i=1,j=0;i<n;i++){
+      let bit=n>>1;
+      for(;j&bit;bit>>=1)j^=bit;
+      j^=bit;
+      if(i<j){const t=real[i];real[i]=real[j];real[j]=t}
+    }
+    for(let len=2;len<=n;len<<=1){
+      const angle=-2*Math.PI/len;
+      for(let base=0;base<n;base+=len){
+        for(let j=0;j<len/2;j++){
+          const c=Math.cos(angle*j),q=Math.sin(angle*j);
+          const x=base+j,y=x+len/2;
+          const tr=real[y]*c-imag[y]*q,ti=real[y]*q+imag[y]*c;
+          real[y]=real[x]-tr;imag[y]=imag[x]-ti;
+          real[x]+=tr;imag[x]+=ti;
+        }
+      }
+    }
+    const edges=[55,150,350,800,1800,4000,9000];
+    for(let b=0;b<6;b++){
+      const lo=Math.max(1,Math.floor(edges[b]*n/22050));
+      const hi=Math.min(n/2,Math.ceil(edges[b+1]*n/22050));
+      let sum=0,count=0;
+      for(let k=lo;k<hi;k++){
+        sum+=Math.hypot(real[k],imag[k]);count++;
+      }
+      const magnitude=count?sum/count:0;
+      this.pcmBands[b]=Math.min(1,Math.pow(magnitude/2.6,.72));
+    }
   }
   draw(now) {
     const dt = Math.min(.08, (now - this.lastFrame) / 1000);
@@ -70,8 +115,9 @@ export class Spectrum {
     for (let i = 0; i < 6; i++) {
       // Logarithmic bands: bass, low-mid, mid, upper-mid, presence, treble.
       const edges = [55, 150, 350, 800, 1800, 4000, 9000];
-      const low = Math.max(1, Math.floor(edges[i] * 1024 / 22050));
-      const high = Math.min(this.frequency?.length || 0, Math.ceil(edges[i+1] * 1024 / 22050));
+      const rate = this.context?.sampleRate || 22050;
+      const low = Math.max(1, Math.floor(edges[i] * 1024 / rate));
+      const high = Math.min(this.frequency?.length || 0, Math.ceil(edges[i+1] * 1024 / rate));
       let energy = 0, count = 0;
       if (live && this.frequency) {
         for (let j = low; j < high; j++) {
@@ -80,7 +126,8 @@ export class Spectrum {
         }
       }
       const level = count ? energy / count : 0;
-      const target = Math.min(1, Math.pow(Math.max(0, (level - .055) * 1.55), .85));
+      const webAudioLevel = Math.min(1, Math.pow(Math.max(0, (level - .025) * 2.3), .8));
+      const target = live ? Math.max(webAudioLevel, this.pcmBands[i]) : 0;
       this.values[i] += (target - this.values[i]) * (1 - Math.exp(-dt * (target > this.values[i] ? 23 : 9)));
       const height = Math.max(2, this.values[i] * h);
       ctx.globalAlpha = .65 + .35 * this.values[i];

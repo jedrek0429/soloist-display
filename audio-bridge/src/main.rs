@@ -33,7 +33,17 @@ fn read_settings(path: &PathBuf) -> Value {
     if let Ok(contents) = std::fs::read_to_string(path) {
         if let Ok(Value::Object(values)) = serde_json::from_str::<Value>(&contents) {
             if let Value::Object(ref mut object) = settings {
-                for (key, value) in values { if object.contains_key(&key) { object.insert(key, value); } }
+                let old_dot = values.get("discAppearance").and_then(Value::as_str) == Some("dot");
+                for (key, value) in &values { if object.contains_key(key) { object.insert(key.clone(), value.clone()); } }
+                for key in ["transitionStyle","backdropTransitionStyle","panelTransitionStyle"] {
+                    if object.get(key).and_then(Value::as_str) == Some("instant") { object.insert(key.into(), Value::String("off".into())); }
+                }
+                if old_dot {
+                    object.insert("discAppearance".into(), Value::String("basic".into()));
+                    if let Some(size) = values.get("centerHoleDot").and_then(Value::as_f64) {
+                        object.insert("centerHoleBasic".into(), Value::from(size));
+                    }
+                }
             }
         }
     }
@@ -50,6 +60,12 @@ async fn get_config(State(state): State<WebState>) -> impl IntoResponse {
 
 async fn put_config(State(state): State<WebState>, Json(input): Json<Value>) -> Result<impl IntoResponse, (StatusCode, String)> {
     let Value::Object(incoming) = input else { return Err((StatusCode::BAD_REQUEST, "Expected settings object".into())); };
+    if state.path.exists() {
+        let saved = std::fs::read_to_string(&*state.path).map_err(internal_error)?;
+        if !matches!(serde_json::from_str::<Value>(&saved), Ok(Value::Object(_))) {
+            return Err((StatusCode::CONFLICT, "Existing configuration is invalid; fix or back it up before saving. No changes were written.".into()));
+        }
+    }
     let defaults: Value = serde_json::from_str(DEFAULT_CONFIG).expect("valid built-in settings");
     let mut output = read_settings(&state.path);
     let output_map = output.as_object_mut().unwrap();
@@ -61,14 +77,22 @@ async fn put_config(State(state): State<WebState>, Json(input): Json<Value>) -> 
         }
         if let Some((lo, hi)) = match key.as_str() {
             "visualizerSensitivity" => Some((0., 10.)), "visualizerSmoothing" => Some((0., 1.)),
-            "discSize" => Some((50., 200.)), "discRotationSeconds" => Some((1., 120.)),
-            "animationSpeed" => Some((0.1, 5.)), "backgroundDim" => Some((0., 1.)),
-            "backgroundBlur" => Some((0., 150.)), "backgroundFadeDuration" => Some((0., 10000.)),
+            "discSize" => Some((50., 200.)), "centerHoleBasic" | "centerHoleCd" | "centerHoleVinyl" => Some((0., 20.)), "panelFontSize" => Some((0.6, 1.6)), "discRotationSeconds" => Some((1., 120.)),
+            "transitionDuration" | "backdropTransitionDuration" | "panelTransitionDuration" => Some((100., 10000.)), "backgroundDim" => Some((0., 1.)),
+            "backgroundBlur" => Some((0., 150.)), 
             "metadataOpacity" => Some((0., 1.)), "metadataScale" => Some((0.5, 2.)),
             _ => None
         } {
             if !value.as_f64().is_some_and(|n| n >= lo && n <= hi) { return Err((StatusCode::BAD_REQUEST, format!("Out of range: {key}"))); }
         }
+        if key == "transitionStyle" && !["fly","slide","fade","off"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported transition style".into())); }
+        if key == "backdropTransitionStyle" && !["fade","off"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported backdrop transition".into())); }
+        if key == "panelTransitionStyle" && !["slide","fade","off"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported panel transition".into())); }
+        if key == "timeDisplay" && !["off","remaining","total"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported time display".into())); }
+        if key == "timeLayout" && !["split","together"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported time layout".into())); }
+        if key == "panelPosition" && !["bottom-right","bottom-left","top-right","top-left"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported panel position".into())); }
+        if key.starts_with("centerHoleColor") && !["white","black","transparent"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported hole colour".into())); }
+        if key == "discAppearance" && !["basic","cd","vinyl"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported disc appearance".into())); }
         output_map.insert(key, value);
     }
     let parent = state.path.parent().unwrap();
@@ -120,7 +144,7 @@ const REFERENCE_DB: [f32; 6] = [-19., -23., -29., -34., -39., -44.];
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tokio::spawn(async { if let Err(error) = web_server().await { eprintln!("Web server stopped: {error}"); } });
+    let mut web_task = tokio::spawn(async { web_server().await });
     let port = env::var("SOLOIST_DISPLAY_AUDIO_PORT").unwrap_or_else(|_| "9091".into());
     let listener = TcpListener::bind(format!("127.0.0.1:{port}")).await?;
     let (sender, _) = broadcast::channel::<String>(64);
@@ -135,7 +159,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     eprintln!("Spectrum WebSocket listening on ws://127.0.0.1:{port} (6 bands, {:.1} Hz)", RATE as f32 / HOP as f32);
     loop {
-        let (socket, _) = listener.accept().await?;
+        let (socket, _) = tokio::select! {
+            result = listener.accept() => result?,
+            result = &mut web_task => {
+                return Err(format!("HTTP server exited unexpectedly: {result:?}").into());
+            }
+        };
         let mut receiver = sender.subscribe();
         tokio::spawn(async move {
             if let Ok(mut ws) = accept_async(socket).await {
@@ -246,5 +275,37 @@ async fn capture(sender: broadcast::Sender<String>) -> Result<(), Box<dyn std::e
             peak = 0.;
             max_gap = Duration::ZERO;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn migrates_legacy_transitions_and_dot_without_losing_durations() {
+        let path = env::temp_dir().join(format!("soloist-display-migration-{}.json", std::process::id()));
+        std::fs::write(&path, r#"{"transitionStyle":"instant","backdropTransitionStyle":"instant","panelTransitionStyle":"instant","transitionDuration":3400,"discAppearance":"dot","centerHoleDot":8,"visualizerSensitivity":2.5}"#).unwrap();
+        let migrated = read_settings(&path);
+        std::fs::remove_file(&path).unwrap();
+        for key in ["transitionStyle", "backdropTransitionStyle", "panelTransitionStyle"] {
+            assert_eq!(migrated[key], "off");
+        }
+        assert_eq!(migrated["discAppearance"], "basic");
+        assert_eq!(migrated["centerHoleBasic"].as_f64(), Some(8.0));
+        assert_eq!(migrated["transitionDuration"], 3400);
+        assert_eq!(migrated["visualizerSensitivity"], 2.5);
+        assert!(migrated.get("centerHoleDot").is_none());
+    }
+
+    #[test]
+    fn preserves_defaults_for_missing_fields() {
+        let path = env::temp_dir().join(format!("soloist-display-defaults-{}.json", std::process::id()));
+        std::fs::write(&path, r#"{"backgroundDim":0.2}"#).unwrap();
+        let settings = read_settings(&path);
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(settings["backgroundDim"], 0.2);
+        assert_eq!(settings["progressBar"], true);
+        assert_eq!(settings["timeDisplay"], "off");
     }
 }

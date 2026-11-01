@@ -1,55 +1,77 @@
 const sections=[
   {
-    title:'Audio visualiser',
-    kicker:'01 · Sound',
-    description:'Shape the six-band spectrum drawn from your current audio output.',
+    title:'Disc',
     fields:[
-      ['visualizer','Visualiser','toggle'],
-      ['visualizerSensitivity','Sensitivity','range',0,10,.1],
-      ['visualizerSmoothing','Smoothing','range',0,1,.05]
+      ['discAppearance','Appearance','select',['basic','cd','vinyl']],
+      ['discSize','Diameter','range',50,200,1,'dvh'],
+      ['centerHole','Center hole','range',0,20,.5,'%'],
+      ['centerHoleColor','Hole colour','select',['white','black','transparent']]
     ]
   },
   {
-    title:'Disc & motion',
-    kicker:'02 · Movement',
-    description:'Control the record scale, rotation and track-change choreography.',
+    title:'Backdrop',
     fields:[
-      ['discSize','Disc diameter','range',50,200,1,'dvh'],
+      ['backgroundDim','Darkness','range',0,1,.01],
+      ['backgroundBlur','Blur','range',0,150,1,'px']
+    ]
+  },
+  {
+    title:'Panel',
+    fields:[
+      ['metadataOpacity','Opacity','range',0,1,.01],
+      ['metadataScale','Scale','range',.5,2,.05,'×'],
+      ['panelPosition','Position','select',['bottom-right','bottom-left','top-right','top-left']],
+      ['panelFontSize','Font size','range',.6,1.6,.05,'×'],
+      ['progressBar','Progress bar','toggle'],
+      ['timeDisplay','Time display','select',['off','remaining','total']],
+      ['timeLayout','Time layout','select',['split','together']]
+    ]
+  },
+  {
+    title:'Visualiser',
+    fields:[
+      ['visualizer','Enabled','toggle'],
+      ['visualizerSensitivity','Sensitivity','range',0,10,.1],
+      ['visualizerSmoothing','Smoothing','range',0,1,.05],
+      ['visualizerAutoNormalize','Automatic normalisation','toggle'],
+      ['visualizerPeakHold','Peak hold','toggle']
+    ]
+  },
+  {
+    title:'Motion',
+    fields:[
+      ['transitionStyle','Disc transition','select',['fly','slide','fade','off']],
+      ['backdropTransitionStyle','Backdrop transition','select',['fade','off']],
+      ['panelTransitionStyle','Panel transition','select',['slide','fade','off']],
+      ['transitionDuration','Disc duration','range',100,10000,50,'ms'],
+      ['backdropTransitionDuration','Backdrop duration','range',100,10000,50,'ms'],
+      ['panelTransitionDuration','Panel duration','range',100,10000,50,'ms'],
       ['discRotationSeconds','Rotation speed','range',1,120,1,'sec'],
-      ['animationSpeed','Transition speed','range',.1,5,.1,'×'],
-      ['discAnimation','Disc exchange','toggle'],
-      ['metadataAnimation','Metadata reveal','toggle'],
       ['reducedMotion','Reduced motion','toggle']
     ]
   },
   {
-    title:'Backdrop & metadata',
-    kicker:'03 · Picture',
-    description:'Balance the album-art backdrop against readable track information.',
+    title:'Display',
     fields:[
-      ['backgroundDim','Backdrop darkness','range',0,1,.01],
-      ['backgroundBlur','Backdrop blur','range',0,150,1,'px'],
-      ['backgroundFadeDuration','Backdrop crossfade','range',0,10000,50,'ms'],
-      ['metadataOpacity','Panel opacity','range',0,1,.01],
-      ['metadataScale','Panel scale','range',.5,2,.05,'×']
+      ['burnInProtection','Screen burn-in protection','toggle']
     ]
   },
   {
     title:'Connections',
-    kicker:'04 · Network',
-    description:'Local WebSocket endpoints used for playback state and spectrum data.',
     fields:[
       ['soloistWebSocket','Soloist','text'],
       ['audioWebSocket','Audio bridge','text']
     ]
   }
 ];
-
 const controls=document.querySelector('#controls');
 const nav=document.querySelector('#section-nav');
 const status=document.querySelector('#status');
 let draft={};
 let activeSection=0;
+const holeKey=style=>'centerHole'+style[0].toUpperCase()+style.slice(1);
+const selectedHoleKey=()=>holeKey(draft.discAppearance||'basic');
+const selectedHoleColorKey=()=>selectedHoleKey().replace('centerHole','centerHoleColor');
 
 function format(value,suffix=''){
   const text=typeof value==='number'?String(Number(value.toFixed(2))):String(value);
@@ -63,13 +85,10 @@ function renderNav(){
     button.type='button';
     button.className='nav-button';
     button.setAttribute('aria-current',index===activeSection?'page':'false');
-    const number=document.createElement('span');
-    number.className='nav-index';
-    number.textContent=String(index+1).padStart(2,'0');
     const title=document.createElement('span');
     title.className='nav-title';
     title.textContent=section.title;
-    button.append(number,title);
+    button.append(title);
     button.addEventListener('click',()=>{
       activeSection=index;
       renderNav();
@@ -80,20 +99,27 @@ function renderNav(){
 }
 
 function renderSection(){
+  const hidden=key=>(key==='timeLayout'&&draft.timeDisplay==='off')||
+    (key==='transitionDuration'&&draft.transitionStyle==='off')||
+    (key==='backdropTransitionDuration'&&draft.backdropTransitionStyle==='off')||
+    (key==='panelTransitionDuration'&&draft.panelTransitionStyle==='off');
   const section=sections[activeSection];
-  document.querySelector('#panel-kicker').textContent=section.kicker;
+  document.querySelector('#panel-kicker').textContent='';
   document.querySelector('#panel-title').textContent=section.title;
-  document.querySelector('#panel-description').textContent=section.description;
+  document.querySelector('#panel-description').textContent='';
   controls.replaceChildren();
 
   for(const [key,label,type,min,max,step,suffix] of section.fields){
     const line=document.createElement('div');
     line.className='field';
+    if(hidden(key))line.hidden=true;
     const caption=document.createElement('label');
     caption.className='field-label';
     caption.htmlFor=key;
     caption.textContent=label;
     line.append(caption);
+    if(key==='transitionStyle')line.classList.add('transition-disc');
+    if(key==='backdropTransitionStyle')line.classList.add('transition-backdrop');
 
     const input=document.createElement('input');
     input.id=key;
@@ -108,12 +134,22 @@ function renderSection(){
       track.className='switch-track';
       wrapper.append(input,track);
       line.append(wrapper);
+    }else if(type==='select'){
+      const select=document.createElement('select');
+      select.id=key;select.dataset.key=key;
+      for(const choice of min){const option=document.createElement('option');option.value=String(choice);option.textContent=String(choice).replace(/^./,c=>c.toUpperCase());select.append(option)}
+      select.value=String((key==='centerHoleColor'?draft[selectedHoleColorKey()]:draft[key])??min[0]);
+      line.append(select);
+      const output=document.createElement('output');output.htmlFor=key;
+      const refresh=()=>{const value=typeof min[0]==='number'?Number(select.value):select.value;draft[key==='centerHoleColor'?selectedHoleColorKey():key]=value;output.textContent=String(value);};
+      select.addEventListener('change',()=>{refresh();if(['discAppearance','timeDisplay','transitionStyle','backdropTransitionStyle','panelTransitionStyle'].includes(key))renderSection();status.textContent='Unsaved changes';});
+      refresh();controls.append(line);continue;
     }else if(type==='range'){
       input.type='range';
       input.min=min;
       input.max=max;
       input.step=step;
-      input.value=draft[key]??min;
+      input.value=(key==='centerHole'?draft[selectedHoleKey()]:draft[key])??min;
       line.append(input);
     }else{
       input.type='text';
@@ -126,15 +162,15 @@ function renderSection(){
     output.htmlFor=key;
     const refresh=()=>{
       const value=type==='toggle'?input.checked:type==='range'?Number(input.value):input.value;
-      draft[key]=value;
+      draft[key==='centerHole'?selectedHoleKey():key]=value;
       output.textContent=type==='toggle'?(value?'On':'Off'):type==='text'?'Local':format(value,suffix);
     };
     input.addEventListener('input',()=>{
       refresh();
       status.textContent='Unsaved changes';
     });
-    refresh();
-    line.append(output);
+    if(key!=='centerHole')refresh();else output.textContent=format(Number(input.value),suffix);
+    if(type!=='toggle')line.append(output);
     controls.append(line);
   }
 }
@@ -148,6 +184,8 @@ async function load(){
   const response=await fetch('/config.json',{cache:'no-store'});
   if(!response.ok)throw Error('Cannot load settings');
   draft=await response.json();
+  delete draft.backdropLinked;
+  for(const key of ['transitionStyle','backdropTransitionStyle','panelTransitionStyle'])if(draft[key]==='instant')draft[key]='off';
   render();
 }
 
@@ -160,6 +198,8 @@ document.querySelector('#save').addEventListener('click',async()=>{
     });
     if(!response.ok)throw Error(await response.text());
     draft=await response.json();
+    delete draft.backdropLinked;
+    for(const key of ['transitionStyle','backdropTransitionStyle','panelTransitionStyle'])if(draft[key]==='instant')draft[key]='off';
     renderSection();
     status.textContent='Saved · display updates automatically';
   }catch(error){
@@ -180,6 +220,7 @@ document.querySelector('#reset').addEventListener('click',async()=>{
     });
     if(!save.ok)throw Error(await save.text());
     draft=await save.json();
+    delete draft.backdropLinked;
     render();
     status.textContent='Defaults restored';
   }catch(error){

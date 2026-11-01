@@ -18,7 +18,7 @@ export class DiscDirector{
   async change(url,onShow){
     const token=++this.token;
     // Interrupt a previous exchange without leaving hidden or offscreen discs.
-    for(const disc of this.discs){disc.getAnimations().forEach(a=>a.cancel());disc.style.transform='';disc.style.opacity=''}
+    for(const disc of this.discs){disc.getAnimations().forEach(a=>a.cancel());disc.style.transform='';disc.style.opacity='';disc.style.visibility=''}
     this.info.getAnimations().forEach(a=>a.cancel());
     this.info.classList.remove('revealing');
     const incoming=this.started?1-this.current:this.current;

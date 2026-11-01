@@ -1,7 +1,7 @@
 name: Build Soloist Display
 on:
   push:
-    branches: [feat/now-playing-display]
+    branches: [main]
   pull_request:
 jobs:
   rust:

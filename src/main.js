@@ -31,6 +31,9 @@ const settings={
   transitionStyle:config.transitionStyle||'fly'
 };
 const root=document.documentElement;
+root.dataset.progressBar=config.progressBar===false?'off':'on';
+root.dataset.timeDisplay=['off','remaining','total'].includes(config.timeDisplay)?config.timeDisplay:'off';
+root.dataset.timeLayout=config.timeLayout==='together'?'together':'split';
 root.dataset.discAppearance=['basic','cd','vinyl'].includes(config.discAppearance)?config.discAppearance:'basic';
 root.dataset.panelPosition=['bottom-right','bottom-left','top-right','top-left'].includes(config.panelPosition)?config.panelPosition:'bottom-right';
 const holeKey='centerHole'+root.dataset.discAppearance[0].toUpperCase()+root.dataset.discAppearance.slice(1);
@@ -95,10 +98,16 @@ if(config.visualizer!==false){
   }
   connectAudio();
 }
+const formatTime=ms=>{const seconds=Math.floor(Math.max(0,ms)/1000);const minutes=Math.floor(seconds/60);return minutes+':'+String(seconds%60).padStart(2,'0');};
 function progressFrame(now){
   const elapsed=playing?now-positionTime:0;
   const ratio=duration?Math.max(0,Math.min(1,(position+elapsed)/duration)):0;
   $('progress-fill').style.width=`${ratio*100}%`;
+  if(root.dataset.timeDisplay!=='off'){
+    const elapsed=Math.max(0,Math.min(duration||0,position+elapsed));
+    $('time-elapsed').textContent=formatTime(elapsed);
+    $('time-end').textContent=root.dataset.timeDisplay==='remaining'?'−'+formatTime(Math.max(0,duration-elapsed)):formatTime(duration);
+  }
   $('progress').setAttribute('aria-valuenow',String(Math.round(ratio*100)));
   requestAnimationFrame(progressFrame);
 }

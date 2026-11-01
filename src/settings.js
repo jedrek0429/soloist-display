@@ -1,10 +1,29 @@
 const sections=[
   {
-    title:'Audio visualiser',
-    kicker:'01 · Sound',
-    description:'Shape the six-band spectrum drawn from your current audio output.',
+    title:'Disc',
     fields:[
-      ['visualizer','Visualiser','toggle'],
+      ['discAppearance','Appearance','select',['dot','basic','cd','vinyl']],
+      ['discSize','Diameter','range',50,200,1,'dvh']
+    ]
+  },
+  {
+    title:'Backdrop',
+    fields:[
+      ['backgroundDim','Darkness','range',0,1,.01],
+      ['backgroundBlur','Blur','range',0,150,1,'px']
+    ]
+  },
+  {
+    title:'Panel',
+    fields:[
+      ['metadataOpacity','Opacity','range',0,1,.01],
+      ['metadataScale','Scale','range',.5,2,.05,'×']
+    ]
+  },
+  {
+    title:'Visualiser',
+    fields:[
+      ['visualizer','Enabled','toggle'],
       ['visualizerSensitivity','Sensitivity','range',0,10,.1],
       ['visualizerSmoothing','Smoothing','range',0,1,.05],
       ['visualizerAutoNormalize','Automatic normalisation','toggle'],
@@ -12,31 +31,9 @@ const sections=[
     ]
   },
   {
-    title:'Disc',
-    kicker:'02 · Disc',
-    description:'Record size and appearance.',
-    fields:[
-      ['discSize','Disc diameter','range',50,200,1,'dvh'],
-      ['discRotationSeconds','Rotation speed','range',1,120,1,'sec'],
-      ['discAppearance','Disc appearance','select',['dot','basic','cd','vinyl']],
-    ]
-  },
-  {
-    title:'Backdrop & metadata',
-    kicker:'03 · Picture',
-    description:'Balance the album-art backdrop against readable track information.',
-    fields:[
-      ['backgroundDim','Backdrop darkness','range',0,1,.01],
-      ['backgroundBlur','Backdrop blur','range',0,150,1,'px'],
-      ['metadataOpacity','Panel opacity','range',0,1,.01],
-      ['metadataScale','Panel scale','range',.5,2,.05,'×']
-    ]
-  },
-  {
     title:'Motion',
-    kicker:'04 · Motion',
-    description:'Track change animations.',
     fields:[
+      ['discRotationSeconds','Rotation speed','range',1,120,1,'sec'],
       ['transitionStyle','Disc transition','select',['fly','slide','fade','instant']],
       ['transitionDuration','Disc duration','range',100,10000,50,'ms'],
       ['backdropLinked','Link durations','link'],
@@ -49,23 +46,18 @@ const sections=[
   },
   {
     title:'Display',
-    kicker:'05 · Display',
-    description:'Screen-wide display options.',
     fields:[
       ['burnInProtection','Screen burn-in protection','toggle']
     ]
   },
   {
     title:'Connections',
-    kicker:'06 · Network',
-    description:'Local WebSocket endpoints used for playback state and spectrum data.',
     fields:[
       ['soloistWebSocket','Soloist','text'],
       ['audioWebSocket','Audio bridge','text']
     ]
   }
 ];
-
 const controls=document.querySelector('#controls');
 const nav=document.querySelector('#section-nav');
 const status=document.querySelector('#status');
@@ -99,9 +91,9 @@ function renderNav(){
 
 function renderSection(){
   const section=sections[activeSection];
-  document.querySelector('#panel-kicker').textContent=section.kicker;
+  document.querySelector('#panel-kicker').textContent='';
   document.querySelector('#panel-title').textContent=section.title;
-  document.querySelector('#panel-description').textContent=section.description;
+  document.querySelector('#panel-description').textContent='';
   controls.replaceChildren();
 
   for(const [key,label,type,min,max,step,suffix] of section.fields){

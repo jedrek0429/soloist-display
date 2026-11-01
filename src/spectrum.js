@@ -6,7 +6,7 @@ export class Spectrum {
     this.sensitivity = Number.isFinite(gain) && gain >= 0 ? Math.min(gain, 10) : 1;
     this.smoothing = Math.max(0, Math.min(1, Number.isFinite(Number(smoothing)) ? Number(smoothing) : 0.7));
     this.ctx = canvas.getContext('2d');
-    this.count = [6,10,16].includes(options.barCount)?options.barCount:6;
+    this.count = 6;
     this.autoNormalize = options.autoNormalize === true;
     this.peakHold = options.peakHold === true;
     this.targets = new Float32Array(this.count);
@@ -20,11 +20,8 @@ export class Spectrum {
   }
   receive(packet) {
     if (!packet || !Array.isArray(packet.bands) || packet.bands.length < 6) return;
-    const bands=packet.bands;
     for (let i = 0; i < this.count; i++) {
-      const position=i*(bands.length-1)/Math.max(1,this.count-1);
-      const low=Math.floor(position), high=Math.min(bands.length-1,low+1);
-      const value=Math.max(0,Number(bands[low])*(1-(position-low))+Number(bands[high])*(position-low));
+      const value=Math.max(0,Number(packet.bands[i]));
       if(!Number.isFinite(value))continue;
       // Slowly adapt to the programme level, without amplifying digital silence.
       this.envelope[i]=Math.max(value,this.envelope[i]*0.997,0.12);

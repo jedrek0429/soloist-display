@@ -1,16 +1,108 @@
-use std::{env, process::Stdio, time::Instant};
+use std::{env, process::Stdio, time::Instant, path::PathBuf, sync::Arc};
+use axum::{Router, Json, http::{header, StatusCode}, response::{IntoResponse, Response}, routing::{get, put}, extract::State};
+use serde_json::Value;
 use futures_util::SinkExt;
 use rustfft::{num_complex::Complex32, FftPlanner};
 use tokio::{io::AsyncReadExt, net::TcpListener, process::Command, sync::broadcast, time::Duration};
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
 const RATE: usize = 22050;
+const DEFAULT_CONFIG: &str = include_str!("../../config.json");
+const INDEX: &str = include_str!("../../index.html");
+const CSS: &str = include_str!("../../styles.css");
+const SETTINGS_HTML: &str = include_str!("../../settings.html");
+const SETTINGS_JS: &str = include_str!("../../src/settings.js");
+const MAIN_JS: &str = include_str!("../../src/main.js");
+const MOTION_JS: &str = include_str!("../../src/motion.js");
+const SPECTRUM_JS: &str = include_str!("../../src/spectrum.js");
+const SOLOIST_JS: &str = include_str!("../../src/soloist.js");
+
+#[derive(Clone)]
+struct WebState { path: Arc<PathBuf> }
+
+fn config_path() -> PathBuf {
+    let base = env::var_os("XDG_CONFIG_HOME").map(PathBuf::from).unwrap_or_else(|| {
+        PathBuf::from(env::var_os("HOME").unwrap_or_default()).join(".config")
+    });
+    base.join("soloist-display/config.json")
+}
+
+fn read_settings(path: &PathBuf) -> Value {
+    let defaults: Value = serde_json::from_str(DEFAULT_CONFIG).expect("valid built-in settings");
+    let mut settings = defaults;
+    if let Ok(contents) = std::fs::read_to_string(path) {
+        if let Ok(Value::Object(values)) = serde_json::from_str::<Value>(&contents) {
+            if let Value::Object(ref mut object) = settings {
+                for (key, value) in values { if object.contains_key(&key) { object.insert(key, value); } }
+            }
+        }
+    }
+    settings
+}
+
+async fn get_config(State(state): State<WebState>) -> impl IntoResponse {
+    ([(header::CACHE_CONTROL, "no-store")], Json(read_settings(&state.path)))
+}
+
+async fn put_config(State(state): State<WebState>, Json(input): Json<Value>) -> Result<impl IntoResponse, (StatusCode, String)> {
+    let Value::Object(incoming) = input else { return Err((StatusCode::BAD_REQUEST, "Expected settings object".into())); };
+    let defaults: Value = serde_json::from_str(DEFAULT_CONFIG).expect("valid built-in settings");
+    let mut output = read_settings(&state.path);
+    let output_map = output.as_object_mut().unwrap();
+    let default_map = defaults.as_object().unwrap();
+    for (key, value) in incoming {
+        let Some(default) = default_map.get(&key) else { return Err((StatusCode::BAD_REQUEST, format!("Unknown setting: {key}"))); };
+        if !match default { Value::Bool(_) => value.is_boolean(), Value::Number(_) => value.as_f64().is_some_and(|x| x.is_finite()), Value::String(_) => value.is_string(), _ => false } {
+            return Err((StatusCode::BAD_REQUEST, format!("Invalid type for {key}")));
+        }
+        output_map.insert(key, value);
+    }
+    let parent = state.path.parent().unwrap();
+    std::fs::create_dir_all(parent).map_err(internal_error)?;
+    let temporary = state.path.with_extension("json.tmp");
+    std::fs::write(&temporary, serde_json::to_vec_pretty(&output).map_err(internal_error)?).map_err(internal_error)?;
+    std::fs::rename(&temporary, &*state.path).map_err(internal_error)?;
+    Ok(([(header::CACHE_CONTROL, "no-store")], Json(output)))
+}
+fn internal_error(error: impl std::fmt::Display) -> (StatusCode, String) { (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()) }
+
+async fn static_file(axum::extract::Path(path): axum::extract::Path<String>) -> Response {
+    let (mime, data) = match path.as_str() {
+        "" | "index.html" => ("text/html; charset=utf-8", INDEX),
+        "settings" | "settings.html" => ("text/html; charset=utf-8", SETTINGS_HTML),
+        "styles.css" => ("text/css; charset=utf-8", CSS),
+        "src/settings.js" => ("text/javascript; charset=utf-8", SETTINGS_JS),
+        "src/main.js" => ("text/javascript; charset=utf-8", MAIN_JS),
+        "src/motion.js" => ("text/javascript; charset=utf-8", MOTION_JS),
+        "src/spectrum.js" => ("text/javascript; charset=utf-8", SPECTRUM_JS),
+        "src/soloist.js" => ("text/javascript; charset=utf-8", SOLOIST_JS),
+        _ => return StatusCode::NOT_FOUND.into_response(),
+    };
+    ([(header::CONTENT_TYPE, mime), (header::CACHE_CONTROL, "no-store")], data).into_response()
+}
+
+async fn web_server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let port = env::var("SOLOIST_DISPLAY_HTTP_PORT").unwrap_or_else(|_| "8080".into());
+    let state = WebState { path: Arc::new(config_path()) };
+    let app = Router::new()
+        .route("/config.json", get(get_config).put(put_config))
+        .route("/", get(|| static_file(axum::extract::Path(String::new()))))
+        .route("/settings", get(|| static_file(axum::extract::Path("settings".into()))))
+        .route("/*path", get(static_file))
+        .with_state(state);
+    let listener = TcpListener::bind(format!("127.0.0.1:{port}")).await?;
+    eprintln!("Display and settings: http://127.0.0.1:{port}");
+    axum::serve(listener, app).await?;
+    Ok(())
+}
+
 const WINDOW: usize = 2048;
 const HOP: usize = 512;
 const BANDS: [f32; 7] = [55., 150., 350., 800., 1800., 4000., 9000.];
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    tokio::spawn(async { if let Err(error) = web_server().await { eprintln!("Web server stopped: {error}"); } });
     let port = env::var("SOLOIST_DISPLAY_AUDIO_PORT").unwrap_or_else(|_| "9091".into());
     let listener = TcpListener::bind(format!("127.0.0.1:{port}")).await?;
     let (sender, _) = broadcast::channel::<String>(64);

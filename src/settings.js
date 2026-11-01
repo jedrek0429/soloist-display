@@ -12,19 +12,14 @@ const sections=[
     ]
   },
   {
-    title:'Disc & motion',
-    kicker:'02 · Movement',
-    description:'Control the record scale, rotation and track-change choreography.',
+    title:'Disc',
+    kicker:'02 · Disc',
+    description:'Record size and appearance.',
     fields:[
       ['discSize','Disc diameter','range',50,200,1,'dvh'],
       ['discRotationSeconds','Rotation speed','range',1,120,1,'sec'],
-      ['animationSpeed','Transition speed','range',.1,5,.1,'×'],
-      ['discAnimation','Disc exchange','toggle'],
-      ['transitionStyle','Transition style','select',['fly','fade','instant']],
       ['discAppearance','Disc appearance','select',['dot','basic','cd','vinyl']],
       ['burnInProtection','Screen burn-in protection','toggle'],
-      ['metadataAnimation','Metadata reveal','toggle'],
-      ['reducedMotion','Reduced motion','toggle']
     ]
   },
   {
@@ -34,14 +29,26 @@ const sections=[
     fields:[
       ['backgroundDim','Backdrop darkness','range',0,1,.01],
       ['backgroundBlur','Backdrop blur','range',0,150,1,'px'],
-      ['backgroundFadeDuration','Backdrop crossfade','range',0,10000,50,'ms'],
       ['metadataOpacity','Panel opacity','range',0,1,.01],
       ['metadataScale','Panel scale','range',.5,2,.05,'×']
     ]
   },
   {
+    title:'Motion',
+    kicker:'04 · Motion',
+    description:'Track change animations.',
+    fields:[
+      ['transitionDuration','Transition duration','range',100,10000,50,'ms'],
+      ['transitionStyle','Disc transition','select',['fly','slide','fade','instant']],
+      ['backdropLinked','Link transitions','link'],
+      ['backdropTransitionStyle','Backdrop transition','select',['fade','slide','instant']],
+      ['metadataAnimation','Metadata reveal','toggle'],
+      ['reducedMotion','Reduced motion','toggle']
+    ]
+  },
+  {
     title:'Connections',
-    kicker:'04 · Network',
+    kicker:'05 · Network',
     description:'Local WebSocket endpoints used for playback state and spectrum data.',
     fields:[
       ['soloistWebSocket','Soloist','text'],
@@ -96,10 +103,19 @@ function renderSection(){
     caption.htmlFor=key;
     caption.textContent=label;
     line.append(caption);
+    if(key==='transitionStyle')line.classList.add('transition-disc');
+    if(key==='backdropTransitionStyle')line.classList.add('transition-backdrop');
 
     const input=document.createElement('input');
     input.id=key;
     input.dataset.key=key;
+    if(type==='link'){
+      line.classList.add('linked-field');
+      const button=document.createElement('button');button.type='button';button.className='link-button';
+      const update=()=>{button.textContent=draft.backdropLinked?'↗ Linked':'↗ Unlinked';button.setAttribute('aria-pressed',String(!!draft.backdropLinked));button.title='Link backdrop transition to disc transition';};
+      button.addEventListener('click',()=>{draft.backdropLinked=!draft.backdropLinked;status.textContent='Unsaved changes';renderSection();});
+      update();line.append(button);controls.append(line);continue;
+    }
     if(type==='toggle'){
       input.type='checkbox';
       input.checked=draft[key]===true;
@@ -115,10 +131,12 @@ function renderSection(){
       select.id=key;select.dataset.key=key;
       for(const choice of min){const option=document.createElement('option');option.value=String(choice);option.textContent=String(choice).replace(/^./,c=>c.toUpperCase());select.append(option)}
       select.value=String(draft[key]??min[0]);
+      if(key==='backdropTransitionStyle'&&draft.backdropLinked)select.disabled=true;
       line.append(select);
       const output=document.createElement('output');output.htmlFor=key;
       const refresh=()=>{draft[key]=typeof min[0]==='number'?Number(select.value):select.value;output.textContent=String(draft[key]);};
-      select.addEventListener('change',()=>{refresh();status.textContent='Unsaved changes'});
+      select.addEventListener('change',()=>{refresh();status.textContent='Unsaved changes';if(key==='transitionStyle'&&draft.backdropLinked)renderSection();});
+      if(key==='backdropTransitionStyle'&&draft.backdropLinked){select.value=['slide','instant'].includes(draft.transitionStyle)?draft.transitionStyle:'fade';}
       refresh();controls.append(line);continue;
     }else if(type==='range'){
       input.type='range';

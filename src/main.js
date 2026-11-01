@@ -31,10 +31,15 @@ const settings={
   transitionStyle:config.transitionStyle||'fly'
 };
 const root=document.documentElement;
-root.dataset.discAppearance=['dot','basic','cd','vinyl'].includes(config.discAppearance)?config.discAppearance:'dot';
+root.dataset.discAppearance=['basic','cd','vinyl'].includes(config.discAppearance)?config.discAppearance:'basic';
 root.dataset.panelPosition=['bottom-right','bottom-left','top-right','top-left'].includes(config.panelPosition)?config.panelPosition:'bottom-right';
 const holeKey='centerHole'+root.dataset.discAppearance[0].toUpperCase()+root.dataset.discAppearance.slice(1);
-root.style.setProperty('--center-hole-radius',bounded(config[holeKey],root.dataset.discAppearance==='cd'?12:root.dataset.discAppearance==='vinyl'?.6:0,0,20)/2+'%');
+const holeSize=bounded(config[holeKey],root.dataset.discAppearance==='cd'?12:root.dataset.discAppearance==='vinyl'?.6:1,0,20);
+const colorKey=holeKey.replace('centerHole','centerHoleColor');
+const holeColor=['white','black','transparent'].includes(config[colorKey])?config[colorKey]:'transparent';
+root.dataset.holeColor=holeColor;
+root.style.setProperty('--center-hole-radius',holeSize/2+'%');
+root.style.setProperty('--center-hole-diameter',holeSize+'%');
 if(config.burnInProtection===true)root.classList.add('burn-in-protection');
 for(const [key,value] of Object.entries({
   '--disc-size':settings.discSize+'dvh',

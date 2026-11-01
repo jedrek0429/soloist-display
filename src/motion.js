@@ -10,7 +10,7 @@ function preload(url){
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 export class DiscDirector{
   constructor({discs,backdrops,info,settings={}}){
-    this.settings={discRotationSeconds:12,transitionDuration:2500,backdropTransitionStyle:'fade',backdropLinked:true,backdropTransitionDuration:1850,transitionStyle:'fly',panelTransitionStyle:'slide',panelTransitionDuration:1200,reducedMotion:false,...settings};
+    this.settings={discRotationSeconds:12,transitionDuration:2500,backdropTransitionStyle:'fade',backdropTransitionDuration:1850,transitionStyle:'fly',panelTransitionStyle:'slide',panelTransitionDuration:1200,reducedMotion:false,...settings};
     this.motionEnabled=!this.settings.reducedMotion;
     this.discs=discs;this.backdrops=backdrops;this.info=info;
     this.current=0;this.token=0;this.started=false;this.angle=0;
@@ -133,7 +133,7 @@ export class DiscDirector{
     const duration=this.motionEnabled?this.settings.transitionDuration:0;
     const discStyle=this.motionEnabled?this.settings.transitionStyle:'instant';
     const backdropStyle=this.motionEnabled?this.settings.backdropTransitionStyle:'instant';
-    const backdropDuration=this.motionEnabled?(this.settings.backdropLinked?duration:this.settings.backdropTransitionDuration):0;
+    const backdropDuration=this.motionEnabled?(this.settings.backdropTransitionDuration):0;
     this.changing=discStyle==='slide'||discStyle==='fly';
     this.pendingShow=commit;
     outgoing.classList.add('active');incoming.classList.add('active');

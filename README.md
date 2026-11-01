@@ -71,7 +71,7 @@ Choose **Soloist Display** from your desktop application menu, or run `soloist-d
 
 <img src="docs/screenshots/settings.webp" alt="Soloist Display settings" width="520">
 
-Settings are stored in `~/.config/soloist-display/config.json`.
+Settings are stored in `~/.config/soloist-display/config.json`. For CLI usage and troubleshooting, run `man soloist-display` after installation.
 
 ## Future AUR publication (maintainer)
 

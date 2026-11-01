@@ -1,0 +1,13 @@
+[package]
+name = "soloist-audio-bridge"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Local real-audio spectrum bridge for Soloist Display"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = "0.24"
+futures-util = "0.3"
+rustfft = "6"
+serde_json = "1"

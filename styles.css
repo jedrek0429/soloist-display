@@ -12,7 +12,9 @@
  radial-gradient(circle,#202020 0%,#101010 66%,#080808 100%);
  mask:radial-gradient(circle,transparent 0 17.8%,#000 18.2% 98.7%,transparent 100%)}
 :root[data-disc-appearance='vinyl'] .disc-image::after{display:block;inset:0;border-radius:50%;background:repeating-radial-gradient(circle at center,transparent 0 11px,rgba(255,255,255,.035) 12px,transparent 13px,transparent 16px);mask:radial-gradient(circle,transparent 0 21%,#000 23% 96%,transparent 99%)}
-:root[data-disc-appearance='vinyl'] .disc-label{display:block}
+:root[data-disc-appearance='vinyl'] .disc-label{display:block;filter:brightness(.62) contrast(.88) saturate(.82);overflow:hidden}
+/* Bright album covers otherwise bloom into white patches on CRT phosphors. */
+:root[data-disc-appearance='vinyl'] .disc-label::after{content:'';position:absolute;inset:0;border-radius:50%;background:rgba(12,12,12,.13);pointer-events:none}
 :root[data-disc-appearance='vinyl'] .spindle{z-index:5;width:6px;height:6px;background:#080808;border:1px solid #777;box-shadow:0 0 0 1px rgba(0,0,0,.7)}
 :root.burn-in-protection .stage{animation:pixel-shift 180s steps(1,end) infinite}
 @keyframes pixel-shift{0%,100%{transform:translate(0,0)}25%{transform:translate(2px,1px)}50%{transform:translate(-2px,2px)}75%{transform:translate(1px,-2px)}}

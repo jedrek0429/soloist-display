@@ -1,41 +1,45 @@
 # Soloist Display
 
-An artwork-first, fullscreen now-playing display for Spotify Soloist. Works on 4:3 and widescreen displays.
+Minimal fullscreen now-playing display for Spotify Soloist, designed for 4:3 CRT televisions.
 
-The interface is deliberately minimal: an oversized rotating circular album cover, a small local clock, track title and artist, a genuine audio spectrum and an oversized progress bar without timestamps or a scrubber. Background and accent colours are derived from album artwork, with neutral fallback colours and no glow.
+## Visual design
 
-## Motion design
+- One enormous, **centred, rotating album disc**, intentionally cropped at the top and bottom.
+- Full-bleed **album artwork background** with strong Gaussian blur and a uniform semi-transparent black overlay. No generated grey/green palette, glow, fake grooves, or CRT filters.
+- Small, unboxed lower-right metadata: song title, artist, real-audio miniature spectrum, and thin progress line. No clock.
+- Track changes use two separate disc elements: outgoing disc exits, incoming disc enters oversized, pauses for a one-second hero showcase, then settles. Text reveals only after the disc arrives.
+- On initial load, the current track appears immediately instead of playing an unnecessary entrance sequence.
 
-Track changes use a staged broadcast-style disc exchange. The old disc exits, the next enters as a large centred hero image, holds for a second, then moves into the oversized left-hand now-playing position. The clock and metadata reveal from under the disc. New track changes interrupt the current sequence; no transition queue. Rotation is driven by a continuous animation loop, with acceleration and deceleration on play/pause.
+## Architecture
 
-## Run locally
+- `src/soloist.js`: Soloist event and nested artist/album parsing.
+- `src/motion.js`: Disc exchange choreography and continuous rotation.
+- `src/spectrum.js`: 32-bar browser-side rendering and smoothing.
+- `src/main.js`: WebSocket connections, playback state and progress.
+- `audio-bridge/`: Rust PipeWire/PulseAudio capture, FFT and localhost spectrum WebSocket.
 
-1. Run Soloist with its WebSocket API listening on localhost, normally port 9090.
-2. Run `python -m http.server 8080 --bind 127.0.0.1` in this repository (Python is only an optional static-file server; the audio backend is Rust).
-3. Open `http://127.0.0.1:8080` and press F11.
-4. Control music with Spotify Connect on your phone.
+## Run
 
-Change WebSocket URLs or clock locale in `config.json`. If the album cover host does not permit cross-origin pixel reads, the UI retains its last palette.
-
-## Rust audio bridge (Linux / PipeWire)
-
-Install `rust`, `cargo` and `libpulse` (for `parec`) using your distribution's package manager. PipeWire's PulseAudio compatibility layer supports the same monitor source.
+Start Soloist with its local WebSocket on `127.0.0.1:9090`.
 
 ```sh
-# Arch Linux
+python -m http.server 8080 --bind 127.0.0.1
+```
+
+Open `http://127.0.0.1:8080` and use fullscreen (F11).
+
+For the real audio visualiser on Arch Linux:
+
+```sh
 sudo pacman -S rust libpulse
 pactl list short sources
 SOLOIST_DISPLAY_MONITOR='YOUR_OUTPUT.monitor' cargo run --release --manifest-path audio-bridge/Cargo.toml
 ```
 
-Choose the monitor source associated with the output playing Spotify. The bridge captures real PCM, calculates a 48-band FFT spectrum at approximately 30 Hz and publishes it over a localhost WebSocket on port 9091. The browser smooths values at its own frame rate. Without the bridge, the bars remain still rather than generating fake visualiser activity.
+Replace `YOUR_OUTPUT.monitor` with the actual output monitor for the Spotify audio stream. If it is wrong or silent, the visualiser will not work. The Rust bridge is not yet verified against the user's physical PipeWire setup; the previous intermittent-audio issue requires a live capture test.
 
-## Security
+`config.json` configures the Soloist and spectrum WebSocket URLs.
 
-Both WebSocket endpoints are intended for **localhost only**. Do not expose the Soloist control WebSocket to the network or internet. This is a static local UI with no analytics or credentials. The bridge binds to 127.0.0.1.
+## Validation status
 
-## Status
-
-This is an initial integration build. The exact Soloist event structure and artwork URL shapes should be checked against a real running Soloist instance. Report any metadata mismatches with a redacted example event. The interface is not yet validated on physical CRT hardware.
-
-MIT licensed. Not affiliated with Spotify.
+This branch has not yet been compiled or tested on the physical CRT. Verify the Rust build, WebSocket message cadence, artist metadata and actual disc transitions before merging PR #1. Both WebSocket endpoints are localhost-only and must not be exposed publicly.

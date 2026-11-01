@@ -74,7 +74,27 @@ export class DiscDirector{
       incoming.classList.add('active');
       // Set the initial pose before the first animation frame: no artwork flash.
       incoming.style.transform='translate(55%,-115%) scale(.72) rotateX(65deg)';
-      this.backdrops.forEach((b,i)=>b.classList.toggle('active',i===incomingIndex));
+      // Keep outgoing artwork underneath while the new artwork slowly fades in.
+      const previousBg=this.backdrops[outgoingIndex];
+      const nextBg=this.backdrops[incomingIndex];
+      previousBg.style.zIndex='1';
+      nextBg.style.zIndex='2';
+      nextBg.style.transition='none';
+      nextBg.style.opacity='0';
+      nextBg.classList.remove('active');
+      void nextBg.offsetWidth;
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        nextBg.style.transition='opacity 6500ms ease-in-out';
+        nextBg.style.opacity='1';
+      }));
+      setTimeout(()=>{
+        if(token!==this.token)return;
+        previousBg.classList.remove('active');
+        previousBg.style.opacity='0';
+        nextBg.classList.add('active');
+        nextBg.style.transition='';
+        nextBg.style.opacity='';
+      },6700);
       const landed=await this.animateDisc(incoming,[
         [55,-115,.72,65],[-50,-64,.9,30],[-50,-50,1,0]
       ],1250,token);

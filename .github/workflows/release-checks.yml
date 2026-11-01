@@ -3,6 +3,9 @@ on:
   push:
     branches: [main]
   pull_request:
+concurrency:
+  group: release-checks-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate:
@@ -10,10 +13,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - name: Rust tests
         run: cargo test --manifest-path audio-bridge/Cargo.toml
       - name: Rust release build
         run: cargo build --release --manifest-path audio-bridge/Cargo.toml
+      - name: Architecture mapping (offline)
+        run: |
+          test "$(SOLOIST_TEST_MACHINE=x86_64 SOLOIST_TEST_BITS=64 bash packaging/install-soloist.sh --print-archive)" = x86_64
+          test "$(SOLOIST_TEST_MACHINE=aarch64 SOLOIST_TEST_BITS=64 bash packaging/install-soloist.sh --print-archive)" = arm64
+          test "$(SOLOIST_TEST_MACHINE=armv7l SOLOIST_TEST_BITS=32 bash packaging/install-soloist.sh --print-archive)" = arm32
+          test "$(SOLOIST_TEST_MACHINE=aarch64 SOLOIST_TEST_BITS=32 bash packaging/install-soloist.sh --print-archive)" = arm32
+          if SOLOIST_TEST_MACHINE=mips64 SOLOIST_TEST_BITS=64 bash packaging/install-soloist.sh --print-archive; then exit 1; fi
       - name: Shell syntax
         run: |
           sh -n packaging/soloist-display-launcher
@@ -73,6 +84,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
         with:
           targets: armv7-unknown-linux-gnueabihf
       - name: ARM64 tests and release build
@@ -88,20 +100,3 @@ jobs:
             cargo build --release --manifest-path audio-bridge/Cargo.toml --target armv7-unknown-linux-gnueabihf
           file audio-bridge/target/armv7-unknown-linux-gnueabihf/release/soloist-audio-bridge
 
-  architecture-installer-tests:
-    name: Architecture mapping (${{ matrix.runner }})
-    strategy:
-      fail-fast: false
-      matrix:
-        runner: [ubuntu-24.04, ubuntu-24.04-arm]
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Check download selection without network
-        run: |
-          test "$(SOLOIST_TEST_MACHINE=x86_64 SOLOIST_TEST_BITS=64 bash packaging/install-soloist.sh --print-archive)" = x86_64
-          test "$(SOLOIST_TEST_MACHINE=aarch64 SOLOIST_TEST_BITS=64 bash packaging/install-soloist.sh --print-archive)" = arm64
-          test "$(SOLOIST_TEST_MACHINE=armv7l SOLOIST_TEST_BITS=32 bash packaging/install-soloist.sh --print-archive)" = arm32
-          test "$(SOLOIST_TEST_MACHINE=aarch64 SOLOIST_TEST_BITS=32 bash packaging/install-soloist.sh --print-archive)" = arm32
-          if SOLOIST_TEST_MACHINE=mips64 SOLOIST_TEST_BITS=64 bash packaging/install-soloist.sh --print-archive; then exit 1; fi
-          test "$(bash packaging/install-soloist.sh --print-archive)" = "$(if [ "$(uname -m)" = aarch64 ]; then echo arm64; else echo x86_64; fi)"

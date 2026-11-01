@@ -1,4 +1,4 @@
-use std::{env, f32::consts::PI, process::Stdio, sync::Arc};
+use std::{env, f32::consts::PI, process::Stdio};
 use futures_util::SinkExt;
 use rustfft::{FftPlanner, num_complex::Complex32};
 use tokio::{io::AsyncReadExt, net::TcpListener, process::Command, sync::broadcast, time::{sleep, Duration}};
@@ -35,9 +35,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn capture(sender: broadcast::Sender<String>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut cmd = Command::new("parec");
     cmd.args(["--raw", "--format=s16le", "--rate", "22050", "--channels=1"]);
-    if let Ok(source) = env::var("SOLOIST_DISPLAY_MONITOR") {
-        if !source.is_empty() { cmd.args(["--device", &source]); }
-    }
+    let source = env::var("SOLOIST_DISPLAY_MONITOR").ok().filter(|s| !s.is_empty()).or_else(|| {
+        let output = std::process::Command::new("pactl").arg("get-default-sink").output().ok()?;
+        if !output.status.success() { return None; }
+        let sink = String::from_utf8(output.stdout).ok()?;
+        Some(format!("{}.monitor", sink.trim()))
+    });
+    if let Some(source) = &source { cmd.args(["--device", source]); eprintln!("Capturing monitor source: {source}"); }
+    else { eprintln!("Warning: no output monitor found; set SOLOIST_DISPLAY_MONITOR explicitly"); }
     cmd.stdout(Stdio::piped()).stderr(Stdio::inherit());
     let mut child = cmd.spawn()?;
     let mut stdout = child.stdout.take().ok_or("No audio stream")?;
@@ -48,10 +53,14 @@ async fn capture(sender: broadcast::Sender<String>) -> Result<(), Box<dyn std::e
     let mut buffer = vec![0u8; HOP * 2];
     let mut spectrum = vec![Complex32::default(); FFT_SIZE];
     let window: Vec<f32> = (0..FFT_SIZE).map(|i| 0.5-0.5*(2.0*PI*i as f32/(FFT_SIZE-1) as f32).cos()).collect();
+    let mut frames: u64 = 0;
+    let mut peak: f32 = 0.0;
+    let mut report = tokio::time::Instant::now();
     loop {
         if stdout.read_exact(&mut buffer).await.is_err() { break; }
         for pair in buffer.chunks_exact(2) {
             ring[cursor] = i16::from_le_bytes([pair[0], pair[1]]) as f32 / 32768.0;
+            peak = peak.max(ring[cursor].abs());
             cursor = (cursor + 1) % FFT_SIZE;
         }
         for i in 0..FFT_SIZE {
@@ -71,6 +80,11 @@ async fn capture(sender: broadcast::Sender<String>) -> Result<(), Box<dyn std::e
         if sender.receiver_count()>0 {
             let payload=serde_json::json!({"type":"spectrum","bars":bars}).to_string();
             let _=sender.send(payload);
+        }
+        frames += 1;
+        if report.elapsed() >= Duration::from_secs(5) {
+            eprintln!("Spectrum capture: {:.1} frames/s, peak {:.3}, listeners {}", frames as f32 / report.elapsed().as_secs_f32(), peak, sender.receiver_count());
+            frames=0;peak=0.0;report=tokio::time::Instant::now();
         }
         // Input capture itself clocks frames; no artificial timer or polling delay.
     }

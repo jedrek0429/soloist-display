@@ -33,14 +33,14 @@ const sections=[
   {
     title:'Motion',
     fields:[
-      ['discRotationSeconds','Rotation speed','range',1,120,1,'sec'],
       ['transitionStyle','Disc transition','select',['fly','slide','fade','instant']],
+      ['backdropTransitionStyle','Backdrop transition','select',['fade','instant']],
+      ['panelTransitionStyle','Panel transition','select',['slide','fade','instant']],
       ['transitionDuration','Disc duration','range',100,10000,50,'ms'],
       ['backdropLinked','Link durations','link'],
-      ['backdropTransitionStyle','Backdrop transition','select',['fade','instant']],
       ['backdropTransitionDuration','Backdrop duration','range',100,10000,50,'ms'],
-      ['panelTransitionStyle','Panel transition','select',['slide','fade','instant']],
       ['panelTransitionDuration','Panel duration','range',100,10000,50,'ms'],
+      ['discRotationSeconds','Rotation speed','range',1,120,1,'sec'],
       ['reducedMotion','Reduced motion','toggle']
     ]
   },

@@ -61,7 +61,7 @@ async fn put_config(State(state): State<WebState>, Json(input): Json<Value>) -> 
         }
         if let Some((lo, hi)) = match key.as_str() {
             "visualizerSensitivity" => Some((0., 10.)), "visualizerSmoothing" => Some((0., 1.)),
-            "discSize" => Some((50., 200.)), "discRotationSeconds" => Some((1., 120.)),
+            "discSize" => Some((50., 200.)), "centerHoleDot" | "centerHoleBasic" | "centerHoleCd" | "centerHoleVinyl" => Some((0., 20.)), "panelFontSize" => Some((0.6, 1.6)), "discRotationSeconds" => Some((1., 120.)),
             "transitionDuration" | "backdropTransitionDuration" | "panelTransitionDuration" => Some((100., 10000.)), "backgroundDim" => Some((0., 1.)),
             "backgroundBlur" => Some((0., 150.)), 
             "metadataOpacity" => Some((0., 1.)), "metadataScale" => Some((0.5, 2.)),
@@ -72,6 +72,7 @@ async fn put_config(State(state): State<WebState>, Json(input): Json<Value>) -> 
         if key == "transitionStyle" && !["fly","slide","fade","instant"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported transition style".into())); }
         if key == "backdropTransitionStyle" && !["fade","instant"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported backdrop transition".into())); }
         if key == "panelTransitionStyle" && !["slide","fade","instant"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported panel transition".into())); }
+        if key == "panelPosition" && !["bottom-right","bottom-left","top-right","top-left"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported panel position".into())); }
         if key == "discAppearance" && !["dot","basic","cd","vinyl"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported disc appearance".into())); }
         output_map.insert(key, value);
     }

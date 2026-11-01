@@ -90,7 +90,7 @@ connect(config.soloistWebSocket||'ws://127.0.0.1:9090',handleSoloist,s=>{
   $('track').textContent=currentUri?$('track').textContent:'Waiting for playback';
   s.send(JSON.stringify({type:'command',command:'get_state'}));
 },()=>{
-  playing=false;director.setPlaying(false);
+  playing=false;director.setPlaying(false);currentUri=null;
   $('track').textContent='Soloist disconnected';
   $('artist').textContent='Reconnecting automatically…';
 });

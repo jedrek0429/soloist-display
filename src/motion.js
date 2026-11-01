@@ -9,7 +9,10 @@ function preload(url){
 }
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 export class DiscDirector{
-  constructor({discs,backdrops,info}){
+  constructor({discs,backdrops,info,settings={}}){
+    this.settings={discRotationSeconds:12,animationSpeed:1,backgroundFadeDuration:1850,discAnimation:true,metadataAnimation:true,reducedMotion:false,...settings};
+    this.motionEnabled=this.settings.discAnimation&&!this.settings.reducedMotion;
+    this.metadataEnabled=this.settings.metadataAnimation&&!this.settings.reducedMotion;
     this.discs=discs;this.backdrops=backdrops;this.info=info;
     this.current=0;this.token=0;this.started=false;this.angle=0;
     this.velocity=0;this.playing=false;this.changing=false;this.last=performance.now();
@@ -18,7 +21,7 @@ export class DiscDirector{
   }
   spin(now){
     const dt=Math.min(.08,(now-this.last)/1000);this.last=now;
-    const target=this.changing?0:this.playing?Math.PI*2/12:0;
+    const target=this.changing?0:this.playing?Math.PI*2/this.settings.discRotationSeconds:0;
     this.velocity+=(target-this.velocity)*(1-Math.exp(-dt*(this.changing?12:5)));
     this.angle=(this.angle+this.velocity*dt)%(2*Math.PI);
     for(const disc of this.discs)disc.querySelector('.rotor').style.transform=`rotate(${this.angle}rad)`;
@@ -60,29 +63,25 @@ export class DiscDirector{
       requestAnimationFrame(tick);
     });
   }
-  // Run the outgoing movement on the compositor instead of rewriting a huge
-  // transformed image on every main-thread animation frame.
+  // Compositor-driven exit. Resolve on a fixed deadline, independently of
+  // Firefox's animation.finished event, so entrance always begins on time.
   animateExit(disc,token){
     return new Promise(resolve=>{
-      const duration=1050;
+      const duration=1050/this.settings.animationSpeed;
       const animation=disc.animate([
         {transform:'translate(-50%,-50%) scale(1) rotateX(0deg)',offset:0},
         {transform:'translate(-50%,-65%) scale(.88) rotateX(43deg)',offset:.52},
         {transform:'translate(-145%,-98%) scale(.72) rotateX(65deg)',offset:1}
       ],{duration,easing:'ease-in-out',fill:'forwards'});
-      let settled=false;
-      const settle=()=>{
-        if(settled)return;
-        settled=true;
-        clearTimeout(watchdog);
+      // Do not await animation.finished: on some Firefox builds it can stall.
+      // Cancel only after the outgoing disc is hidden, in the caller.
+      this.exitAnimation=animation;
+      setTimeout(()=>{
         const current=token===this.token;
         if(current)disc.style.transform='translate(-145%,-98%) scale(.72) rotateX(65deg)';
-        animation.cancel();
         resolve(current);
-      };
-      animation.finished.then(settle,settle);
-      // Firefox may occasionally fail to deliver the animation finish event.
-      const watchdog=setTimeout(settle,duration+250);
+      },duration);
+
     });
   }
   async change(url,onShow){
@@ -95,6 +94,7 @@ export class DiscDirector{
     this.changing=false;
     this.info.classList.remove('metadata-exiting','metadata-entering','revealing');
     clearTimeout(this.fadeTimer);
+    if(this.exitAnimation){this.exitAnimation.cancel();this.exitAnimation=null;}
     await preload(url);
     if(token!==this.token)return;
     // Commit the previous track even if its choreography was interrupted.
@@ -111,6 +111,11 @@ export class DiscDirector{
       this.backdrops.forEach((b,i)=>b.classList.toggle('active',i===incomingIndex));
       onShow();return;
     }
+    if(!this.motionEnabled){
+      outgoing.classList.remove('active');incoming.classList.add('active');
+      this.backdrops.forEach((b,i)=>b.classList.toggle('active',i===incomingIndex));
+      this.current=incomingIndex;onShow();return;
+    }
     this.changing=true;
     // Commit the new album even if the next track interrupts the choreography.
     this.pendingShow=()=>{
@@ -118,6 +123,7 @@ export class DiscDirector{
       incoming.style.transform='';
       outgoing.style.transform='';
       outgoing.classList.remove('active');
+      if(this.exitAnimation){this.exitAnimation.cancel();this.exitAnimation=null;}
       incoming.classList.add('active');
       this.backdrops.forEach((b,i)=>b.classList.toggle('active',i===incomingIndex));
       this.changing=false;
@@ -138,7 +144,7 @@ export class DiscDirector{
       void nextBg.offsetWidth;
       requestAnimationFrame(()=>requestAnimationFrame(()=>{
         if(token!==this.token)return;
-        nextBg.style.transition='opacity 1850ms ease-in-out';
+        nextBg.style.transition=`opacity ${this.settings.backgroundFadeDuration}ms ease-in-out`;
         nextBg.style.opacity='1';
       }));
       this.fadeTimer=setTimeout(()=>{
@@ -148,14 +154,15 @@ export class DiscDirector{
         nextBg.classList.add('active');
         nextBg.style.transition='';
         nextBg.style.opacity='';
-      },2050);
+      },this.settings.backgroundFadeDuration+200);
 
-      await delay(220);
+      await delay(220/this.settings.animationSpeed);
       if(token!==this.token)return;
-      this.info.classList.add('metadata-exiting');
-      const lifted=await this.animateDisc(outgoing,[
-        [-50,-50,1,0],[-50,-65,.88,43],[-145,-98,.72,65]
-      ],1050,token);
+      if(this.metadataEnabled){
+        this.info.style.animationDuration=`${1050/this.settings.animationSpeed}ms`;
+        this.info.classList.add('metadata-exiting');
+      }
+      const lifted=await this.animateExit(outgoing,token);
       if(!lifted)return;
       outgoing.classList.remove('active');
       incoming.classList.add('active');
@@ -164,14 +171,18 @@ export class DiscDirector{
       // Replace the copy off-screen, then bring the new card in with the disc.
       this.info.classList.remove('metadata-exiting');
       onShow();
-      this.info.classList.add('metadata-entering');
+      if(this.metadataEnabled){
+        this.info.style.animationDuration=`${1250/this.settings.animationSpeed}ms`;
+        this.info.classList.add('metadata-entering');
+      }
       const landed=await this.animateDisc(incoming,[
         [55,-115,.72,65],[-50,-64,.9,30],[-50,-50,1,0]
-      ],1250,token);
+      ],1250/this.settings.animationSpeed,token);
       if(!landed)return;
     }finally{
       // Never leave metadata hidden or rotation stopped, including interrupted transitions.
       if(token===this.token){
+        if(this.exitAnimation){this.exitAnimation.cancel();this.exitAnimation=null;}
         incoming.style.transform='';
         outgoing.style.transform='';
         outgoing.classList.remove('active');

@@ -15,17 +15,19 @@
   "visualizerAutoNormalize": false,
   "visualizerPeakHold": false,
   "transitionStyle": "fly",
-  "discAppearance": "dot",
+  "discAppearance": "basic",
   "burnInProtection": false,
   "transitionDuration": 2000,
   "backdropTransitionStyle": "fade",
   "backdropTransitionDuration": 2000,
   "panelTransitionStyle": "slide",
   "panelTransitionDuration": 2050,
-  "centerHoleDot": 0,
-  "centerHoleBasic": 0,
+  "centerHoleBasic": 1,
   "centerHoleCd": 12,
   "centerHoleVinyl": 0.6,
   "panelPosition": "bottom-right",
-  "panelFontSize": 1
+  "panelFontSize": 1,
+  "centerHoleColorBasic": "white",
+  "centerHoleColorCd": "transparent",
+  "centerHoleColorVinyl": "transparent"
 }

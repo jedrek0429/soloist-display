@@ -1,0 +1,48 @@
+.TH SOLOIST-DISPLAY 1 "November 2026" "Soloist Display" "User Commands"
+.SH NAME
+soloist-display \- launch the Soloist now-playing display or its settings
+.SH SYNOPSIS
+.B soloist-display
+.RI [ --settings ]
+.SH DESCRIPTION
+.B soloist-display
+starts the per-user
+.B soloist-display.service
+if necessary, waits for its local HTTP server, and opens the display in the default browser using
+.BR xdg-open (1).
+The display is served at
+.IR http://127.0.0.1:8080/ .
+.SH OPTIONS
+.TP
+.B --settings
+Open the settings interface at
+.IR http://127.0.0.1:8080/settings .
+.SH FILES
+.TP
+.I ~/.config/soloist-display/config.json
+Per-user display settings.
+.SH SERVICES
+.TP
+.B soloist-display.service
+The systemd user service hosting the display and audio bridge.
+.SH EXIT STATUS
+Returns a nonzero status if the user service cannot be started, the HTTP endpoint does not become ready, or opening the browser fails.
+.SH EXAMPLES
+.TP
+.B soloist-display
+Open the now-playing screen.
+.TP
+.B soloist-display --settings
+Open display settings.
+.TP
+.B systemctl --user status soloist-display.service
+Check service status.
+.TP
+.B journalctl --user -u soloist-display.service -n 50
+Inspect recent service logs.
+.SH SEE ALSO
+.BR systemctl (1),
+.BR journalctl (1),
+.BR xdg-open (1)
+.SH AUTHOR
+Soloist Display contributors.

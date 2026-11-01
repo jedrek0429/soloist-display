@@ -18,27 +18,53 @@ Minimal fullscreen now-playing display for Spotify Soloist, designed for 4:3 CRT
 - `src/main.js`: WebSocket connections, playback state and progress.
 - `audio-bridge/`: Rust PipeWire/PulseAudio monitor capture, overlapping 2048-sample FFT windows every 512 samples (~43 Hz), per-band smoothing and JSON WebSocket output.
 
-## Run
+## Install on Arch Linux
 
-Start Soloist with its local WebSocket on `127.0.0.1:9090`.
+Spotify Soloist must already be running and expose its local WebSocket on port 9090.
 
-```sh
-python -m http.server 8080 --bind 127.0.0.1
-```
-
-Open `http://127.0.0.1:8080` and use fullscreen (F11).
-
-For the real audio visualiser on Arch Linux:
+From a checkout of the **feat/now-playing-display** branch:
 
 ```sh
-sudo pacman -S rust libpulse
-pactl list short sources
-SOLOIST_DISPLAY_MONITOR='YOUR_OUTPUT.monitor' cargo run --release --manifest-path audio-bridge/Cargo.toml
+makepkg -si
 ```
 
-Replace `YOUR_OUTPUT.monitor` with the actual output monitor for the Spotify audio stream. If it is wrong or silent, the visualiser will not work. The Rust bridge reports actual FFT frame rate, signal peak, six frequency-band levels and connected clients every five seconds for troubleshooting.
+Open **Soloist Display** or **Soloist Display Settings** from Rofi. Both desktop
+entries are installed by the package. The launcher starts the background systemd
+user service, waits until the local HTTP server is ready, then opens Firefox.
+The main display uses Firefox kiosk mode. Closing Firefox does not stop the
+background audio/server service; it can be stopped with:
 
-`config.json` configures the Soloist and spectrum WebSocket URLs, visualiser sensitivity (`visualizerSensitivity`) and smoothing (`visualizerSmoothing`, 0–1; higher is smoother), disc diameter in viewport-height percent (`discSize`), rotation period in seconds (`discRotationSeconds`), overall transition speed (`animationSpeed`), background darkness (`backgroundDim`, 0–1), blur in pixels (`backgroundBlur`), crossfade in milliseconds (`backgroundFadeDuration`), metadata opacity (`metadataOpacity`, 0–1) and scale (`metadataScale`), and the `discAnimation`, `metadataAnimation`, and `reducedMotion` toggles. Missing/invalid numeric settings use bounded defaults. Changes to browser settings require a page refresh, not a Rust rebuild. Restart the Rust bridge after updating: the old binary PCM protocol is incompatible with the new JSON six-band spectrum protocol. No browser audio permission or Web Audio activation is required.
+```sh
+systemctl --user stop soloist-display
+```
+
+Logs: `journalctl --user -u soloist-display -f`.
+
+The one Rust binary starts the audio spectrum WebSocket on
+`127.0.0.1:9091`, and serves the display and settings at
+`http://127.0.0.1:8080/` and `http://127.0.0.1:8080/settings`.
+The separate Python HTTP server is no longer required. The WebSocket
+connection to Spotify Soloist on port 9090 remains a separate service.
+
+Settings are edited in the browser, persisted at
+`~/.config/soloist-display/config.json`, and applied to the display
+automatically (via a page refresh when settings change). A reset-to-defaults
+button is available. The built-in defaults are bundled with the binary; manual
+JSON editing is optional.
+
+The audio bridge discovers the default PipeWire/PulseAudio sink monitor.
+Override it with `SOLOIST_DISPLAY_MONITOR` in a systemd user service override
+if necessary. Both HTTP and spectrum services bind to localhost only.
+
+For development without installing:
+
+```sh
+cargo run --release --manifest-path audio-bridge/Cargo.toml
+```
+
+Open `http://127.0.0.1:8080/` and `http://127.0.0.1:8080/settings`.
+The Rust process serves the bundled frontend; the app does not require
+`python -m http.server`.
 
 ## Validation status
 

@@ -35,7 +35,7 @@ export class DiscDirector{
       this.animations.add(animation);
       const finish=()=>{
         this.animations.delete(animation);
-        if(token===this.token){animation.commitStyles?.();animation.cancel();resolve(true)}
+        if(token===this.token){try{animation.commitStyles?.()}catch{}animation.cancel();resolve(true)}
         else{animation.cancel();resolve(false)}
       };
       // A timer rather than animation.finished avoids compositor stalls on CRT browsers.
@@ -43,11 +43,11 @@ export class DiscDirector{
     });
   }
   async change(url,onShow){
+    if(this.pendingShow){this.pendingShow();this.pendingShow=null}
     const token=++this.token;
     for(const animation of this.animations)animation.cancel();
     this.animations.clear();
     clearTimeout(this.fadeTimer);
-    if(this.pendingShow){this.pendingShow();this.pendingShow=null}
     this.changing=false;
     this.info.classList.remove('metadata-exiting','metadata-entering','revealing');
     await preload(url);

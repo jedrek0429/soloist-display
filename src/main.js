@@ -39,7 +39,22 @@ function connect(url,onData,onOpen){
   open();
 }
 connect(config.soloistWebSocket||'ws://127.0.0.1:9090',handleSoloist,s=>s.send(JSON.stringify({type:'command',command:'get_state'})));
-if(config.visualizer!==false)connect(config.audioWebSocket||'ws://127.0.0.1:9091',data=>{if(data.type==='spectrum')spectrum.receive(data.bars)});
+if(config.visualizer!==false){
+  let retry=500;
+  function connectAudio(){
+    const socket=new WebSocket(config.audioWebSocket||'ws://127.0.0.1:9091');
+    socket.binaryType='arraybuffer';
+    socket.onopen=()=>{retry=500};
+    socket.onmessage=event=>spectrum.receive(event.data);
+    socket.onclose=()=>{setTimeout(connectAudio,retry);retry=Math.min(12000,retry*1.7)};
+    socket.onerror=()=>socket.close();
+  }
+  connectAudio();
+  // Firefox may initially suspend Web Audio until the first user interaction.
+  const unlock=()=>spectrum.context?.resume().catch(()=>{});
+  window.addEventListener('pointerdown',unlock);
+  window.addEventListener('keydown',unlock);
+}
 function progressFrame(now){
   const elapsed=playing?now-positionTime:0;
   const ratio=duration?Math.max(0,Math.min(1,(position+elapsed)/duration)):0;

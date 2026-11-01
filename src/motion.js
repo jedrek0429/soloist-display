@@ -13,6 +13,7 @@ export class DiscDirector{
     this.discs=discs;this.backdrops=backdrops;this.info=info;
     this.current=0;this.token=0;this.started=false;this.angle=0;
     this.velocity=0;this.playing=false;this.changing=false;this.last=performance.now();
+    this.pendingShow=null;this.fadeTimer=null;
     requestAnimationFrame(t=>this.spin(t));
   }
   spin(now){
@@ -45,6 +46,14 @@ export class DiscDirector{
   }
   async change(url,onShow){
     const token=++this.token;
+    // An interrupted exchange must settle before a new one starts.
+    if(this.pendingShow){
+      this.pendingShow();
+      this.pendingShow=null;
+    }
+    this.changing=false;
+    this.info.style.opacity='1';
+    clearTimeout(this.fadeTimer);
     await preload(url);
     if(token!==this.token)return;
     // Commit the previous track even if its choreography was interrupted.
@@ -52,6 +61,7 @@ export class DiscDirector{
     const incomingIndex=this.started?1-outgoingIndex:outgoingIndex;
     const outgoing=this.discs[outgoingIndex],incoming=this.discs[incomingIndex];
     for(const disc of this.discs){disc.style.transform='';disc.classList.remove('active')}
+    for(const bg of this.backdrops){bg.style.transition='none';bg.style.opacity='';bg.style.zIndex='';}
     incoming.querySelector('.disc-image').style.backgroundImage=imageStyle(url);
     this.backdrops[incomingIndex].style.backgroundImage=imageStyle(url);
     if(!this.started){
@@ -61,6 +71,18 @@ export class DiscDirector{
       onShow();return;
     }
     this.changing=true;
+    // Commit the new album even if the next track interrupts the choreography.
+    this.pendingShow=()=>{
+      this.current=incomingIndex;
+      incoming.style.transform='';
+      outgoing.style.transform='';
+      outgoing.classList.remove('active');
+      incoming.classList.add('active');
+      this.backdrops.forEach((b,i)=>b.classList.toggle('active',i===incomingIndex));
+      this.changing=false;
+      this.info.style.opacity='1';
+      onShow();
+    };
     outgoing.classList.add('active');
     this.info.style.opacity='0';
     try{
@@ -84,17 +106,17 @@ export class DiscDirector{
       nextBg.classList.remove('active');
       void nextBg.offsetWidth;
       requestAnimationFrame(()=>requestAnimationFrame(()=>{
-        nextBg.style.transition='opacity 6500ms ease-in-out';
+        nextBg.style.transition='opacity 2900ms ease-in-out';
         nextBg.style.opacity='1';
       }));
-      setTimeout(()=>{
+      this.fadeTimer=setTimeout(()=>{
         if(token!==this.token)return;
         previousBg.classList.remove('active');
         previousBg.style.opacity='0';
         nextBg.classList.add('active');
         nextBg.style.transition='';
         nextBg.style.opacity='';
-      },6700);
+      },3100);
       const landed=await this.animateDisc(incoming,[
         [55,-115,.72,65],[-50,-64,.9,30],[-50,-50,1,0]
       ],1250,token);
@@ -109,6 +131,7 @@ export class DiscDirector{
         this.current=incomingIndex;
         this.changing=false;
         this.info.style.opacity='1';
+        this.pendingShow=null;
         onShow();
         this.info.classList.remove('revealing');
         void this.info.offsetWidth;

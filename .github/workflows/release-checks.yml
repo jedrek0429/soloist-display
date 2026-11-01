@@ -1,0 +1,27 @@
+name: Release checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Rust tests
+        run: cargo test --locked --manifest-path audio-bridge/Cargo.toml
+      - name: Rust release build
+        run: cargo build --release --locked --manifest-path audio-bridge/Cargo.toml
+      - name: Shell syntax
+        run: sh -n packaging/soloist-display-launcher
+      - name: CLI help and invalid arguments
+        run: |
+          sh packaging/soloist-display-launcher --help | grep -q -- '--settings'
+          if sh packaging/soloist-display-launcher --invalid; then exit 1; fi
+      - name: JavaScript syntax
+        run: |
+          for file in src/*.js; do
+            node --check --input-type=module < "$file"
+          done

@@ -3,6 +3,15 @@ import {DiscDirector} from './motion.js';
 import {Spectrum} from './spectrum.js';
 
 const config=await fetch('./config.json').then(r=>r.json()).catch(()=>({}));
+// Settings saved in the other launcher are picked up without restarting this display.
+let configSnapshot=JSON.stringify(config);
+setInterval(async()=>{
+  try{
+    const updated=await fetch('./config.json',{cache:'no-store'}).then(r=>r.json());
+    const snapshot=JSON.stringify(updated);
+    if(snapshot!==configSnapshot)location.reload();
+  }catch{}
+},2000);
 const $=id=>document.getElementById(id);
 const bounded=(value,fallback,min,max)=>Number.isFinite(Number(value))?Math.max(min,Math.min(max,Number(value))):fallback;
 const settings={

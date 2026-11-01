@@ -40,6 +40,10 @@ fn read_settings(path: &PathBuf) -> Value {
     settings
 }
 
+async fn get_defaults() -> impl IntoResponse {
+    ([(header::CACHE_CONTROL, "no-store")], [(header::CONTENT_TYPE, "application/json")], DEFAULT_CONFIG)
+}
+
 async fn get_config(State(state): State<WebState>) -> impl IntoResponse {
     ([(header::CACHE_CONTROL, "no-store")], Json(read_settings(&state.path)))
 }
@@ -86,6 +90,7 @@ async fn web_server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let state = WebState { path: Arc::new(config_path()) };
     let app = Router::new()
         .route("/config.json", get(get_config).put(put_config))
+        .route("/defaults.json", get(get_defaults))
         .route("/", get(|| static_file(axum::extract::Path(String::new()))))
         .route("/settings", get(|| static_file(axum::extract::Path("settings".into()))))
         .route("/*path", get(static_file))

@@ -29,5 +29,8 @@
   "panelFontSize": 1,
   "centerHoleColorBasic": "white",
   "centerHoleColorCd": "transparent",
-  "centerHoleColorVinyl": "transparent"
+  "centerHoleColorVinyl": "transparent",
+  "progressBar": true,
+  "timeDisplay": "off",
+  "timeLayout": "split"
 }

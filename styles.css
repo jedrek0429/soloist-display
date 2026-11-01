@@ -28,3 +28,10 @@
 .info h1{font-size:calc(clamp(22px,3vw,38px) * var(--metadata-font-size,1))}
 .info p{font-size:calc(clamp(16px,1.8vw,23px) * var(--metadata-font-size,1))}
 @media(max-aspect-ratio:1/1){:root[data-panel-position='bottom-left'] .info,:root[data-panel-position='top-left'] .info{left:4vw;right:auto}:root[data-panel-position='top-right'] .info,:root[data-panel-position='top-left'] .info{top:4vh;bottom:auto}}
+
+/* The hole may be transparent, white or black; zero removes it entirely. */
+:root[data-hole-color='white'] .rotor,:root[data-hole-color='black'] .rotor{-webkit-mask-image:none;mask-image:none}
+:root[data-hole-color='white'] .spindle,:root[data-hole-color='black'] .spindle{display:block;z-index:8;width:var(--center-hole-diameter,0%);height:var(--center-hole-diameter,0%);background:var(--hole-fill);border:0;box-shadow:none}
+:root[data-hole-color='white']{--hole-fill:#fff}
+:root[data-hole-color='black']{--hole-fill:#000}
+:root[data-hole-color='transparent'] .spindle{display:none}

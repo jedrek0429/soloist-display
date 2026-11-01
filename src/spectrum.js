@@ -11,7 +11,7 @@ export class Spectrum{
       const start=Math.floor(i*bars.length/6),end=Math.max(start+1,Math.floor((i+1)*bars.length/6));
       let peak=0;
       for(let j=start;j<end;j++)peak=Math.max(peak,Number(bars[j])||0);
-      this.target[i]=Math.min(1,Math.max(0,peak));
+      // FFT bridge magnitudes are typically far below 1; expand real signal dynamics.\n      this.target[i]=Math.min(1,Math.max(0,Math.pow(peak*3.8,0.65)));
     }
     this.lastPacket=performance.now();this.packets++;
   }

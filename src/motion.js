@@ -42,6 +42,24 @@ export class DiscDirector{
       setTimeout(finish,duration+35);
     });
   }
+  fadeBackdrop(outgoing,incoming,duration,token){
+    if(duration<=0){incoming.style.opacity='1';return Promise.resolve(true)}
+    return new Promise(resolve=>{
+      // CSS crossfade keeps the old image fully opaque beneath the incoming one.
+      // Avoid WAAPI commitStyles()/cancel(), which can expose a frame of the wrong image.
+      incoming.style.transition='none';
+      incoming.style.opacity='0';
+      outgoing.style.transition='none';
+      outgoing.style.opacity='1';
+      void incoming.offsetWidth;
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        if(token!==this.token){resolve(false);return}
+        incoming.style.transition=`opacity ${duration}ms ease-in-out`;
+        incoming.style.opacity='1';
+      }));
+      setTimeout(()=>resolve(token===this.token),duration+60);
+    });
+  }
   async change(url,onShow){
     if(this.pendingShow){this.pendingShow();this.pendingShow=null}
     const token=++this.token;
@@ -70,8 +88,8 @@ export class DiscDirector{
       outgoing.style.transform='';outgoing.style.opacity='';
       incoming.style.transform='';incoming.style.opacity='';
       previousBg.classList.remove('active');nextBg.classList.add('active');
-      previousBg.style.transform='';previousBg.style.opacity='';
-      nextBg.style.transform='';nextBg.style.opacity='';
+      previousBg.style.transform='';previousBg.style.transition='none';previousBg.style.opacity='0';
+      nextBg.style.transform='';nextBg.style.transition='none';nextBg.style.opacity='1';
       this.changing=false;this.pendingShow=null;
       this.info.classList.remove('metadata-exiting','metadata-entering','revealing');
       onShow();
@@ -85,7 +103,7 @@ export class DiscDirector{
     this.pendingShow=commit;
     outgoing.classList.add('active');incoming.classList.add('active');
     previousBg.classList.add('active');nextBg.classList.add('active');
-    // Both layers remain visible for the duration of a crossfade.
+    // The outgoing backdrop stays underneath until the incoming image is fully opaque.
     previousBg.style.zIndex='1';nextBg.style.zIndex='2';
     if(discStyle==='fade')incoming.style.opacity='0';
     if(discStyle==='slide')incoming.style.transform='translate(65%,-50%)';
@@ -109,7 +127,10 @@ export class DiscDirector{
       })());
     }
     if(backdropStyle==='fade'){
-      jobs.push(this.animate(nextBg,[{opacity:0},{opacity:1}],backdropDuration,token));
+      jobs.push(this.fadeBackdrop(previousBg,nextBg,backdropDuration,token));
+    }else{
+      nextBg.style.opacity='1';
+      previousBg.style.opacity='0';
     }
     if(discStyle==='instant'){
       // Disc changes immediately even when the backdrop continues fading.

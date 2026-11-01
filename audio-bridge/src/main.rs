@@ -292,7 +292,7 @@ mod tests {
             assert_eq!(migrated[key], "off");
         }
         assert_eq!(migrated["discAppearance"], "basic");
-        assert_eq!(migrated["centerHoleBasic"], 8);
+        assert_eq!(migrated["centerHoleBasic"].as_f64(), Some(8.0));
         assert_eq!(migrated["transitionDuration"], 3400);
         assert_eq!(migrated["visualizerSensitivity"], 2.5);
         assert!(migrated.get("centerHoleDot").is_none());

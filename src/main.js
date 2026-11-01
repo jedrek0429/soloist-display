@@ -4,8 +4,30 @@ import {Spectrum} from './spectrum.js';
 
 const config=await fetch('./config.json').then(r=>r.json()).catch(()=>({}));
 const $=id=>document.getElementById(id);
-const director=new DiscDirector({discs:[$('disc-a'),$('disc-b')],backdrops:[$('backdrop-a'),$('backdrop-b')],info:$('info')});
-const spectrum=new Spectrum($('visualizer'), config.visualizerSensitivity ?? 1);
+const bounded=(value,fallback,min,max)=>Number.isFinite(Number(value))?Math.max(min,Math.min(max,Number(value))):fallback;
+const settings={
+  discSize:bounded(config.discSize,116,50,200),
+  discRotationSeconds:bounded(config.discRotationSeconds,12,1,120),
+  animationSpeed:bounded(config.animationSpeed,1,0.1,5),
+  backgroundDim:bounded(config.backgroundDim,.52,0,1),
+  backgroundBlur:bounded(config.backgroundBlur,50,0,150),
+  backgroundFadeDuration:bounded(config.backgroundFadeDuration,1850,0,10000),
+  metadataOpacity:bounded(config.metadataOpacity,.58,0,1),
+  metadataScale:bounded(config.metadataScale,1,.5,2),
+  discAnimation:config.discAnimation!==false,
+  metadataAnimation:config.metadataAnimation!==false,
+  reducedMotion:config.reducedMotion===true
+};
+const root=document.documentElement;
+for(const [key,value] of Object.entries({
+  '--disc-size':settings.discSize+'dvh',
+  '--background-dim':settings.backgroundDim,
+  '--background-blur':settings.backgroundBlur+'px',
+  '--metadata-opacity':settings.metadataOpacity,
+  '--metadata-scale':settings.metadataScale
+}))root.style.setProperty(key,value);
+const director=new DiscDirector({discs:[$('disc-a'),$('disc-b')],backdrops:[$('backdrop-a'),$('backdrop-b')],info:$('info'),settings});
+const spectrum=new Spectrum($('visualizer'), config.visualizerSensitivity ?? 1, config.visualizerSmoothing ?? 0.7);
 let currentUri=null,position=0,positionTime=performance.now(),duration=0,playing=false;
 let lastTrack=null;
 function updateItem(item){

@@ -38,7 +38,7 @@ SOLOIST_DISPLAY_MONITOR='YOUR_OUTPUT.monitor' cargo run --release --manifest-pat
 
 Replace `YOUR_OUTPUT.monitor` with the actual output monitor for the Spotify audio stream. If it is wrong or silent, the visualiser will not work. The Rust bridge reports actual FFT frame rate, signal peak, six frequency-band levels and connected clients every five seconds for troubleshooting.
 
-`config.json` configures the Soloist and spectrum WebSocket URLs. Restart the Rust bridge after updating: the old binary PCM protocol is incompatible with the new JSON six-band spectrum protocol. No browser audio permission or Web Audio activation is required.
+`config.json` configures the Soloist and spectrum WebSocket URLs, visualiser sensitivity (`visualizerSensitivity`) and smoothing (`visualizerSmoothing`, 0–1; higher is smoother), disc diameter in viewport-height percent (`discSize`), rotation period in seconds (`discRotationSeconds`), overall transition speed (`animationSpeed`), background darkness (`backgroundDim`, 0–1), blur in pixels (`backgroundBlur`), crossfade in milliseconds (`backgroundFadeDuration`), metadata opacity (`metadataOpacity`, 0–1) and scale (`metadataScale`), and the `discAnimation`, `metadataAnimation`, and `reducedMotion` toggles. Missing/invalid numeric settings use bounded defaults. Changes to browser settings require a page refresh, not a Rust rebuild. Restart the Rust bridge after updating: the old binary PCM protocol is incompatible with the new JSON six-band spectrum protocol. No browser audio permission or Web Audio activation is required.
 
 ## Validation status
 

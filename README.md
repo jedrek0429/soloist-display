@@ -1,87 +1,85 @@
 # Soloist Display
 
-Minimal Spotify now-playing display for a CRT. Album art, live spectrum, track progress.
+![Soloist Display showing the current track](docs/screenshots/now-playing.webp)
 
-**Arch Linux · Firefox · Spotify Soloist**
+A minimal, CRT-friendly now-playing screen for [Spotify Soloist](https://developer.spotify.com/documentation/soloist), with album art, track progress and a live audio spectrum.
 
-> Already running Soloist with `--ws 127.0.0.1:9090`? **Skip to [3. Install Display](#3-install-display).**
+> **Already have Soloist running? Skip to [Step 3](#3-install-soloist-display).**
 
-## 1. Prepare Arch
+## 1. Prepare Arch Linux
 
-```sh
-sudo pacman -S --needed base-devel git firefox pipewire pipewire-pulse libpulse curl
-```
-
-You need **Spotify Premium** to pair Soloist and a **Soloist API key** from [Spotify for Developers](https://developer.spotify.com/documentation/soloist).
-
-## 2. Set up Spotify Soloist
-
-1. Download **Linux x86_64** from [official Soloist downloads](https://developer.spotify.com/documentation/soloist/reference/downloads-and-updates).
-2. Extract the archive. Install its `soloist` executable:
+From a fresh installation:
 
 ```sh
-mkdir -p ~/.local/bin ~/.config/soloist ~/.config/systemd/user
-install -m 755 /path/to/extracted/soloist ~/.local/bin/soloist
+sudo pacman -Syu
+sudo pacman -S --needed base-devel git curl firefox pipewire pipewire-pulse wireplumber libpulse rofi nano
 ```
 
-3. Create `~/.config/soloist/env`:
+## 2. Install Spotify Soloist
+
+Soloist needs Spotify Premium and a private API key. Generate yours in the [Spotify for Developers dashboard](https://developer.spotify.com/dashboard/soloist), then install the official x86_64 Linux build:
+
+```sh
+mkdir -p "$HOME/Downloads/soloist"
+cd "$HOME/Downloads/soloist"
+curl --fail --location -o soloist.tar.gz https://soloist-builds.spotifycdn.com/soloist_release_x86_64.tar.gz
+tar -xzf soloist.tar.gz
+install -Dm755 soloist "$HOME/.local/bin/soloist"
+"$HOME/.local/bin/soloist" --version
+```
+
+Clone this repository and install its Soloist user service:
+
+```sh
+git clone --branch feat/now-playing-display --single-branch https://github.com/jedrek0429/soloist-display.git "$HOME/soloist-display"
+install -Dm644 "$HOME/soloist-display/packaging/soloist.service.example" "$HOME/.config/systemd/user/soloist.service"
+install -Dm600 /dev/null "$HOME/.config/soloist/env"
+nano "$HOME/.config/soloist/env"
+```
+
+Add your device name and key:
 
 ```ini
-SOLOIST_NAME=ThinkCentre CRT
-SOLOIST_API_KEY=PASTE_YOUR_KEY_HERE
+SOLOIST_NAME="ThinkCentre CRT"
+SOLOIST_API_KEY="PASTE_YOUR_KEY_HERE"
 ```
 
-```sh
-chmod 600 ~/.config/soloist/env
-```
-
-4. Install the background service:
+Start Soloist:
 
 ```sh
-git clone https://github.com/jedrek0429/soloist-display.git
-cd soloist-display
-git switch feat/now-playing-display
-cp packaging/soloist.service.example ~/.config/systemd/user/soloist.service
 systemctl --user daemon-reload
 systemctl --user enable --now soloist.service
 ```
 
-Open Spotify on your phone → **Connect to a device** → **ThinkCentre CRT**. Play something. Spotify Soloist must expose port **9090**.
+In Spotify, open **Connect to a device** and choose the value of `SOLOIST_NAME`. Soloist Display expects Soloist's WebSocket at `127.0.0.1:9090`.
 
-## 3. Install Display
+## 3. Install Soloist Display
 
-If you completed step 2, stay in the repository directory. Otherwise:
+If you skipped Step 2, clone the repository first:
 
 ```sh
-git clone https://github.com/jedrek0429/soloist-display.git
-cd soloist-display
-git switch feat/now-playing-display
+git clone --branch feat/now-playing-display --single-branch https://github.com/jedrek0429/soloist-display.git "$HOME/soloist-display"
 ```
 
-Install:
+Build and install:
 
 ```sh
+cd "$HOME/soloist-display"
 makepkg -si
 ```
 
-Open **Rofi → Soloist Display**. For appearance controls, open **Rofi → Soloist Display Settings**.
+Open Rofi with `rofi -show drun`, then choose **Soloist Display**. Choose **Soloist Display Settings** to adjust its appearance.
 
-No terminal needs to stay open. The display service starts when launched.
+<img src="docs/screenshots/settings.webp" alt="Soloist Display settings" width="520">
 
-## Settings
-
-Sliders for disc, background, transitions, metadata and live audio spectrum. **Save** applies changes to the display; **Reset** restores defaults.
-
-Settings file: `~/.config/soloist-display/config.json`.
+Settings are stored in `~/.config/soloist-display/config.json`.
 
 ## Troubleshooting
 
 ```sh
-systemctl --user status soloist
-systemctl --user status soloist-display
-journalctl --user -u soloist-display -n 40
+systemctl --user status soloist soloist-display
+journalctl --user -u soloist -u soloist-display -n 50
+pactl get-default-sink
 ```
 
-No music metadata? Check Soloist is running with `--ws 127.0.0.1:9090`. No spectrum? Check the default audio sink with `pactl get-default-sink`.
-
-**Note:** Soloist builds expire after 90 days; replace the executable with a newer official build. [Spotify documentation](https://developer.spotify.com/documentation/soloist).
+Soloist builds expire after 90 days; replace the binary with a current [official download](https://developer.spotify.com/documentation/soloist/reference/downloads-and-updates).

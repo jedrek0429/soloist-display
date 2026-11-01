@@ -15,7 +15,9 @@ jobs:
       - name: Rust release build
         run: cargo build --release --manifest-path audio-bridge/Cargo.toml
       - name: Shell syntax
-        run: sh -n packaging/soloist-display-launcher
+        run: |
+          sh -n packaging/soloist-display-launcher
+          bash -n packaging/install-linux.sh
       - name: CLI help and invalid arguments
         run: |
           sh packaging/soloist-display-launcher --help | grep -q -- '--settings'

@@ -30,7 +30,7 @@ Install the dependencies for your distribution, then use the same installer on x
 ### Arch Linux
 
 ```sh
-sudo pacman -S --needed base-devel git curl xdg-utils pipewire pipewire-pulse wireplumber libpulse rust
+sudo pacman -Syu --needed base-devel git curl xdg-utils pipewire pipewire-pulse wireplumber libpulse rust
 git clone https://github.com/jedrek0429/soloist-display.git
 cd soloist-display
 bash packaging/install-linux.sh
@@ -51,6 +51,7 @@ bash packaging/install-linux.sh
 ### Fedora
 
 ```sh
+sudo dnf upgrade --refresh -y
 sudo dnf install -y git curl xdg-utils gcc make pkgconf-pkg-config pulseaudio-libs pulseaudio-utils pipewire pipewire-pulseaudio wireplumber cargo rust
 git clone https://github.com/jedrek0429/soloist-display.git
 cd soloist-display

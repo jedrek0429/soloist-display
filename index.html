@@ -1,6 +1,7 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#353633"><title>Soloist Display</title><link rel="stylesheet" href="./styles.css"></head>
-<body><main id="stage" class="stage">
-<div id="disc" class="disc" aria-label="Current album artwork"><div id="disc-rotor" class="disc-rotor"><div id="disc-image" class="disc-image"></div><div class="spindle"></div></div></div>
-<section id="information" class="information" aria-live="polite"><time id="clock" class="clock">--:--</time><div class="metadata"><h1 id="track">Not playing</h1><p id="artist">Waiting for Soloist</p></div><canvas id="visualizer" aria-label="Live audio spectrum"></canvas><div id="progress" class="progress" role="progressbar" aria-label="Playback progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progress-fill"></div></div></section>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#171717"><title>Soloist Display</title><link rel="stylesheet" href="./styles.css"></head>
+<body><main class="stage" id="stage" aria-label="Now playing">
+<div class="backdrop" aria-hidden="true"><div class="backdrop-image" id="backdrop-a"></div><div class="backdrop-image" id="backdrop-b"></div><div class="backdrop-shade"></div></div>
+<div class="disc-stage" id="disc-stage" aria-label="Album artwork"><div class="disc" id="disc-a"><div class="rotor"><div class="disc-image"></div><div class="spindle"></div></div></div><div class="disc" id="disc-b"><div class="rotor"><div class="disc-image"></div><div class="spindle"></div></div></div></div>
+<section class="info" id="info" aria-live="polite"><div class="info-copy"><h1 id="track">Not playing</h1><p id="artist">Waiting for Soloist</p></div><canvas id="visualizer" aria-label="Live audio spectrum"></canvas><div class="progress" id="progress" role="progressbar" aria-label="Track progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progress-fill"></div></div></section>
 </main><script type="module" src="./src/main.js"></script></body></html>

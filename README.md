@@ -73,6 +73,20 @@ Choose **Soloist Display** from your desktop application menu, or run `soloist-d
 
 Settings are stored in `~/.config/soloist-display/config.json`.
 
+## Future AUR publication (maintainer)
+
+The `PKGBUILD` in this repository is prepared for a future `soloist-display-git` AUR submission. No AUR account or publication is needed to build locally. Once you have an AUR account and SSH access, create the AUR repository and copy `PKGBUILD` into it, then run:
+
+```sh
+makepkg --printsrcinfo > .SRCINFO
+makepkg -si
+git add PKGBUILD .SRCINFO
+git commit -m 'Initial AUR release'
+git push
+```
+
+Before publishing, verify the upstream URL, licence, runtime dependencies and that the main branch builds. Maintain the AUR `PKGBUILD` and `.SRCINFO` together after subsequent packaging changes. `yay -Syu --devel` checks development packages for upstream revisions; ordinary `pacman -Syu` does not update AUR packages.
+
 ## Uninstall
 
 Remove Soloist Display while keeping Spotify Soloist and your saved settings:

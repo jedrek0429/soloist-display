@@ -37,10 +37,11 @@ const sections=[
     kicker:'04 · Motion',
     description:'Track change animations.',
     fields:[
-      ['transitionDuration','Transition duration','range',100,10000,50,'ms'],
       ['transitionStyle','Disc transition','select',['fly','slide','fade','instant']],
-      ['backdropLinked','Link transitions','link'],
-      ['backdropTransitionStyle','Backdrop transition','select',['fade','slide','instant']],
+      ['transitionDuration','Disc duration','range',100,10000,50,'ms'],
+      ['backdropLinked','Link durations','link'],
+      ['backdropTransitionStyle','Backdrop transition','select',['fade','instant']],
+      ['backdropTransitionDuration','Backdrop duration','range',100,10000,50,'ms'],
       ['metadataAnimation','Metadata reveal','toggle'],
       ['reducedMotion','Reduced motion','toggle']
     ]
@@ -119,8 +120,8 @@ function renderSection(){
     if(type==='link'){
       line.classList.add('linked-field');
       const button=document.createElement('button');button.type='button';button.className='link-button';
-      const update=()=>{button.textContent=draft.backdropLinked?'↗ Linked':'↗ Unlinked';button.setAttribute('aria-pressed',String(!!draft.backdropLinked));button.title='Link backdrop transition to disc transition';};
-      button.addEventListener('click',()=>{draft.backdropLinked=!draft.backdropLinked;status.textContent='Unsaved changes';renderSection();});
+      const update=()=>{button.textContent=draft.backdropLinked?'↗ Linked':'↗ Unlinked';button.setAttribute('aria-pressed',String(!!draft.backdropLinked));button.title='Link disc and backdrop durations';};
+      button.addEventListener('click',()=>{draft.backdropLinked=!draft.backdropLinked;if(draft.backdropLinked)draft.backdropTransitionDuration=draft.transitionDuration;status.textContent='Unsaved changes';renderSection();});
       update();line.append(button);controls.append(line);continue;
     }
     if(type==='toggle'){
@@ -138,19 +139,18 @@ function renderSection(){
       select.id=key;select.dataset.key=key;
       for(const choice of min){const option=document.createElement('option');option.value=String(choice);option.textContent=String(choice).replace(/^./,c=>c.toUpperCase());select.append(option)}
       select.value=String(draft[key]??min[0]);
-      if(key==='backdropTransitionStyle'&&draft.backdropLinked)select.disabled=true;
       line.append(select);
       const output=document.createElement('output');output.htmlFor=key;
       const refresh=()=>{draft[key]=typeof min[0]==='number'?Number(select.value):select.value;output.textContent=String(draft[key]);};
-      select.addEventListener('change',()=>{refresh();status.textContent='Unsaved changes';if(key==='transitionStyle'&&draft.backdropLinked)renderSection();});
-      if(key==='backdropTransitionStyle'&&draft.backdropLinked){select.value=['slide','instant'].includes(draft.transitionStyle)?draft.transitionStyle:'fade';}
+      select.addEventListener('change',()=>{refresh();status.textContent='Unsaved changes';});
       refresh();controls.append(line);continue;
     }else if(type==='range'){
       input.type='range';
       input.min=min;
       input.max=max;
       input.step=step;
-      input.value=draft[key]??min;
+      input.value=key==='backdropTransitionDuration'&&draft.backdropLinked?draft.transitionDuration:(draft[key]??min);
+      if(key==='backdropTransitionDuration'&&draft.backdropLinked)input.disabled=true;
       line.append(input);
     }else{
       input.type='text';
@@ -163,11 +163,12 @@ function renderSection(){
     output.htmlFor=key;
     const refresh=()=>{
       const value=type==='toggle'?input.checked:type==='range'?Number(input.value):input.value;
-      draft[key]=value;
+      draft[key]=key==='backdropTransitionDuration'&&draft.backdropLinked?draft.transitionDuration:value;
       output.textContent=type==='toggle'?(value?'On':'Off'):type==='text'?'Local':format(value,suffix);
     };
     input.addEventListener('input',()=>{
       refresh();
+      if(key==='transitionDuration'&&draft.backdropLinked){draft.backdropTransitionDuration=draft.transitionDuration;renderSection();}
       status.textContent='Unsaved changes';
     });
     refresh();

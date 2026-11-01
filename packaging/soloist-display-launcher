@@ -1,7 +1,41 @@
 #!/bin/sh
 set -eu
+
+usage() {
+  cat <<'EOF'
+Usage: soloist-display [OPTION]
+
+Open the Soloist now-playing display.
+
+Options:
+  --settings       Open display settings
+  -h, --help       Show this help
+  -V, --version    Show installed package version
+EOF
+}
+
+case "${1:-}" in
+  -h|--help)
+    [ "$#" -eq 1 ] || { usage >&2; exit 2; }
+    usage
+    exit 0
+    ;;
+  -V|--version)
+    [ "$#" -eq 1 ] || { usage >&2; exit 2; }
+    pacman -Q soloist-display-git 2>/dev/null || printf '%s\n' 'soloist-display (unpackaged)'
+    exit 0
+    ;;
+  ''|--settings)
+    [ "$#" -le 1 ] || { usage >&2; exit 2; }
+    ;;
+  *)
+    printf 'soloist-display: unknown option: %s\n' "$1" >&2
+    usage >&2
+    exit 2
+    ;;
+esac
+
 systemctl --user start soloist-display.service
-# Wait for the user service to bind before opening the display.
 ready=0
 for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
   if curl --silent --fail --output /dev/null http://127.0.0.1:8080/config.json; then ready=1; break; fi

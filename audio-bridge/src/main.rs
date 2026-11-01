@@ -132,6 +132,9 @@ async fn web_server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 const WINDOW: usize = 2048;
 const HOP: usize = 512;
 const BANDS: [f32; 7] = [55., 150., 350., 800., 1800., 4000., 9000.];
+// Typical music loses energy at higher frequencies; use progressively
+// lower reference levels so sensitivity can meaningfully affect all bars.
+const REFERENCE_DB: [f32; 6] = [-19., -23., -29., -34., -39., -44.];
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -228,10 +231,14 @@ async fn capture(sender: broadcast::Sender<String>) -> Result<(), Box<dyn std::e
                 count += 1;
             }
             let rms = if count > 0 { (power / count as f32).sqrt() / (WINDOW as f32 * 0.25) } else { 0. };
-            // Convert frequency-domain amplitude to a usable visual range, with
-            // a modest noise gate. Keep each band's response independent.
+            // Per-band reference levels compensate for the natural spectral
+            // roll-off of music: a shared dB threshold hides the upper bands.
+            // These are fixed calibrations, not automatic normalization, so
+            // silence stays silent and each bar still follows its own energy.
             let db = 20. * rms.max(1e-8).log10();
-            let level = ((db + 68.) / 49.).clamp(0., 1.).powf(1.25);
+            let level = ((db - REFERENCE_DB[band] + 49.) / 49.)
+                .clamp(0., 1.)
+                .powf(1.25);
             // ~12 ms attack / ~180 ms release at 43 Hz.
             let coefficient = if level > smoothed[band] { 0.85 } else { 0.12 };
             smoothed[band] += (level - smoothed[band]) * coefficient;

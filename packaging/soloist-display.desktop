@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=Soloist Display
-Comment=Now playing on the CRT
+Comment=Spotify Soloist now playing
 Exec=soloist-display
 Icon=multimedia-player
 Terminal=false

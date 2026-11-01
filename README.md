@@ -2,7 +2,7 @@
 
 ![Soloist Display showing the current track](docs/screenshots/now-playing.webp)
 
-A minimal, CRT-friendly now-playing screen for [Spotify Soloist](https://developer.spotify.com/documentation/soloist), with album art, track progress and a live audio spectrum.
+A minimal now-playing screen for [Spotify Soloist](https://developer.spotify.com/documentation/soloist), with album art, track progress and a live audio spectrum.
 
 > **Already have Soloist running? Skip to [Step 3](#3-install-soloist-display).**
 
@@ -40,7 +40,7 @@ nano "$HOME/.config/soloist/env"
 Add your device name and key:
 
 ```ini
-SOLOIST_NAME="ThinkCentre CRT"
+SOLOIST_NAME="Soloist Display"
 SOLOIST_API_KEY="PASTE_YOUR_KEY_HERE"
 ```
 

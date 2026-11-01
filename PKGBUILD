@@ -2,7 +2,7 @@
 pkgname=soloist-display-git
 pkgver=0.1.0
 pkgrel=1
-pkgdesc='CRT-friendly Spotify Soloist display and PipeWire visualiser'
+pkgdesc='Spotify Soloist now-playing display and PipeWire visualiser'
 arch=('x86_64')
 url='https://github.com/jedrek0429/soloist-display'
 license=('MIT')

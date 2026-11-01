@@ -6,8 +6,8 @@ if [[ "$(uname -s)" != Linux ]]; then
   exit 1
 fi
 
-machine="$(uname -m)"
-bits="$(getconf LONG_BIT)"
+machine="${SOLOIST_TEST_MACHINE:-$(uname -m)}"
+bits="${SOLOIST_TEST_BITS:-$(getconf LONG_BIT)}"
 case "$machine:$bits" in
   x86_64:64|amd64:64) archive=x86_64 ;;
   aarch64:64|arm64:64) archive=arm64 ;;
@@ -15,6 +15,10 @@ case "$machine:$bits" in
   *) printf 'Unsupported Linux architecture: %s (%s-bit userspace)\n' "$machine" "$bits" >&2; exit 1 ;;
 esac
 
+if [[ "${1:-}" == "--print-archive" ]]; then
+  printf "%s\n" "$archive"
+  exit 0
+fi
 url="https://soloist-builds.spotifycdn.com/soloist_release_${archive}.tar.gz"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT

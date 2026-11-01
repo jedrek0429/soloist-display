@@ -33,7 +33,14 @@ fn read_settings(path: &PathBuf) -> Value {
     if let Ok(contents) = std::fs::read_to_string(path) {
         if let Ok(Value::Object(values)) = serde_json::from_str::<Value>(&contents) {
             if let Value::Object(ref mut object) = settings {
-                for (key, value) in values { if object.contains_key(&key) { object.insert(key, value); } }
+                let old_dot = values.get("discAppearance").and_then(Value::as_str) == Some("dot");
+                for (key, value) in &values { if object.contains_key(key) { object.insert(key.clone(), value.clone()); } }
+                if old_dot {
+                    object.insert("discAppearance".into(), Value::String("basic".into()));
+                    if let Some(size) = values.get("centerHoleDot").and_then(Value::as_f64) {
+                        object.insert("centerHoleBasic".into(), Value::from(size));
+                    }
+                }
             }
         }
     }
@@ -61,7 +68,7 @@ async fn put_config(State(state): State<WebState>, Json(input): Json<Value>) -> 
         }
         if let Some((lo, hi)) = match key.as_str() {
             "visualizerSensitivity" => Some((0., 10.)), "visualizerSmoothing" => Some((0., 1.)),
-            "discSize" => Some((50., 200.)), "centerHoleDot" | "centerHoleBasic" | "centerHoleCd" | "centerHoleVinyl" => Some((0., 20.)), "panelFontSize" => Some((0.6, 1.6)), "discRotationSeconds" => Some((1., 120.)),
+            "discSize" => Some((50., 200.)), "centerHoleBasic" | "centerHoleCd" | "centerHoleVinyl" => Some((0., 20.)), "panelFontSize" => Some((0.6, 1.6)), "discRotationSeconds" => Some((1., 120.)),
             "transitionDuration" | "backdropTransitionDuration" | "panelTransitionDuration" => Some((100., 10000.)), "backgroundDim" => Some((0., 1.)),
             "backgroundBlur" => Some((0., 150.)), 
             "metadataOpacity" => Some((0., 1.)), "metadataScale" => Some((0.5, 2.)),
@@ -73,7 +80,8 @@ async fn put_config(State(state): State<WebState>, Json(input): Json<Value>) -> 
         if key == "backdropTransitionStyle" && !["fade","instant"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported backdrop transition".into())); }
         if key == "panelTransitionStyle" && !["slide","fade","instant"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported panel transition".into())); }
         if key == "panelPosition" && !["bottom-right","bottom-left","top-right","top-left"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported panel position".into())); }
-        if key == "discAppearance" && !["dot","basic","cd","vinyl"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported disc appearance".into())); }
+        if key.starts_with("centerHoleColor") && !["white","black","transparent"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported hole colour".into())); }
+        if key == "discAppearance" && !["basic","cd","vinyl"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported disc appearance".into())); }
         output_map.insert(key, value);
     }
     let parent = state.path.parent().unwrap();

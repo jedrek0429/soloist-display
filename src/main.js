@@ -10,21 +10,21 @@ let latestItem=null;
 const pick=(...v)=>v.find(x=>x!==undefined&&x!==null&&x!=='');
 const nameOf=v=>typeof v==='string'?v:pick(v?.decorations?.identity?.name,v?.name,v?.title,'');
 function trackName(item){return nameOf(item)||'Not playing'}
-function artistName(item){const parent=pick(item?.parent?.entity,item?.parent,item?.album?.artists?.[0]);const creators=item?.decorations?.creators||item?.artists||[];return pick(nameOf(parent),creators.map(nameOf).filter(Boolean).join(', '),item?.artist,'Unknown artist')}
+function artistName(item){const creators=item?.decorations?.creators||item?.artists||[];const fromCreators=creators.map(nameOf).filter(Boolean).join(', ');let node=item;for(let i=0;i<5&&node;i++){if(node.entity_type==='artist')return nameOf(node);node=pick(node.parent?.entity,node.parent)}return pick(fromCreators,typeof item?.artist==='string'?item.artist:nameOf(item?.artist),nameOf(item?.parent?.entity?.parent?.entity),'Unknown artist')}
 function artworkUrl(item){const cover=pick(item?.decorations?.visual_identity?.cover,item?.parent?.entity?.decorations?.visual_identity?.cover,item?.images,[]);if(typeof cover==='string')return cover;if(!Array.isArray(cover))return cover?.url||'';return cover.find(x=>x?.size==='large')?.url||cover.find(x=>x?.width>=500)?.url||cover.at(-1)?.url||cover[0]?.url||''}
 function identity(item){return pick(item?.uri,item?.id,item?.decorations?.identity?.uri,[trackName(item),artistName(item),artworkUrl(item)].join('|'))}
 function isPlaying(status){if(typeof status==='boolean')return status;if(typeof status==='object')return isPlaying(pick(status?.state,status?.status,status?.playback_status));return ['playing','play','true'].includes(String(status).toLowerCase())}
 function durationOf(item){return Number(pick(item?.decorations?.playback?.duration_ms,item?.duration_ms,item?.duration,0))||0}
 function syncPosition(pos){if(pos==null)return;const value=typeof pos==='number'?pos:pick(pos.position_ms,pos.position,pos.ms);if(Number.isFinite(Number(value))){positionMs=Math.max(0,Number(value));positionAt=performance.now()}}
 function paletteFrom(image){try{const c=document.createElement('canvas');c.width=c.height=40;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(image,0,0,40,40);const d=x.getImageData(0,0,40,40).data;const bins=new Map();for(let i=0;i<d.length;i+=16){if(d[i+3]<200)continue;const r=d[i],g=d[i+1],b=d[i+2];const max=Math.max(r,g,b),min=Math.min(r,g,b);if(max<25||min>235)continue;const key=[r>>5,g>>5,b>>5].join(',');const old=bins.get(key)||{r:0,g:0,b:0,n:0};old.r+=r;old.g+=g;old.b+=b;old.n++;bins.set(key,old)}const winner=[...bins.values()].sort((a,b)=>b.n-a.n)[0];if(!winner)return null;return [winner.r/winner.n,winner.g/winner.n,winner.b/winner.n]}catch{return null}}
-function applyPalette(rgb){if(!rgb)return;const [r,g,b]=rgb.map(Math.round);const root=document.documentElement;root.style.setProperty('--bg',`color-mix(in oklch,rgb(${r} ${g} ${b}) 16%, #454541)`);root.style.setProperty('--accent',`color-mix(in oklch,rgb(${r} ${g} ${b}) 64%, #f3f0e9)`);root.style.setProperty('--muted','#dedbd4')}
+function applyPalette(rgb){if(!rgb)return;const [r,g,b]=rgb.map(Math.round);const root=document.documentElement;root.style.setProperty('--bg',`color-mix(in oklch,rgb(${r} ${g} ${b}) 22%, #222322)`);root.style.setProperty('--accent',`color-mix(in oklch,rgb(${r} ${g} ${b}) 55%, #e9e5df)`);root.style.setProperty('--muted','#c9c7c2')}
 function preload(url){return new Promise(resolve=>{if(!url)return resolve(null);const image=new Image();image.crossOrigin='anonymous';image.onload=()=>resolve(image);image.onerror=()=>resolve(null);image.src=url})}
 function paintArtwork(url){art.style.backgroundImage=url?'url('+JSON.stringify(url)+')':'none'}
 async function showTrack(item){
   if(!item)return;
   const id=identity(item);if(id===trackId)return;
   trackId=id;const generation=++transitionId;const url=artworkUrl(item),name=trackName(item),by=artistName(item);
-  const image=await preload(url);if(generation!==transitionId)return;
+  const image=await Promise.race([preload(url),sleep(1800).then(()=>null)]);if(generation!==transitionId)return;
   const colors=image?paletteFrom(image):null;
   if(reduced){paintArtwork(url);title.textContent=name;artist.textContent=by;applyPalette(colors);stage.className='stage';return}
   // One disc travels out of the composition; the replacement arrives oversized.
@@ -40,8 +40,8 @@ async function showTrack(item){
   try{await entering.finished}catch{}
   if(generation!==transitionId)return;
   await sleep(1000);if(generation!==transitionId)return;
-  stage.className='stage transitioning';
-  requestAnimationFrame(()=>{stage.classList.remove('showcase')});
+  stage.className='stage showcase transitioning';
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{if(generation===transitionId)stage.classList.remove('showcase') }));
   await sleep(1120);if(generation!==transitionId)return;
   stage.className='stage';
 }
@@ -54,4 +54,4 @@ function clock(){ $('clock').textContent=new Date().toLocaleTimeString(config.lo
 function frame(now){const dt=Math.min(.08,(now-lastFrame)/1000);lastFrame=now;const desired=playing?2*Math.PI/12:0;angularVelocity+=(desired-angularVelocity)*(1-Math.exp(-dt*(playing?6:4)));angle=(angle+angularVelocity*dt)%(2*Math.PI);rotor.style.transform=`rotate(${angle}rad)`;
 const elapsed=playing?now-positionAt:0;const ratio=duration?Math.min(1,Math.max(0,(positionMs+elapsed)/duration)):0;fill.style.width=`${ratio*100}%`;progress.setAttribute('aria-valuenow',String(Math.round(ratio*100)));
 const w=canvas.clientWidth,h=canvas.clientHeight,dpr=Math.min(devicePixelRatio||1,2);if(canvas.width!==Math.round(w*dpr)||canvas.height!==Math.round(h*dpr)){canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr)}ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
-const n=48,gap=Math.max(2,w*.004),bw=(w-gap*(n-1))/n;ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();for(let i=0;i<n;i++){const target=now-audioAt>400?0:(bars[Math.floor(i*bars.length/n)]||0);smoothed[i]+=(target-smoothed[i])*(1-Math.exp(-dt*(target>smoothed[i]?24:8)));const bh=Math.max(2,smoothed[i]*h*.95);ctx.globalAlpha=.4+.6*smoothed[i];ctx.fillRect(i*(bw+gap),(h-bh)/2,bw,bh)}ctx.globalAlpha=1;requestAnimationFrame(frame)}requestAnimationFrame(frame);
+const n=48,gap=Math.max(2,w*.004),bw=(w-gap*(n-1))/n;ctx.fillStyle=getComputedStyle(fill).backgroundColor||'#d8c9ac';for(let i=0;i<n;i++){const target=now-audioAt>1800?0:(bars[Math.floor(i*bars.length/n)]||0);smoothed[i]+=(target-smoothed[i])*(1-Math.exp(-dt*(target>smoothed[i]?24:8)));const bh=Math.max(2,smoothed[i]*h*.95);ctx.globalAlpha=.4+.6*smoothed[i];ctx.fillRect(i*(bw+gap),(h-bh)/2,bw,bh)}ctx.globalAlpha=1;requestAnimationFrame(frame)}requestAnimationFrame(frame);

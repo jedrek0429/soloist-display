@@ -6,7 +6,7 @@ pkgdesc='CRT-friendly Spotify Soloist display and PipeWire visualiser'
 arch=('x86_64')
 url='https://github.com/jedrek0429/soloist-display'
 license=('MIT')
-depends=('firefox' 'libpulse' 'pipewire-pulse' 'systemd')
+depends=('firefox' 'libpulse' 'pipewire-pulse' 'systemd' 'curl')
 makedepends=('cargo' 'git')
 provides=('soloist-display')
 conflicts=('soloist-display')
@@ -14,7 +14,7 @@ source=("soloist-display::git+${url}.git#branch=feat/now-playing-display")
 sha256sums=('SKIP')
 build(){
   cd "$srcdir/soloist-display"
-  cargo build --release --locked --manifest-path audio-bridge/Cargo.toml
+  cargo build --release --manifest-path audio-bridge/Cargo.toml
 }
 package(){
   cd "$srcdir/soloist-display"

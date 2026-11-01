@@ -59,15 +59,12 @@ Arch x86_64 packaging is CI-tested. ARM64 and ARMv7 builds are enabled but not y
 
 Spotify Soloist makes the computer appear as a Spotify Connect device. Skip this step if you already have it running with a WebSocket on `127.0.0.1:9090`.
 
-Get an API key from the [Spotify developer dashboard](https://developer.spotify.com/dashboard/soloist). Install a Soloist build for your CPU architecture. The URL below is for x86_64; on ARM64 or ARMv7, get the matching Linux build URL from Spotify's downloads page and set `SOLOIST_DOWNLOAD_URL` before running the commands:
+Get an API key from the [Spotify developer dashboard](https://developer.spotify.com/dashboard/soloist). Download the matching Linux build automatically (x86_64, ARM64 or ARMv7):
 
 ```sh
-mkdir -p "$HOME/Downloads/soloist" "$HOME/.local/bin" "$HOME/.config/systemd/user" "$HOME/.config/soloist"
-cd "$HOME/Downloads/soloist"
-curl -fL -o soloist.tar.gz "${SOLOIST_DOWNLOAD_URL:-https://soloist-builds.spotifycdn.com/soloist_release_x86_64.tar.gz}"
-tar -xzf soloist.tar.gz
-install -Dm755 soloist "$HOME/.local/bin/soloist"
-install -Dm644 "$HOME/soloist-display/packaging/soloist.service.example" "$HOME/.config/systemd/user/soloist.service"
+bash packaging/install-soloist.sh
+mkdir -p "$HOME/.config/systemd/user" "$HOME/.config/soloist"
+install -Dm644 packaging/soloist.service.example "$HOME/.config/systemd/user/soloist.service"
 ${EDITOR:-nano} "$HOME/.config/soloist/env"
 ```
 

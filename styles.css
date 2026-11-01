@@ -35,3 +35,10 @@
 :root[data-hole-color='white']{--hole-fill:#fff}
 :root[data-hole-color='black']{--hole-fill:#000}
 :root[data-hole-color='transparent'] .spindle{display:none}
+
+:root[data-progress-bar='off'] .progress{display:none}
+.track-times{display:flex;justify-content:space-between;align-items:center;font-size:calc(12px * var(--metadata-font-size,1));font-variant-numeric:tabular-nums;color:rgba(255,255,255,.75)}
+:root[data-time-display='off'] .track-times{display:none}
+.track-times .time-separator{display:none}
+:root[data-time-layout='together'] .track-times{justify-content:flex-end;gap:0}
+:root[data-time-layout='together'] .track-times .time-separator{display:inline;white-space:pre}

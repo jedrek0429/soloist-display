@@ -1,0 +1,6 @@
+#compdef soloist-display
+
+_arguments -s \
+  '--settings[Open display settings]' \
+  '(-h --help)'{-h,--help}'[Show command help]' \
+  '(-V --version)'{-V,--version}'[Show installed package version]'

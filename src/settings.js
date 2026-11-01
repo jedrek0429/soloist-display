@@ -168,7 +168,7 @@ function renderSection(){
     };
     input.addEventListener('input',()=>{
       refresh();
-      if(key==='transitionDuration'&&draft.backdropLinked){draft.backdropTransitionDuration=draft.transitionDuration;renderSection();}
+      if(key==='transitionDuration'&&draft.backdropLinked){draft.backdropTransitionDuration=draft.transitionDuration;const other=controls.querySelector('#backdropTransitionDuration');if(other){other.value=draft.transitionDuration;other.nextElementSibling.textContent=format(draft.transitionDuration,'ms');}}
       status.textContent='Unsaved changes';
     });
     refresh();

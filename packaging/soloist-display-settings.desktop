@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Soloist Display Settings
+Comment=Configure Soloist Display
+Exec=soloist-display --settings
+Icon=preferences-system
+Terminal=false
+Categories=Settings;AudioVideo;

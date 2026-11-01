@@ -1,0 +1,26 @@
+name: Build Soloist Display
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: audio-bridge
+      - run: cargo check --manifest-path audio-bridge/Cargo.toml
+      - run: cargo test --manifest-path audio-bridge/Cargo.toml
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          for js in src/*.js; do node --check "$js"; done
+          python -m json.tool config.json >/dev/null

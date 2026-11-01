@@ -30,8 +30,24 @@ export class DiscDirector{
   animateDisc(disc,frames,duration,token){
     return new Promise(resolve=>{
       const start=performance.now();
+      let finished=false;
+      const finish=ok=>{
+        if(finished)return;
+        finished=true;
+        clearTimeout(watchdog);
+        resolve(ok);
+      };
+      // A throttled or interrupted Firefox animation must never strand the disc.
+      const watchdog=setTimeout(()=>{
+        if(token===this.token){
+          const last=frames[frames.length-1];
+          disc.style.transform=`translate(${last[0]}%,${last[1]}%) scale(${last[2]}) rotateX(${last[3]}deg)`;
+        }
+        finish(token===this.token);
+      },duration+750);
       const tick=now=>{
-        if(token!==this.token){resolve(false);return}
+        if(finished)return;
+        if(token!==this.token){finish(false);return}
         const t=Math.min(1,(now-start)/duration);
         const eased=t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
         const index=Math.min(frames.length-2,Math.floor(eased*(frames.length-1)));
@@ -39,7 +55,7 @@ export class DiscDirector{
         const a=frames[index],b=frames[index+1];
         const lerp=(x,y)=>x+(y-x)*local;
         disc.style.transform=`translate(${lerp(a[0],b[0])}%,${lerp(a[1],b[1])}%) scale(${lerp(a[2],b[2])}) rotateX(${lerp(a[3],b[3])}deg)`;
-        if(t<1)requestAnimationFrame(tick);else resolve(true);
+        if(t<1)requestAnimationFrame(tick);else finish(true);
       };
       requestAnimationFrame(tick);
     });
@@ -96,6 +112,7 @@ export class DiscDirector{
       nextBg.classList.remove('active');
       void nextBg.offsetWidth;
       requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        if(token!==this.token)return;
         nextBg.style.transition='opacity 1850ms ease-in-out';
         nextBg.style.opacity='1';
       }));

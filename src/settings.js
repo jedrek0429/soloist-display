@@ -2,9 +2,10 @@ const sections=[
   {
     title:'Disc',
     fields:[
-      ['discAppearance','Appearance','select',['dot','basic','cd','vinyl']],
+      ['discAppearance','Appearance','select',['basic','cd','vinyl']],
       ['discSize','Diameter','range',50,200,1,'dvh'],
-      ['centerHole','Center hole','range',0,20,.5,'%']
+      ['centerHole','Center hole','range',0,20,.5,'%'],
+      ['centerHoleColor','Hole colour','select',['white','black','transparent']]
     ]
   },
   {
@@ -66,7 +67,8 @@ const status=document.querySelector('#status');
 let draft={};
 let activeSection=0;
 const holeKey=style=>'centerHole'+style[0].toUpperCase()+style.slice(1);
-const selectedHoleKey=()=>holeKey(draft.discAppearance||'dot');
+const selectedHoleKey=()=>holeKey(draft.discAppearance||'basic');
+const selectedHoleColorKey=()=>selectedHoleKey().replace('centerHole','centerHoleColor');
 
 function format(value,suffix=''){
   const text=typeof value==='number'?String(Number(value.toFixed(2))):String(value);
@@ -128,10 +130,10 @@ function renderSection(){
       const select=document.createElement('select');
       select.id=key;select.dataset.key=key;
       for(const choice of min){const option=document.createElement('option');option.value=String(choice);option.textContent=String(choice).replace(/^./,c=>c.toUpperCase());select.append(option)}
-      select.value=String(draft[key]??min[0]);
+      select.value=String((key==='centerHoleColor'?draft[selectedHoleColorKey()]:draft[key])??min[0]);
       line.append(select);
       const output=document.createElement('output');output.htmlFor=key;
-      const refresh=()=>{draft[key]=typeof min[0]==='number'?Number(select.value):select.value;output.textContent=String(draft[key]);};
+      const refresh=()=>{const value=typeof min[0]==='number'?Number(select.value):select.value;draft[key==='centerHoleColor'?selectedHoleColorKey():key]=value;output.textContent=String(value);};
       select.addEventListener('change',()=>{refresh();if(key==='discAppearance')renderSection();status.textContent='Unsaved changes';});
       refresh();controls.append(line);continue;
     }else if(type==='range'){

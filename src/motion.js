@@ -57,7 +57,7 @@ export class DiscDirector{
     const outgoing=this.discs[outgoingIndex],incoming=this.discs[incomingIndex];
     const previousBg=this.backdrops[outgoingIndex],nextBg=this.backdrops[incomingIndex];
     for(const disc of this.discs){disc.style.transform='';disc.style.opacity='';disc.classList.remove('active')}
-    for(const bg of this.backdrops){bg.style.transition='';bg.style.transform='';bg.style.opacity='';bg.style.zIndex='';}
+    for(const bg of this.backdrops){bg.style.transition='none';bg.style.transform='';bg.style.opacity=bg===previousBg?'1':'0';bg.style.zIndex='';}
     incoming.querySelector('.disc-image').style.backgroundImage=imageStyle(url);
     incoming.querySelector('.disc-label').style.backgroundImage=imageStyle(url);
     incoming.dataset.angleOffset=String(this.angle);

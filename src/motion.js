@@ -10,13 +10,12 @@ function preload(url){
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 export class DiscDirector{
   constructor({discs,backdrops,info,settings={}}){
-    this.settings={discRotationSeconds:12,transitionDuration:2500,backdropTransitionStyle:'fade',backdropLinked:true,backdropTransitionDuration:1850,transitionStyle:'fly',metadataAnimation:true,reducedMotion:false,...settings};
+    this.settings={discRotationSeconds:12,transitionDuration:2500,backdropTransitionStyle:'fade',backdropLinked:true,backdropTransitionDuration:1850,transitionStyle:'fly',panelTransitionStyle:'slide',panelTransitionDuration:1200,reducedMotion:false,...settings};
     this.motionEnabled=!this.settings.reducedMotion;
-    this.metadataEnabled=this.settings.metadataAnimation&&!this.settings.reducedMotion;
     this.discs=discs;this.backdrops=backdrops;this.info=info;
     this.current=0;this.token=0;this.started=false;this.angle=0;
     this.velocity=0;this.playing=false;this.changing=false;this.last=performance.now();
-    this.pendingShow=null;this.fadeTimer=null;this.animations=new Set();
+    this.pendingShow=null;this.fadeTimer=null;this.animations=new Set();this.panelAnimation=null;this.panelToken=0;
     requestAnimationFrame(t=>this.spin(t));
   }
   spin(now){
@@ -60,14 +59,49 @@ export class DiscDirector{
       setTimeout(()=>resolve(token===this.token),duration+60);
     });
   }
+  async transitionPanel(show){
+    const token=++this.panelToken;
+    this.panelAnimation?.cancel();
+    this.panelAnimation=null;
+    this.info.classList.remove('metadata-exiting','metadata-entering','revealing');
+    this.info.style.transform='';
+    this.info.style.opacity='';
+    const style=this.motionEnabled?this.settings.panelTransitionStyle:'instant';
+    const duration=this.motionEnabled?this.settings.panelTransitionDuration:0;
+    if(style==='instant'||duration<=0){show();return}
+    const half=duration/2;
+    const distance='calc(100% + 6vh + 60px)';
+    const exit=style==='slide'
+      ?[{transform:'translateY(0)',opacity:1},{transform:`translateY(${distance})`,opacity:1}]
+      :[{opacity:1},{opacity:0}];
+    const enter=style==='slide'
+      ?[{transform:`translateY(${distance})`,opacity:1},{transform:'translateY(0)',opacity:1}]
+      :[{opacity:0},{opacity:1}];
+    const run=frames=>new Promise(resolve=>{
+      const animation=this.info.animate(frames,{duration:half,easing:'ease-in-out',fill:'forwards'});
+      this.panelAnimation=animation;
+      animation.onfinish=()=>resolve(true);
+      animation.oncancel=()=>resolve(false);
+    });
+    if(!await run(exit)||token!==this.panelToken)return;
+    // Swap the text only after the old panel has fully left the screen.
+    show();
+    this.panelAnimation?.cancel();
+    if(token!==this.panelToken)return;
+    await run(enter);
+    if(token!==this.panelToken)return;
+    this.panelAnimation?.cancel();
+    this.panelAnimation=null;
+    this.info.style.transform='';
+    this.info.style.opacity='';
+  }
   async change(url,onShow){
-    if(this.pendingShow){this.pendingShow();this.pendingShow=null}
+    this.pendingShow=null;
     const token=++this.token;
     for(const animation of this.animations)animation.cancel();
     this.animations.clear();
     clearTimeout(this.fadeTimer);
     this.changing=false;
-    this.info.classList.remove('metadata-exiting','metadata-entering','revealing');
     await preload(url);
     if(token!==this.token)return;
     const outgoingIndex=this.current;
@@ -91,10 +125,11 @@ export class DiscDirector{
       previousBg.style.transform='';previousBg.style.transition='none';previousBg.style.opacity='0';
       nextBg.style.transform='';nextBg.style.transition='none';nextBg.style.opacity='1';
       this.changing=false;this.pendingShow=null;
-      this.info.classList.remove('metadata-exiting','metadata-entering','revealing');
-      onShow();
+
     };
-    if(!this.started){this.started=true;commit();return}
+    if(!this.started){this.started=true;commit();onShow();return}
+    // Panel timing is independent of the disc and backdrop transitions.
+    void this.transitionPanel(onShow);
     const duration=this.motionEnabled?this.settings.transitionDuration:0;
     const discStyle=this.motionEnabled?this.settings.transitionStyle:'instant';
     const backdropStyle=this.motionEnabled?this.settings.backdropTransitionStyle:'instant';
@@ -122,7 +157,6 @@ export class DiscDirector{
       jobs.push((async()=>{
         await delay(duration*.5);
         if(token!==this.token)return false;
-        onShow();
         return this.animate(incoming,[{transform:'translate(55%,-115%) scale(.72) rotateX(65deg)'},{transform:'translate(-50%,-50%) scale(1) rotateX(0deg)'}],duration*.5,token);
       })());
     }
@@ -135,13 +169,9 @@ export class DiscDirector{
     if(discStyle==='instant'){
       // Disc changes immediately even when the backdrop continues fading.
       outgoing.classList.remove('active');incoming.classList.add('active');
-      this.current=incomingIndex;onShow();
+      this.current=incomingIndex;
     }
     if(discStyle==='instant'&&backdropStyle==='instant'){commit();return}
-    if(this.metadataEnabled&&discStyle!=='instant'){
-      this.info.style.animationDuration=duration+'ms';
-      this.info.classList.add('metadata-exiting');
-    }
     await Promise.all(jobs);
     if(token===this.token)commit();
   }

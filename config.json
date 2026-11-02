@@ -14,7 +14,7 @@
   "discOpacityVinyl": 1,
   "discOpacityVinylCover": 1,
   "discOpacityCdCoverUp": 1,
-  "discOpacityCdCoverDown": 0.8,
+  "discOpacityCdCoverDown": 0.3,
   "discOpacityAlbumCover": 1,
   "discRotationSeconds": 12,
   "cdCoverSide": "down",

@@ -54,6 +54,7 @@ jobs:
         run: |
           for file in src/*.js; do node --check --input-type=module < "$file"; done
           python -m json.tool config.json >/dev/null
+          python3 scripts/check-settings-contract.py
       - name: Release bootstrap pin smoke test
         run: |
           mkdir -p /tmp/bootstrap-test

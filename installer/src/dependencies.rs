@@ -1,6 +1,6 @@
 use crate::platform::{Distro, Platform};
 use anyhow::{anyhow, bail, Context, Result};
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 pub fn required(platform: &Platform) -> Vec<&'static str> {
     match platform.distro {
@@ -70,15 +70,9 @@ pub fn install(platform: &Platform, quiet: bool) -> Result<Vec<String>> {
             command.args(["pacman", "-S", "--needed", "--noconfirm"]);
         }
         Distro::Ubuntu | Distro::Debian => {
-            let update = Command::new("sudo")
-                .args(["apt-get", "update"])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status()
-                .context("run apt-get update")?;
-            if !update.success() {
-                bail!("apt-get update failed");
-            }
+            let mut update = Command::new("sudo");
+            update.args(["apt-get", "update"]);
+            crate::process::run(&mut update, "apt-get update", quiet)?;
             command.args(["apt-get", "install", "-y"]);
         }
         Distro::Fedora => {
@@ -86,12 +80,7 @@ pub fn install(platform: &Platform, quiet: bool) -> Result<Vec<String>> {
         }
     }
     command.args(&packages);
-    let _ = quiet;
-    command.stdout(Stdio::null()).stderr(Stdio::null());
-    let status = command.status().context("install system dependencies")?;
-    if !status.success() {
-        bail!("system dependency installation failed with {status}");
-    }
+    crate::process::run(&mut command, "install system dependencies", quiet)?;
     if !runtime_ready() {
         bail!("required audio, desktop, or browser commands are still missing after package installation");
     }

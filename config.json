@@ -40,6 +40,10 @@
   "timeDisplay": "off",
   "timeLayout": "split",
   "sleeveTransitionStyle": "in-out",
-  "sleeveDuration": 2000,
-  "sleeveAlignment": "left"
+  "sleeveDuration": 1000,
+  "sleeveAlignment": "left",
+  "sleeveDelay": 0,
+  "transitionDelay": 1000,
+  "backdropTransitionDelay": 1000,
+  "panelTransitionDelay": 0
 }

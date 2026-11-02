@@ -13,7 +13,8 @@ use std::{
     time::Duration,
 };
 
-pub const RELEASE_PUBLIC_KEY_B64: &str = "MCowBQYDK2VwAyEAN2qrYATzPFCel3Nw7NZHzZtba1Gz9kthPRXWtQMFTiw=";
+pub const RELEASE_PUBLIC_KEY_B64: &str =
+    "MCowBQYDK2VwAyEAN2qrYATzPFCel3Nw7NZHzZtba1Gz9kthPRXWtQMFTiw=";
 pub const GITHUB_LATEST: &str =
     "https://github.com/jedrek0429/soloist-display/releases/latest/download";
 

@@ -358,16 +358,16 @@ impl Progress {
             let running = active.clone();
             let current = stage.clone();
             Some(thread::spawn(move || {
-                let frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+                let frames = ["|", "/", "-", "\\"];
                 let color = env::var_os("NO_COLOR").is_none();
                 let mut tick = 0usize;
                 while running.load(std::sync::atomic::Ordering::Relaxed) {
                     let (step, title) = *current.lock().unwrap();
                     let filled = step * 20 / 4;
-                    let bar = format!("{}{}", "━".repeat(filled), "─".repeat(20 - filled));
+                    let bar = format!("{}{}", "=".repeat(filled), "-".repeat(20 - filled));
                     if color {
                         eprint!(
-                            "\\r\\x1b[2K  \\x1b[36m{} {}\\x1b[0m  {}/4  {}",
+                            "\r\x1b[2K  \x1b[36m{} {}\x1b[0m  {}/4  {}",
                             frames[tick % frames.len()],
                             bar,
                             step,
@@ -375,7 +375,7 @@ impl Progress {
                         );
                     } else {
                         eprint!(
-                            "\\r\\x1b[2K  {} [{}]  {}/4  {}",
+                            "\r\x1b[2K  {} [{}]  {}/4  {}",
                             frames[tick % frames.len()],
                             bar,
                             step,
@@ -386,7 +386,7 @@ impl Progress {
                     tick += 1;
                     thread::sleep(Duration::from_millis(90));
                 }
-                eprint!("\\r\\x1b[2K");
+                eprint!("\r\x1b[2K");
                 let _ = io::stderr().flush();
             }))
         } else {

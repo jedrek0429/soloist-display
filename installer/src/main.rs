@@ -151,7 +151,14 @@ fn main() {
             }
         }
         Err(error) => {
-            eprintln!("soloist-display: {error:#}");
+            let plain = std::env::var_os("NO_COLOR").is_some()
+                || !std::io::stderr().is_terminal()
+                || std::env::var("TERM").as_deref() == Ok("dumb");
+            if plain {
+                eprintln!("  error  {error}");
+            } else {
+                eprintln!("  \x1b[31m✗\x1b[0m {error}");
+            }
             if let Ok(paths) = Paths::discover() {
                 if fs::create_dir_all(&paths.logs).is_ok() {
                     let log = paths.logs.join("installer.log");
@@ -162,11 +169,11 @@ fn main() {
                         .open(&log)
                     {
                         let _ = writeln!(file, "{}: {error:#}", state::now());
-                        eprintln!("Details: {}", log.display());
+                        eprintln!("  Log: {}", log.display());
                     }
                 }
             }
-            if std::io::stderr().is_terminal() {
+            if std::env::var_os("SOLOIST_DISPLAY_VERBOSE").is_some() {
                 let executable = std::env::current_exe().ok();
                 if let Some(executable) = executable {
                     eprintln!("Diagnostics: {} doctor", executable.display());

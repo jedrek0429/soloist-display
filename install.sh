@@ -7,7 +7,7 @@ PIN_RELEASE_BASE='@SOLOIST_DISPLAY_RELEASE_BASE@'
 PIN_X86_64='@SOLOIST_DISPLAY_SHA_X86_64@'
 PIN_AARCH64='@SOLOIST_DISPLAY_SHA_AARCH64@'
 PIN_ARMV7='@SOLOIST_DISPLAY_SHA_ARMV7@'
-version=${SOLOIST_DISPLAY_VERSION:-latest}
+version=${SOLOIST_DISPLAY_VERSION-latest}
 case "$version" in
   latest) RELEASE_BASE=https://github.com/jedrek0429/soloist-display/releases/latest/download ;;
   *[!0-9.]*|'') fail_version=1 ;;
@@ -41,7 +41,8 @@ Downloads and verifies the Soloist Display installer, then runs it.
   --no-color    disable coloured output
   --quiet       show only errors
   --verbose     show additional diagnostics
-  --help        show this help\n  SOLOIST_DISPLAY_VERSION=X.Y.Z  select signed release (default: latest)
+  --help        show this help
+  SOLOIST_DISPLAY_VERSION=X.Y.Z  select signed release (default: latest)
   --version     show bootstrap version
 EOF
     exit 0
@@ -79,8 +80,9 @@ case "$target" in
   armv7-*) pinned_sha=$PIN_ARMV7 ;;
 esac
 
-case "$pinned_sha:$version" in
-*:latest)\n  pinned_sha=untrusted\n  ;;&
+if [ "$version" != latest ] || [ "$RELEASE_BASE" != "$PIN_RELEASE_BASE" ]; then pinned_sha=untrusted; fi
+case "$pinned_sha" in
+@*|untrusted)
   command -v openssl >/dev/null 2>&1 || fail 'OpenSSL is required to authenticate installer metadata'
 
 cat >"$public_key" <<'EOF'

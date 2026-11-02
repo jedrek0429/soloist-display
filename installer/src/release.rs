@@ -231,7 +231,7 @@ mod tests {
     fn embedded_release_key_verifies_rotation_fixture() {
         let client = ReleaseClient::new().unwrap();
         let signature: [u8; 64] = STANDARD
-            .decode("zM5z+JXp8DID3XfIEw4M5EGX37Zhte7I2F+OKrkPoEbe2zCWh51m06sVLPfPpr3OTiD77hi2e5pLOmwksIQtBQ==")
+            .decode("HfVlf9MNfxCxtT2kKlyBVxjNh32JWWw9qaPkoWRjxoJLc0z1HZux0EmUqQvN0I22an47+f0JIajxPYGrxskjCg==")
             .unwrap()
             .try_into()
             .unwrap();

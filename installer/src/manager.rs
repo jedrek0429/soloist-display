@@ -706,7 +706,8 @@ pub fn install(
         }
     };
     if let Some(installed) = &previous_state {
-        if manifest.version < semver::Version::parse(&installed.version)? {
+        if manifest.version < semver::Version::parse(&installed.version)?
+            && env::var("SOLOIST_DISPLAY_ALLOW_DOWNGRADE").as_deref() != Ok("1") {
             bail!(
                 "refusing to downgrade from {} to {}",
                 installed.version,
@@ -819,7 +820,8 @@ pub fn update(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
     let (manifest, _) = client.latest()?;
     let installed_version =
         semver::Version::parse(&state.version).context("installed version metadata is invalid")?;
-    if manifest.version < installed_version {
+    if manifest.version < installed_version
+        && env::var("SOLOIST_DISPLAY_ALLOW_DOWNGRADE").as_deref() != Ok("1") {
         bail!(
             "refusing to downgrade from {} to {}",
             state.version,

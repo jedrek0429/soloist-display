@@ -378,6 +378,34 @@ pub fn install(
             paths.root.display()
         );
     }
+    // A failed first install can leave our systemd unit running while the
+    // transaction rolls back before writing installation metadata. Reclaim
+    // only our recognizable unit; never stop an unrelated port owner.
+    if previous_state.is_none() && (!port_available(8080) || !port_available(9091)) {
+        let owned_unit = fs::read_to_string(&paths.display_service)
+            .ok()
+            .is_some_and(|unit| {
+                unit.contains("Description=Soloist Display local server and audio spectrum")
+                    && unit.contains("soloist-audio-bridge")
+                    && unit.contains(&paths.current.display().to_string())
+            });
+        if owned_unit && !paths.is_test() {
+            let status = Command::new("systemctl")
+                .args(["--user", "stop", "soloist-display.service"])
+                .status()
+                .context("stop orphaned Soloist Display service")?;
+            if !status.success() {
+                bail!("could not stop the orphaned Soloist Display service");
+            }
+            // Wait briefly for the bridge to release its listeners.
+            for _ in 0..20 {
+                if port_available(8080) && port_available(9091) {
+                    break;
+                }
+                thread::sleep(Duration::from_millis(100));
+            }
+        }
+    }
     if !port_available(8080) && previous_state.is_none() {
         bail!("port 8080 is already in use; stop its owner and retry");
     }
@@ -491,6 +519,13 @@ pub fn install(
         Ok::<_, anyhow::Error>(())
     })();
     if let Err(error) = result {
+        // On a failed first install, do not leave a running bridge behind
+        // without committed installation metadata.
+        if previous_state.is_none() && !paths.is_test() {
+            let _ = Command::new("systemctl")
+                .args(["--user", "stop", "soloist-display.service"])
+                .status();
+        }
         if let Some(previous) = transaction.previous_current.as_ref() {
             atomic_link(previous, &paths.current).ok();
         }

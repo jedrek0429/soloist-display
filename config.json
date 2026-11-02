@@ -42,7 +42,8 @@
   "sleeveTransitionStyle": "in-out",
   "sleeveDuration": 1000,
   "sleeveAlignment": "left",
-  "sleeveDelay": 0,
+  "sleeveDelayIn": 0,
+  "sleeveDelayOut": 2000,
   "transitionDelay": 1000,
   "backdropTransitionDelay": 1000,
   "panelTransitionDelay": 0

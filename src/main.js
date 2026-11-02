@@ -34,7 +34,8 @@ const settings={
   panelTransitionStyle:config.panelTransitionStyle||'slide',
   panelTransitionDuration:bounded(config.panelTransitionDuration,2050,100,10000),
   reducedMotion:config.reducedMotion===true,
-  transitionStyle:config.transitionStyle||'fly'
+  transitionStyle:config.transitionStyle||'fly',
+  sleeveTransitionStyle:config.sleeveTransitionStyle||'in-out'
 };
 const root=document.documentElement;
 root.dataset.progressBar=config.progressBar===false?'off':'on';

@@ -3,12 +3,12 @@
 set -eu
 
 BOOTSTRAP_VERSION=1
-PIN_RELEASE_BASE='@SOLOIST_DISPLAY_RELEASE_BASE@'
-PIN_X86_64='@SOLOIST_DISPLAY_SHA_X86_64@'
-PIN_AARCH64='@SOLOIST_DISPLAY_SHA_AARCH64@'
-PIN_ARMV7='@SOLOIST_DISPLAY_SHA_ARMV7@'
+PIN_RELEASE_BASE='https://github.com/jedrek0429/soloist-display/releases/download/v0.1.0'
+PIN_X86_64='cb39cc76b75c56e1c9b8e8365825b4b3eec87d8026bc5320642a62b45fa76877'
+PIN_AARCH64='b47a9a832fb517477206fb653751ae369e81d9fb6808781c95cdc89c61e5becb'
+PIN_ARMV7='3ecb5a19b8793bb7850803b969083c61c837cd89309a2dd92b15ecd401e88d9a'
 RELEASE_BASE=${SOLOIST_DISPLAY_RELEASE_BASE:-$PIN_RELEASE_BASE}
-[ "$RELEASE_BASE" != '@SOLOIST_DISPLAY_RELEASE_BASE@' ] || RELEASE_BASE=https://github.com/jedrek0429/soloist-display/releases/latest/download
+[ "$RELEASE_BASE" != 'https://github.com/jedrek0429/soloist-display/releases/download/v0.1.0' ] || RELEASE_BASE=https://github.com/jedrek0429/soloist-display/releases/latest/download
 tmp_dir=
 
 say() { [ "${quiet:-0}" -eq 1 ] || printf '%s\n' "$*" >&2; }
@@ -71,7 +71,7 @@ case "$pinned_sha" in
 
 cat >"$public_key" <<'EOF'
 -----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAN2qrYATzPFCel3Nw7NZHzZtba1Gz9kthPRXWtQMFTiw=
+MCowBQYDK2VwAyEATdUg4MIYNWweUXusU4IALmgiXVhTErC+i2sVABwt3Zg=
 -----END PUBLIC KEY-----
 EOF
 

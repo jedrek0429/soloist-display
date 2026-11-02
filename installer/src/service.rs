@@ -128,9 +128,9 @@ pub fn disable_owned(paths: &Paths, unit: &str) -> Result<()> {
     }
     let status = Command::new("systemctl")
         .args(["--user", "disable", "--now", unit])
-        .status()
+        .output()
         .context("stop user service")?;
-    if !status.success() && active(paths, unit) {
+    if !status.status.success() && active(paths, unit) {
         return Err(anyhow!("could not stop {unit}"));
     }
     Ok(())

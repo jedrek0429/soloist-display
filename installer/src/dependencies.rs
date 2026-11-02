@@ -72,6 +72,8 @@ pub fn install(platform: &Platform, quiet: bool) -> Result<Vec<String>> {
         Distro::Ubuntu | Distro::Debian => {
             let update = Command::new("sudo")
                 .args(["apt-get", "update"])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
                 .status()
                 .context("run apt-get update")?;
             if !update.success() {
@@ -84,9 +86,8 @@ pub fn install(platform: &Platform, quiet: bool) -> Result<Vec<String>> {
         }
     }
     command.args(&packages);
-    if quiet {
-        command.stdout(Stdio::null());
-    }
+    let _ = quiet;
+    command.stdout(Stdio::null()).stderr(Stdio::null());
     let status = command.status().context("install system dependencies")?;
     if !status.success() {
         bail!("system dependency installation failed with {status}");

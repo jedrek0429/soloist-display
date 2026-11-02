@@ -154,7 +154,10 @@ fn main() {
                 }
             }
             if std::io::stderr().is_terminal() {
-                eprintln!("Run `soloist-display doctor` for diagnostics.");
+                let executable = std::env::current_exe().ok();
+                if let Some(executable) = executable {
+                    eprintln!("Diagnostics: {} doctor", executable.display());
+                }
             }
             std::process::exit(1);
         }

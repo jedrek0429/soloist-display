@@ -68,4 +68,4 @@ jobs:
           grep -q 'Installation metadata' /tmp/doctor.log
           HOME=/tmp/home SOLOIST_DISPLAY_TEST_ROOT=/tmp/test-root \
             /tmp/soloist-display-bin/soloist-display install --yes >/tmp/install.log 2>&1 || true
-          grep -q 'System   ${{ matrix.expected }} / X86_64' /tmp/install.log
+          grep -Fq 'Soloist Display · ${{ matrix.expected }} / X86_64' /tmp/install.log

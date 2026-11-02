@@ -267,9 +267,25 @@ fn wait_for_install_health(
     if TcpStream::connect("127.0.0.1:9091").is_err() {
         bail!("audio bridge health check failed: WebSocket 127.0.0.1:9091 is unavailable");
     }
-    if !audio_monitor_available() {
+    // PipeWire may expose its PulseAudio monitor after the bridge's socket opens.
+    // Use the same probe as doctor, but allow device discovery to settle.
+    let mut monitor_ready = false;
+    for _ in 0..30 {
+        if audio_monitor_available() {
+            monitor_ready = true;
+            break;
+        }
+        thread::sleep(Duration::from_millis(200));
+    }
+    if !monitor_ready {
+        let sink = Command::new("pactl")
+            .arg("get-default-sink")
+            .output()
+            .ok()
+            .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_owned())
+            .unwrap_or_else(|| "<pactl unavailable>".to_owned());
         bail!(
-            "audio health check failed: the default PipeWire/PulseAudio sink has no monitor source"
+            "audio health check failed after 6s: no monitor found for default sink {sink:?}; inspect `pactl list sinks` and `pactl list short sources`"
         );
     }
     Ok(())
@@ -326,6 +342,85 @@ pub fn recover(paths: &Paths) -> Result<()> {
     Ok(())
 }
 
+struct Progress {
+    active: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    stage: std::sync::Arc<std::sync::Mutex<(usize, &'static str)>>,
+    worker: Option<std::thread::JoinHandle<()>>,
+    quiet: bool,
+}
+
+impl Progress {
+    fn new(quiet: bool, label: &'static str) -> Self {
+        use std::sync::{atomic::AtomicBool, Arc, Mutex};
+        let active = Arc::new(AtomicBool::new(true));
+        let stage = Arc::new(Mutex::new((0, label)));
+        let worker = if !quiet && io::stderr().is_terminal() {
+            let running = active.clone();
+            let current = stage.clone();
+            Some(thread::spawn(move || {
+                let frames = ["|", "/", "-", "\\"];
+                let color = env::var_os("NO_COLOR").is_none();
+                let mut tick = 0usize;
+                while running.load(std::sync::atomic::Ordering::Relaxed) {
+                    let (step, title) = *current.lock().unwrap();
+                    let filled = step * 20 / 4;
+                    let bar = format!("{}{}", "=".repeat(filled), "-".repeat(20 - filled));
+                    if color {
+                        eprint!(
+                            "\r\x1b[2K  \x1b[36m{} {}\x1b[0m  {}/4  {}",
+                            frames[tick % frames.len()],
+                            bar,
+                            step,
+                            title
+                        );
+                    } else {
+                        eprint!(
+                            "\r\x1b[2K  {} [{}]  {}/4  {}",
+                            frames[tick % frames.len()],
+                            bar,
+                            step,
+                            title
+                        );
+                    }
+                    let _ = io::stderr().flush();
+                    tick += 1;
+                    thread::sleep(Duration::from_millis(90));
+                }
+                eprint!("\r\x1b[2K");
+                let _ = io::stderr().flush();
+            }))
+        } else {
+            if !quiet {
+                eprintln!("  {label}");
+            }
+            None
+        };
+        Self {
+            active,
+            stage,
+            worker,
+            quiet,
+        }
+    }
+
+    fn step(&self, number: usize, label: &'static str) {
+        *self.stage.lock().unwrap() = (number, label);
+        if self.worker.is_none() && !self.quiet {
+            eprintln!("  {number}/4  {label}");
+        }
+    }
+}
+
+impl Drop for Progress {
+    fn drop(&mut self) {
+        self.active
+            .store(false, std::sync::atomic::Ordering::Relaxed);
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.join();
+        }
+    }
+}
+
 pub fn install(
     paths: &Paths,
     platform: &Platform,
@@ -345,7 +440,8 @@ pub fn install(
     let previous_state = InstallState::load(paths)?;
     let discovered_soloist =
         soloist::discover(paths, previous_state.as_ref().map(|state| &state.soloist));
-    if !quiet {
+    let progress = Progress::new(quiet, "Installing Soloist Display");
+    if !quiet && !io::stderr().is_terminal() {
         let status = match (
             &discovered_soloist.ownership,
             soloist::healthy(&discovered_soloist),
@@ -358,12 +454,36 @@ pub fn install(
                 "existing installation is stopped or incomplete"
             }
         };
-        eprintln!(
-            "  System   {}\n  Soloist  {}\n  Layout   {}",
-            platform.label,
-            status,
-            paths.root.display()
-        );
+        eprintln!("  Soloist Display · {}", platform.label);
+        eprintln!("  Soloist: {status}");
+    }
+    // A failed first install can leave our systemd unit running while the
+    // transaction rolls back before writing installation metadata. Reclaim
+    // only our recognizable unit; never stop an unrelated port owner.
+    if previous_state.is_none() && (!port_available(8080) || !port_available(9091)) {
+        let owned_unit = fs::read_to_string(&paths.display_service)
+            .ok()
+            .is_some_and(|unit| {
+                unit.contains("Description=Soloist Display local server and audio spectrum")
+                    && unit.contains("soloist-audio-bridge")
+                    && unit.contains(&paths.current.display().to_string())
+            });
+        if owned_unit && !paths.is_test() {
+            let status = Command::new("systemctl")
+                .args(["--user", "stop", "soloist-display.service"])
+                .status()
+                .context("stop orphaned Soloist Display service")?;
+            if !status.success() {
+                bail!("could not stop the orphaned Soloist Display service");
+            }
+            // Wait briefly for the bridge to release its listeners.
+            for _ in 0..20 {
+                if port_available(8080) && port_available(9091) {
+                    break;
+                }
+                thread::sleep(Duration::from_millis(100));
+            }
+        }
     }
     if !port_available(8080) && previous_state.is_none() {
         bail!("port 8080 is already in use; stop its owner and retry");
@@ -386,7 +506,7 @@ pub fn install(
     }
     transaction.persist(&journal_path)?;
     if !quiet {
-        eprintln!("  Dependencies  checking runtime packages");
+        progress.step(1, "Checking dependencies");
     }
     let packages = match dependencies::install(platform, quiet) {
         Ok(packages) => packages,
@@ -396,7 +516,7 @@ pub fn install(
         }
     };
     if !quiet {
-        eprintln!("  Release       downloading and verifying signed artifacts");
+        progress.step(2, "Downloading & verifying");
     }
     let client = ReleaseClient::new()?;
     let (manifest, _) = match client.latest() {
@@ -441,15 +561,16 @@ pub fn install(
         } else {
             soloist::start_existing(paths, &soloist_state)?;
         }
+        soloist::ensure_cli_discovery(paths, &soloist_state)?;
         transaction.set_status(&journal_path, TransactionStatus::Services)?;
         if !quiet {
-            eprintln!("  Services      configuring systemd user units");
+            progress.step(3, "Starting services");
         }
         service::install_display(paths)?;
         let desktop = desktop_files(paths)?;
         transaction.set_status(&journal_path, TransactionStatus::HealthCheck)?;
         if !quiet {
-            eprintln!("  Health        checking Soloist, display, and audio");
+            progress.step(4, "Checking health");
         }
         wait_for_install_health(paths, &soloist_state)?;
         let mut managed = vec![paths.visible_command.clone(), paths.display_service.clone()];
@@ -477,12 +598,20 @@ pub fn install(
         Ok::<_, anyhow::Error>(())
     })();
     if let Err(error) = result {
+        // On a failed first install, do not leave a running bridge behind
+        // without committed installation metadata.
+        if previous_state.is_none() && !paths.is_test() {
+            let _ = Command::new("systemctl")
+                .args(["--user", "stop", "soloist-display.service"])
+                .status();
+        }
         if let Some(previous) = transaction.previous_current.as_ref() {
             atomic_link(previous, &paths.current).ok();
         }
         transaction.fail(&journal_path, error.to_string()).ok();
         return Err(error.context("installation failed; the previous active release was restored"));
     }
+    drop(progress);
     if !quiet {
         let on_path = env::var_os("PATH")
             .is_some_and(|value| env::split_paths(&value).any(|path| path == paths.bin_dir));
@@ -503,6 +632,8 @@ pub fn install(
 }
 
 pub fn update(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
+    let progress = Progress::new(quiet, "Updating Soloist Display");
+    progress.step(1, "Checking release");
     let state =
         InstallState::load(paths)?.ok_or_else(|| anyhow!("Soloist Display is not installed"))?;
     let client = ReleaseClient::new()?;
@@ -522,6 +653,7 @@ pub fn update(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
         }
         return Ok(());
     }
+    progress.step(2, "Downloading & verifying");
     let (mut tx, tx_path) = TransactionJournal::begin(paths, "update")?;
     tx.previous_current = Some(state.active_release.clone());
     tx.persist(&tx_path)?;
@@ -541,7 +673,9 @@ pub fn update(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
                 None,
             )?;
         }
+        progress.step(3, "Starting services");
         service::install_display(paths)?;
+        progress.step(4, "Checking health");
         wait_for_install_health(paths, &next_soloist)?;
         let mut next = state.clone();
         next.previous_release = Some(state.active_release.clone());
@@ -566,6 +700,7 @@ pub fn update(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
         tx.fail(&tx_path, error.to_string()).ok();
         return Err(error.context("update failed; restored the previous release"));
     }
+    drop(progress);
     if !quiet {
         println!("Updated Soloist Display to {}.", manifest.version);
     }
@@ -573,12 +708,15 @@ pub fn update(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
 }
 
 pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
+    let progress = Progress::new(quiet, "Repairing Soloist Display");
+    progress.step(1, "Checking files");
     let mut state = InstallState::load(paths)?
         .ok_or_else(|| anyhow!("Soloist Display is not installed; run the installer first"))?;
     migrations::migrate(paths)?;
     let client = ReleaseClient::new()?;
     let (manifest, _) = client.latest()?;
     if manifest.version.to_string() != state.version {
+        drop(progress);
         return update(paths, platform, quiet);
     }
     let release_valid = ["manager", "audio-bridge"].iter().all(|kind| {
@@ -594,6 +732,7 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
             })
     });
     if !release_valid {
+        progress.step(2, "Restoring files");
         let original_release = state.active_release.clone();
         let backup = paths
             .releases
@@ -621,6 +760,7 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
             state.active_release = release;
             state.save(paths)?;
             service::install_display(paths)?;
+            progress.step(4, "Checking health");
             wait_for_install_health(paths, &state.soloist)?;
             tx.set_status(&tx_path, TransactionStatus::Committed)?;
             Ok::<_, anyhow::Error>(())
@@ -640,6 +780,7 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
             fs::remove_dir_all(backup).ok();
         }
     }
+    progress.step(3, "Restoring services");
     atomic_link(&state.active_release, &paths.current)?;
     install_visible_command(paths)?;
     desktop_files(paths)?;
@@ -744,11 +885,17 @@ pub fn launch(paths: &Paths, settings: bool) -> Result<()> {
     if paths.is_test() {
         return Ok(());
     }
-    process::run(
-        Command::new("xdg-open").arg(&url),
-        "open Soloist Display in the default browser",
-        false,
-    )
+    // xdg-open may remain attached to a browser process. Do not block the CLI
+    // or forward Ctrl+C to the browser through the terminal's process group.
+    use std::process::Stdio;
+    Command::new("xdg-open")
+        .arg(&url)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .context("could not launch the default browser")?;
+    Ok(())
 }
 
 pub fn doctor(paths: &Paths) -> Result<bool> {
@@ -860,7 +1007,10 @@ pub fn uninstall(paths: &Paths, requested: Option<RemoveMode>) -> Result<()> {
     let state =
         InstallState::load(paths)?.ok_or_else(|| anyhow!("Soloist Display is not installed"))?;
     let mode = requested.map(Ok).unwrap_or_else(choose_remove_mode)?;
+    let progress = Progress::new(false, "Removing Soloist Display");
+    progress.step(1, "Stopping services");
     service::disable_owned(paths, "soloist-display.service")?;
+    progress.step(2, "Removing files");
     for path in [
         &paths.display_service,
         &paths.visible_command,
@@ -891,6 +1041,7 @@ pub fn uninstall(paths: &Paths, requested: Option<RemoveMode>) -> Result<()> {
             }
         }
     }
+    progress.step(3, "Cleaning up");
     if matches!(mode, RemoveMode::Data | RemoveMode::All) {
         for path in [&paths.config.join("config.json"), &paths.cache] {
             if path.exists() {
@@ -912,7 +1063,9 @@ pub fn uninstall(paths: &Paths, requested: Option<RemoveMode>) -> Result<()> {
     if paths.state.exists() {
         safe_remove(&paths.state, &[&paths.state_home])?;
     }
+    progress.step(4, "Finishing");
     service::daemon_reload(paths)?;
+    drop(progress);
     println!(
         "Soloist Display removed{}.",
         if matches!(mode, RemoveMode::Display) {

@@ -9,9 +9,9 @@ pub fn exists(name: &str) -> bool {
 }
 
 pub fn run(command: &mut Command, description: &str, quiet: bool) -> Result<()> {
-    if quiet {
-        command.stdout(Stdio::null()).stderr(Stdio::null());
-    }
+    // Keep the interactive UI clean; diagnostics remain in the returned error.
+    let _ = quiet;
+    command.stdout(Stdio::null()).stderr(Stdio::null());
     let status = command.status().with_context(|| description.to_owned())?;
     if !status.success() {
         bail!("{description} failed with {status}");

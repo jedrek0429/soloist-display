@@ -1,12 +1,17 @@
 use std::io::{self, IsTerminal, Write};
-use std::sync::{atomic::{AtomicBool, AtomicUsize, Ordering}, Arc, Mutex, OnceLock};
+use std::sync::{
+    atomic::{AtomicBool, AtomicUsize, Ordering},
+    Arc, Mutex, OnceLock,
+};
 use std::{thread, time::Duration};
 
 static QUIET: AtomicBool = AtomicBool::new(false);
 static VERBOSE: AtomicBool = AtomicBool::new(false);
 static OUTPUT: OnceLock<Mutex<()>> = OnceLock::new();
 
-fn output_lock() -> &'static Mutex<()> { OUTPUT.get_or_init(|| Mutex::new(())) }
+fn output_lock() -> &'static Mutex<()> {
+    OUTPUT.get_or_init(|| Mutex::new(()))
+}
 fn interactive() -> bool {
     io::stderr().is_terminal()
         && std::env::var("TERM").as_deref() != Ok("dumb")
@@ -16,7 +21,9 @@ pub fn configure(quiet: bool, verbose: bool) {
     QUIET.store(quiet, Ordering::Relaxed);
     VERBOSE.store(verbose && !quiet, Ordering::Relaxed);
 }
-pub fn verbose() -> bool { VERBOSE.load(Ordering::Relaxed) }
+pub fn verbose() -> bool {
+    VERBOSE.load(Ordering::Relaxed)
+}
 pub fn success(message: String) {
     if !QUIET.load(Ordering::Relaxed) {
         let _guard = output_lock().lock().unwrap_or_else(|e| e.into_inner());
@@ -24,12 +31,18 @@ pub fn success(message: String) {
     }
 }
 pub fn log_command(description: &str, stdout: &[u8], stderr: &[u8]) {
-    if !verbose() { return; }
+    if !verbose() {
+        return;
+    }
     let _guard = output_lock().lock().unwrap_or_else(|e| e.into_inner());
     let mut err = io::stderr().lock();
     let _ = writeln!(err, "  command: {description}");
-    if !stdout.is_empty() { let _ = err.write_all(stdout); }
-    if !stderr.is_empty() { let _ = err.write_all(stderr); }
+    if !stdout.is_empty() {
+        let _ = err.write_all(stdout);
+    }
+    if !stderr.is_empty() {
+        let _ = err.write_all(stderr);
+    }
 }
 
 pub struct Progress {
@@ -57,9 +70,17 @@ impl Progress {
                 while running.load(Ordering::Acquire) {
                     let (number, label) = *state.lock().unwrap_or_else(|e| e.into_inner());
                     if number > 0 {
-                        let bar = format!("{}{}", "=".repeat(number * 20 / 4), "-".repeat(20 - number * 20 / 4));
+                        let bar = format!(
+                            "{}{}",
+                            "=".repeat(number * 20 / 4),
+                            "-".repeat(20 - number * 20 / 4)
+                        );
                         let _guard = output_lock().lock().unwrap_or_else(|e| e.into_inner());
-                        eprint!("\r\x1b[2K  {} [{}]  {number}/4  {label}", frames[tick % 4], bar);
+                        eprint!(
+                            "\r\x1b[2K  {} [{}]  {number}/4  {label}",
+                            frames[tick % 4],
+                            bar
+                        );
                         let _ = io::stderr().flush();
                         drawn = true;
                     }
@@ -72,13 +93,25 @@ impl Progress {
                     let _ = io::stderr().flush();
                 }
             }))
-        } else { None };
-        Self { quiet, latest, active, highest: AtomicUsize::new(0), worker }
+        } else {
+            None
+        };
+        Self {
+            quiet,
+            latest,
+            active,
+            highest: AtomicUsize::new(0),
+            worker,
+        }
     }
     pub fn step(&self, number: usize, label: &'static str) {
-        if number == 0 || number > 4 { return; }
+        if number == 0 || number > 4 {
+            return;
+        }
         let previous = self.highest.fetch_max(number, Ordering::Relaxed);
-        if number <= previous { return; }
+        if number <= previous {
+            return;
+        }
         *self.latest.lock().unwrap_or_else(|e| e.into_inner()) = (number, label);
         if !self.quiet && self.worker.is_none() {
             let _guard = output_lock().lock().unwrap_or_else(|e| e.into_inner());
@@ -89,7 +122,9 @@ impl Progress {
 impl Drop for Progress {
     fn drop(&mut self) {
         self.active.store(false, Ordering::Release);
-        if let Some(worker) = self.worker.take() { let _ = worker.join(); }
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.join();
+        }
     }
 }
 
@@ -99,7 +134,9 @@ mod tests {
     #[test]
     fn progresses_monotonically() {
         let p = Progress::new(true, "test");
-        p.step(1, "first"); p.step(4, "last"); p.step(3, "stale");
+        p.step(1, "first");
+        p.step(4, "last");
+        p.step(3, "stale");
         assert_eq!(p.highest.load(Ordering::Relaxed), 4);
         assert_eq!(p.latest.lock().unwrap().0, 4);
     }

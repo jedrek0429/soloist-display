@@ -1,3 +1,4 @@
+use crate::terminal::Progress;
 use crate::{
     dependencies, migrations,
     paths::{path_string, Paths},
@@ -8,7 +9,6 @@ use crate::{
     state::{now, InstallState, SoloistOwnership, TransactionJournal, TransactionStatus},
 };
 use anyhow::{anyhow, bail, Context, Result};
-use crate::terminal::Progress;
 use serde::{Deserialize, Serialize};
 use std::{
     env, fs,
@@ -1171,14 +1171,16 @@ pub fn uninstall(paths: &Paths, requested: Option<RemoveMode>, quiet: bool) -> R
     progress.step(4, "Finishing");
     service::daemon_reload(paths)?;
     drop(progress);
-    if !quiet { println!(
-        "Soloist Display removed{}.",
-        if matches!(mode, RemoveMode::Display) {
-            "; settings and Soloist were preserved"
-        } else {
-            ""
-        }
-    ); }
+    if !quiet {
+        println!(
+            "Soloist Display removed{}.",
+            if matches!(mode, RemoveMode::Display) {
+                "; settings and Soloist were preserved"
+            } else {
+                ""
+            }
+        );
+    }
     Ok(())
 }
 

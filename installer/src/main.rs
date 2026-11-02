@@ -5,11 +5,11 @@ mod migrations;
 mod paths;
 mod platform;
 mod process;
-mod terminal;
 mod release;
 mod service;
 mod soloist;
 mod state;
+mod terminal;
 
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
@@ -140,7 +140,9 @@ fn run() -> Result<i32> {
                 return Ok(1);
             }
         }
-        Command::Uninstall { mode } => locked(&paths, || manager::uninstall(&paths, mode, cli.quiet))?,
+        Command::Uninstall { mode } => {
+            locked(&paths, || manager::uninstall(&paths, mode, cli.quiet))?
+        }
     }
     Ok(0)
 }

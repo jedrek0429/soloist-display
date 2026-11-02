@@ -2,7 +2,7 @@ name: Publish landing page
 on:
   push:
     branches: [main]
-    paths: ['site/**', 'install.sh', '.github/workflows/pages.yml']
+    paths: ['site/**', 'index.html', 'styles.css', 'src/motion.js', 'src/spectrum.js', 'install.sh', '.github/workflows/pages.yml']
   release:
     types: [published]
   workflow_dispatch:
@@ -21,8 +21,15 @@ jobs:
           fetch-depth: 0
       - name: Prepare static site
         run: |
-          mkdir "$RUNNER_TEMP/pages"
+          mkdir -p "$RUNNER_TEMP/pages/src"
           cp site/index.html "$RUNNER_TEMP/pages/index.html"
+          cp styles.css "$RUNNER_TEMP/pages/styles.css"
+          cp src/motion.js src/spectrum.js "$RUNNER_TEMP/pages/src/"
+          cp site/demo.js "$RUNNER_TEMP/pages/src/demo.js"
+          # Bundle the album art at publish time, never fetch it during page load.
+          curl --fail --location --retry 3 --silent --show-error "https://cdn-p.smehost.net/sites/c5d2b1a28fd246bfafed3b8dbafc1352/wp-content/uploads/2021/05/cover-45.jpg" -o "$RUNNER_TEMP/pages/kind-of-blue.jpg"
+          # Use production display markup; replace only its live websocket entrypoint.
+          sed 's@src="./src/main.js"@src="./src/demo.js"@' index.html > "$RUNNER_TEMP/pages/preview.html"
           if ! curl --fail --location --silent --show-error \
             https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/install.sh \
             -o "$RUNNER_TEMP/pages/install.sh"; then
@@ -40,8 +47,13 @@ jobs:
             git switch --orphan gh-pages
           fi
           cp "$RUNNER_TEMP/pages/index.html" index.html
+          cp "$RUNNER_TEMP/pages/preview.html" preview.html
+          cp "$RUNNER_TEMP/pages/styles.css" styles.css
+          cp "$RUNNER_TEMP/pages/kind-of-blue.jpg" kind-of-blue.jpg
+          mkdir -p src
+          cp "$RUNNER_TEMP/pages/src/"*.js src/
           cp "$RUNNER_TEMP/pages/install.sh" install.sh
           cp "$RUNNER_TEMP/pages/.nojekyll" .nojekyll
-          git add index.html install.sh .nojekyll
+          git add index.html preview.html kind-of-blue.jpg styles.css src/motion.js src/spectrum.js src/demo.js install.sh .nojekyll
           git commit -m "Publish Soloist Display landing page" || exit 0
           git push origin HEAD:gh-pages

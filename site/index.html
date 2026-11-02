@@ -4,47 +4,57 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#101010">
-<meta name="description" content="A full-screen now-playing display for Spotify Soloist.">
+<meta name="description" content="Soloist Display — a beautiful now-playing display powered by Spotify Soloist.">
 <title>Soloist Display</title>
 <style>
 :root{color-scheme:dark;font:15px Arial,Helvetica,sans-serif;background:#101010;color:#f2f2f2;--ink:#f2f2f2;--bg:#101010;--line:#555}
 *{box-sizing:border-box}
-html,body{height:100%;overflow:hidden}
-body{margin:0;background:var(--bg)}
-main{width:min(760px,calc(100% - 40px));min-width:0;height:100vh;height:100dvh;margin:auto;padding:max(28px,env(safe-area-inset-top)) 0 max(24px,env(safe-area-inset-bottom));display:grid;grid-template-rows:1fr auto auto}
-.hero{align-self:center;padding:24px 0}
-h1{font-size:clamp(42px,8vw,76px);font-weight:600;line-height:.95;letter-spacing:-.055em;margin:0 0 24px}
-p{color:#aaa;margin:0;max-width:700px;font-size:clamp(19px,3vw,28px);line-height:1.25;letter-spacing:-.02em}
-.install{min-width:0;padding-bottom:22px}
-.label{display:block;font-size:12px;color:#aaa;margin-bottom:12px;text-transform:uppercase;letter-spacing:.08em}
-.command{display:flex;min-width:0;border:1px solid var(--line)}
-code{min-width:0;padding:16px;overflow:auto;white-space:nowrap;flex:1;color:var(--ink)}
-button,a{font:inherit;color:var(--ink);background:transparent;border:0;text-decoration:none;cursor:pointer}
-button{border-left:1px solid var(--line);padding:0 18px}
-button:hover,button:focus-visible,a:hover,a:focus-visible{background:var(--ink);color:var(--bg);outline:0}
-footer{display:flex;gap:18px;border-top:1px solid var(--line);padding-top:18px;font-size:13px}
-[hidden]{display:none}
-@media(max-width:560px){main{width:calc(100% - 40px)}.command{display:block}button{width:100%;border-left:0;border-top:1px solid var(--line);padding:12px}code{display:block;padding:13px}}
+body{margin:0;min-height:100dvh;background:var(--bg)}
+a,button{color:inherit;font:inherit}
+a{text-decoration:none}
+a:hover{text-decoration:underline}
+a:focus-visible,button:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+.shell{width:min(1320px,calc(100% - 72px));margin:auto;min-height:100dvh;display:flex;flex-direction:column}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:20px;border-bottom:1px solid var(--line);padding:28px 0 22px}
+.brand{font-size:26px;font-weight:600;letter-spacing:-.03em}
+.nav-link{border:1px solid var(--line);padding:9px 14px;white-space:nowrap}
+.nav-link:hover{background:var(--ink);color:var(--bg);text-decoration:none}
+main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:clamp(30px,5vw,76px);align-items:center;padding:28px 0}
+.hero{text-align:left;min-width:0}
+h1{font-size:clamp(40px,4.6vw,72px);font-weight:600;letter-spacing:-.055em;line-height:1.05;margin:0 0 16px;text-wrap:balance}
+.description{color:#aaa;margin:0 0 13px;font-size:clamp(17px,1.6vw,22px);line-height:1.35;max-width:490px}.powered{color:#aaa;margin:0;font-size:15px}
+.powered a{color:var(--ink);text-underline-offset:3px;text-decoration:underline}
+.preview{margin:0;position:relative;aspect-ratio:4/3;width:100%;overflow:hidden;border:1px solid var(--line);background:#151515}
+.preview iframe{display:block;width:100%;height:100%;border:0;pointer-events:none}
+.install{margin-top:34px}
+.label{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#aaa;margin-bottom:12px}
+.command{display:flex;border:1px solid var(--line);min-width:0}
+.command code{flex:1;min-width:0;overflow:auto;white-space:nowrap;padding:16px;font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace}
+.command button{cursor:pointer;background:transparent;border:0;border-left:1px solid var(--line);padding:0 20px}
+.command button:hover{background:var(--ink);color:var(--bg)}
+
+[hidden]{display:none!important}
+@media(min-width:801px) and (max-height:710px){.topbar{padding:14px 0}main{padding:14px 0}.preview{max-height:calc(100dvh - 105px);width:auto;justify-self:center;max-width:100%}.install{margin-top:22px}}
+@media(max-width:800px){.shell{width:calc(100% - 40px)}main{display:flex;flex-direction:column;align-items:stretch;gap:32px;padding:42px 0}.hero{width:100%}h1{font-size:clamp(38px,8vw,60px)}.preview{width:100%;max-width:680px;align-self:center}}
+@media(max-width:560px){.shell{width:calc(100% - 32px)}.topbar{padding:20px 0}.brand{font-size:22px}main{padding-top:38px;gap:28px}.command{flex-direction:column}.command button{padding:12px;border-left:0;border-top:1px solid var(--line)}}
+@media(prefers-reduced-motion:reduce){.preview iframe{visibility:visible}}
 </style>
 </head>
 <body>
+<div class="shell">
+<header class="topbar"><a class="brand" href="./" aria-label="Soloist Display home">Soloist Display</a><a class="nav-link" href="https://github.com/jedrek0429/soloist-display">GitHub</a></header>
 <main>
-<section class="hero"><h1>Soloist Display.</h1><p>Turn any device into a Spotify Connect speaker with a beautiful display.</p></section>
-<section class="install" id="install" hidden>
-<span class="label">Install</span>
-<div class="command"><code id="command">curl -fsSL https://jedrek0429.github.io/soloist-display/install.sh | sh</code><button id="copy" type="button">Copy</button></div>
-</section>
-<footer><a href="https://github.com/jedrek0429/soloist-display">GitHub</a><a href="https://developer.spotify.com/documentation/soloist">Soloist</a></footer>
+<section class="hero"><h1>Your music deserves a display.</h1><p class="description">Turn any device into a Spotify Connect speaker with a beautiful display.</p><p class="powered">Powered by <a href="https://developer.spotify.com/documentation/soloist">Soloist</a>.</p><section class="install" id="install" hidden><span class="label">Install</span><div class="command"><code id="command">curl -fsSL https://jedrek0429.github.io/soloist-display/install.sh | sh</code><button type="button" id="copy">Copy</button></div></section></section>
+<figure class="preview" aria-label="Live Soloist Display preview: Miles Davis, So What"><iframe src="./preview.html" title="Animated Soloist Display showing So What by Miles Davis" loading="eager" tabindex="-1"></iframe></figure>
 </main>
+</div>
 <script>
 const command=document.querySelector('#command').textContent;
-fetch('https://api.github.com/repos/jedrek0429/soloist-display/releases/latest',{headers:{Accept:'application/vnd.github+json'}}).then(response=>{
-  if(!response.ok)throw new Error();
-  document.querySelector('#install').hidden=false;
-}).catch(()=>{});
+fetch('https://api.github.com/repos/jedrek0429/soloist-display/releases/latest',{headers:{Accept:'application/vnd.github+json'}})
+ .then(response=>{if(!response.ok)throw new Error('No release');document.querySelector('#install').hidden=false}).catch(()=>{});
 document.querySelector('#copy').addEventListener('click',async event=>{
-  await navigator.clipboard.writeText(command);
-  event.currentTarget.textContent='Copied';
+ try{await navigator.clipboard.writeText(command);event.currentTarget.textContent='Copied'}
+ catch{event.currentTarget.textContent='Copy failed'}
 });
 </script>
 </body>

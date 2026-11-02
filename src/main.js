@@ -36,15 +36,17 @@ const settings={
   panelTransitionDuration:bounded(config.panelTransitionDuration,2050,100,10000),
   reducedMotion:config.reducedMotion===true,
   transitionStyle:config.transitionStyle||'fly',
-  sleeveTransitionStyle:config.sleeveTransitionStyle||'in-out'
+  sleeveTransitionStyle:config.sleeveTransitionStyle||'in-out',
+  coverTransitionStyle:config.coverTransitionStyle||'fade',
+  coverTransitionDuration:bounded(config.coverTransitionDuration,2000,100,10000)
 };
 const root=document.documentElement;
 root.dataset.progressBar=config.progressBar===false?'off':'on';
 root.dataset.timeDisplay=['off','remaining','total'].includes(config.timeDisplay)?config.timeDisplay:'off';
 root.dataset.timeLayout=config.timeLayout==='together'?'together':'split';
-root.dataset.discAppearance=['basic','cd','vinyl','vinyl-cover'].includes(config.discAppearance)?config.discAppearance:'basic';
+root.dataset.discAppearance=['basic','cd','vinyl','vinyl-cover','cd-cover'].includes(config.discAppearance)?config.discAppearance:'basic';
 root.dataset.panelPosition=['bottom-right','bottom-left','top-right','top-left'].includes(config.panelPosition)?config.panelPosition:'bottom-right';
-const holeKey='centerHole'+(root.dataset.discAppearance==='vinyl-cover'?'Vinyl':root.dataset.discAppearance[0].toUpperCase()+root.dataset.discAppearance.slice(1));
+const holeKey='centerHole'+(root.dataset.discAppearance==='vinyl-cover'?'Vinyl':root.dataset.discAppearance==='cd-cover'?'Cd':root.dataset.discAppearance[0].toUpperCase()+root.dataset.discAppearance.slice(1));
 const holeSize=bounded(config[holeKey],root.dataset.discAppearance==='cd'?16:root.dataset.discAppearance==='vinyl'?.6:1,0,20);
 const colorKey=holeKey.replace('centerHole','centerHoleColor');
 const holeColor=['white','black','transparent'].includes(config[colorKey])?config[colorKey]:'transparent';
@@ -71,9 +73,10 @@ function updateItem(item){
   const uri=item.uri||item.id||[item?.decorations?.identity?.name,coverFor(item)].join('|');
   duration=durationMs(item)||duration;
   if(uri===currentUri)return;
+  position=0;positionTime=performance.now();
   currentUri=uri;
   const albumKey=albumKeyFor(item);
-  const panelOnly=(settings.changeDiscOn==='album'||root.dataset.discAppearance==='vinyl-cover')&&albumKey!==null&&albumKey===currentAlbumKey&&director.started;
+  const panelOnly=settings.changeDiscOn==='album'&&albumKey!==null&&albumKey===currentAlbumKey&&director.started;
   currentAlbumKey=albumKey;
   const name=item?.decorations?.identity?.name||item.name||'Not playing';
   const artist=artistFor(item),cover=coverFor(item);
@@ -81,12 +84,18 @@ function updateItem(item){
   if(panelOnly)director.changePanel(show);
   else director.change(cover,show);
 }
+function syncPosition(ms){
+  const now=performance.now();
+  const estimated=position+(playing?now-positionTime:0);
+  // Ignore jitter; seek or genuine drift should still correct the clock.
+  if(!positionTime||Math.abs(ms-estimated)>750){position=ms;positionTime=now}
+}
 function handleSoloist(event){
   const {item,position:pos,status}=normalize(event);
   if(item)updateItem(item);
   if(status!==null){playing=isPlaying(status);director.setPlaying(playing)}
-  if(pos!==null){const ms=positionMs(pos);if(Number.isFinite(ms)){position=ms;positionTime=performance.now()}}
-  if(event.type==='position_sync'||event.type==='position_changed'){const ms=positionMs(event.position??event);if(Number.isFinite(ms)){position=ms;positionTime=performance.now()}}
+  if(pos!==null){const ms=positionMs(pos);if(Number.isFinite(ms))syncPosition(ms)}
+  if(event.type==='position_sync'||event.type==='position_changed'){const ms=positionMs(event.position??event);if(Number.isFinite(ms))syncPosition(ms)}
   if(event.type==='playback_changed'&&event.status!==undefined){playing=isPlaying(event.status);director.setPlaying(playing)}
 }
 function connect(url,onData,onOpen,onDisconnect){

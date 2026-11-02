@@ -210,35 +210,37 @@
   mask-image:none;
 }
 
-/* One physical centre diameter for the printed and reflective CD faces.
-   A radial-gradient percentage measures the radius from centre to edge:
-   use the full hole DIAMETER percentage to match the spindle's CSS width. */
+/* CD aperture: use the original small hole on both sides.
+   Optical hub rings are decorative and do not change the actual aperture. */
 :root[data-disc-appearance='cd-cover'] .rotor,
 :root[data-disc-appearance='cd-cover'][data-hole-color='transparent'] .rotor{
-  -webkit-mask-image:radial-gradient(circle closest-side at center,
-    transparent 0 var(--center-hole-diameter),
-    #000 calc(var(--center-hole-diameter) + .08%));
-  mask-image:radial-gradient(circle closest-side at center,
-    transparent 0 var(--center-hole-diameter),
-    #000 calc(var(--center-hole-diameter) + .08%));
+  -webkit-mask-image:radial-gradient(circle closest-side at center,transparent 0 var(--center-hole-radius),#000 calc(var(--center-hole-radius) + .08%));
+  mask-image:radial-gradient(circle closest-side at center,transparent 0 var(--center-hole-radius),#000 calc(var(--center-hole-radius) + .08%));
 }
 :root[data-disc-appearance='cd-cover'][data-hole-color='white'] .rotor,
 :root[data-disc-appearance='cd-cover'][data-hole-color='black'] .rotor{
-  -webkit-mask-image:none;
-  mask-image:none;
-}
-:root[data-disc-appearance='cd-cover'] .disc-image::before,
-:root[data-disc-appearance='cd-cover'] .disc-image::after{
-  /* No separate optical aperture or dark hub: only the rotor/spindle defines it. */
-  -webkit-mask-image:none;
-  mask-image:none;
-}
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image{
-  /* A uniform silver substrate ensures the reflective face has no oversized dark centre. */
-  background:linear-gradient(125deg,#c2cbd4,#e0e5e9 40%,#aebbc9 76%,#ccd4dd);
+  -webkit-mask-image:none;mask-image:none;
 }
 :root[data-disc-appearance='cd-cover'][data-hole-color='white'] .spindle,
 :root[data-disc-appearance='cd-cover'][data-hole-color='black'] .spindle{
-  width:var(--center-hole-diameter);
-  height:var(--center-hole-diameter);
+  width:var(--center-hole-diameter);height:var(--center-hole-diameter);z-index:10;
+}
+/* Restore concentric metallic rings around the small opening on the data side. */
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::after{
+  display:block;inset:0;border-radius:50%;opacity:.42;
+  background:
+    radial-gradient(circle at center,
+      transparent 0 8%,
+      rgba(32,43,58,.38) 8.25% 8.9%,
+      rgba(241,246,250,.72) 9.2% 10.1%,
+      rgba(99,111,127,.33) 10.35% 10.75%,
+      transparent 11.2%),
+    conic-gradient(from 67deg,transparent 0 12%,rgba(255,255,255,.3) 18%,transparent 26% 62%,rgba(255,255,255,.2) 70%,transparent 78%);
+  -webkit-mask-image:none;mask-image:none;
+}
+/* Keep printed side's original artwork highlights and narrow central aperture. */
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image::before,
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image::after{
+  -webkit-mask-image:radial-gradient(circle,transparent 0 var(--center-hole-radius),#000 calc(var(--center-hole-radius) + .15%) 96%,transparent 100%);
+  mask-image:radial-gradient(circle,transparent 0 var(--center-hole-radius),#000 calc(var(--center-hole-radius) + .15%) 96%,transparent 100%);
 }

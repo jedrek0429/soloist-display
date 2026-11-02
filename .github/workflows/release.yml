@@ -76,6 +76,13 @@ jobs:
           printf '%s\n' "$RELEASE_SIGNING_KEY" > "$key"
           chmod 600 "$key"
           openssl pkey -in "$key" -noout -check
+          # The signing secret must match both embedded verifier keys.
+          signing_public="$(openssl pkey -in "$key" -pubout -outform DER | tail -c 32 | base64 -w0)"
+          rust_public="$(sed -n 's/.*RELEASE_PUBLIC_KEY_B64: &str = "\([^"]*\)".*/\1/p' installer/src/release.rs)"
+          bootstrap_public="$(sed -n '/BEGIN PUBLIC KEY/{n;p;q;}' install.sh | base64 -d | tail -c 32 | base64 -w0)"
+          test -n "$signing_public"
+          test "$signing_public" = "$rust_public" || { echo "::error::Rust verifier key differs from release signing key"; exit 1; }
+          test "$signing_public" = "$bootstrap_public" || { echo "::error::Bootstrap verifier key differs from release signing key"; exit 1; }
           openssl pkeyutl -sign -inkey "$key" -rawin -in dist/release-manifest.json -out "$RUNNER_TEMP/release.sig"
           openssl pkeyutl -sign -inkey "$key" -rawin -in dist/bootstrap-manifest.txt -out "$RUNNER_TEMP/bootstrap.sig"
           openssl base64 -A -in "$RUNNER_TEMP/release.sig" -out dist/release-manifest.sig

@@ -95,6 +95,10 @@ export class DiscDirector{
     this.info.style.transform='';
     this.info.style.opacity='';
   }
+  changePanel(onShow){
+    // Leave disc, backdrop, rotation and pending disc transitions untouched.
+    void this.transitionPanel(onShow);
+  }
   async change(url,onShow){
     this.pendingShow=null;
     const token=++this.token;

@@ -271,14 +271,32 @@
 :root[data-disc-appearance='cd-cover'][data-hole-color='black'] .spindle{
   width:var(--center-hole-diameter);height:var(--center-hole-diameter);z-index:10;
 }
-/* Decorative hub rings start beyond the physical hole, not at fixed radii. */
+/* The data side is opaque silver with subtle iridescence; optical rings
+   follow the physical hole diameter, remaining decorative rather than cutouts. */
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image{
+  background:radial-gradient(circle at 45% 34%,#e5e9ed 0%,#c8d0d8 46%,#a9b6c4 80%,#c3ccd4 100%);
+  box-shadow:inset 0 0 10px rgba(24,34,48,.16),inset 0 0 2px rgba(255,255,255,.35);
+}
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::before{
+  display:block;inset:0;border-radius:50%;opacity:.24;
+  background:conic-gradient(from 18deg,
+    rgba(255,108,112,.14),rgba(246,214,132,.09) 42deg,
+    rgba(92,205,183,.11) 88deg,rgba(109,166,235,.12) 138deg,
+    transparent 196deg,rgba(165,151,229,.09) 264deg,
+    rgba(255,108,112,.14));
+  -webkit-mask-image:none;mask-image:none;
+}
 :root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::after{
+  display:block;inset:0;width:auto;height:auto;transform:none;border:0;box-shadow:none;
+  border-radius:50%;opacity:.22;
   background:
     radial-gradient(circle closest-side at center,
-      transparent 0 calc(var(--cd-hole-stop) + .5%),
-      rgba(48,61,76,.25) calc(var(--cd-hole-stop) + .9%) calc(var(--cd-hole-stop) + 1.6%),
-      rgba(240,246,252,.65) calc(var(--cd-hole-stop) + 2%) calc(var(--cd-hole-stop) + 2.9%),
-      rgba(79,93,112,.22) calc(var(--cd-hole-stop) + 3.1%) calc(var(--cd-hole-stop) + 3.8%),
-      transparent calc(var(--cd-hole-stop) + 4.2%)),
-    conic-gradient(from 67deg,transparent 0 12%,rgba(255,255,255,.3) 18%,transparent 26% 62%,rgba(255,255,255,.2) 70%,transparent 78%);
+      transparent 0 calc(var(--cd-hole-stop) + .45%),
+      rgba(233,239,245,.26) calc(var(--cd-hole-stop) + .85%) calc(var(--cd-hole-stop) + 1.45%),
+      rgba(70,83,98,.14) calc(var(--cd-hole-stop) + 1.7%) calc(var(--cd-hole-stop) + 2.2%),
+      rgba(236,242,247,.18) calc(var(--cd-hole-stop) + 2.5%) calc(var(--cd-hole-stop) + 3.1%),
+      transparent calc(var(--cd-hole-stop) + 3.55%)),
+    conic-gradient(from 67deg,transparent 0 14%,rgba(255,255,255,.18) 19%,
+      transparent 26% 63%,rgba(255,255,255,.14) 70%,transparent 78%);
+  -webkit-mask-image:none;mask-image:none;
 }

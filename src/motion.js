@@ -10,7 +10,7 @@ function preload(url){
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 export class DiscDirector{
   constructor({discs,backdrops,info,settings={}}){
-    this.settings={discRotationSeconds:12,transitionDuration:2000,backdropTransitionStyle:'fade',backdropTransitionDuration:2000,transitionStyle:'fly',sleeveTransitionStyle:'in-out',panelTransitionStyle:'slide',panelTransitionDuration:2050,reducedMotion:false,...settings};
+    this.settings={discRotationSeconds:12,transitionDuration:2000,backdropTransitionStyle:'fade',backdropTransitionDuration:2000,transitionStyle:'fly',sleeveTransitionStyle:'in-out',coverTransitionStyle:'fade',coverTransitionDuration:2000,panelTransitionStyle:'slide',panelTransitionDuration:2050,reducedMotion:false,...settings};
     this.motionEnabled=!this.settings.reducedMotion;
     this.discs=discs;this.backdrops=backdrops;this.info=info;
     this.current=0;this.token=0;this.started=false;this.angle=0;
@@ -20,7 +20,7 @@ export class DiscDirector{
   }
   spin(now){
     const dt=Math.min(.08,(now-this.last)/1000);this.last=now;
-    const sleeve=document.documentElement.dataset.discAppearance==='vinyl-cover';
+    const sleeve=['vinyl-cover','cd-cover'].includes(document.documentElement.dataset.discAppearance);
     const target=(this.changing&&!sleeve)?0:this.playing?Math.PI*2/this.settings.discRotationSeconds:0;
     this.velocity+=(target-this.velocity)*(1-Math.exp(-dt*(this.changing?12:5)));
     this.angle=(this.angle+this.velocity*dt)%(2*Math.PI);
@@ -105,12 +105,20 @@ export class DiscDirector{
     const incoming=this.discs[1-this.current];
     const previousBg=this.backdrops[this.current];
     const nextBg=this.backdrops[1-this.current];
+    const oldCover=outgoing.querySelector('.record-sleeve');
+    const oldCoverImage=oldCover.style.backgroundImage;
     const oldTrack=outgoing.querySelector('.record-track');
     const newTrack=incoming.querySelector('.record-track');
     incoming.querySelector('.disc-label').style.backgroundImage=imageStyle(url);
     incoming.querySelector('.record-sleeve').style.backgroundImage=imageStyle(url);
     nextBg.style.backgroundImage=imageStyle(url);
     newTrack.style.transform='translateX(0)';
+    // Keep the old sleeve visible while the new cover animates in.
+    const sleeve=incoming.querySelector('.record-sleeve');
+    const overlay=document.createElement('div');
+    overlay.className='cover-overlay';
+    overlay.style.backgroundImage=oldCoverImage;
+    sleeve.append(overlay);
     incoming.dataset.angleOffset=String(this.angle);
     if(!this.started){
       this.started=true;
@@ -120,6 +128,7 @@ export class DiscDirector{
       this.current=1-this.current;
       nextBg.classList.add('active');
       nextBg.style.opacity='1';
+      overlay.remove();
       onShow();
       return;
     }
@@ -129,7 +138,7 @@ export class DiscDirector{
     void this.transitionPanel(onShow);
     if(half){
       await this.animate(oldTrack,[{transform:'translateX(50%)'},{transform:'translateX(0)'}],half,token);
-      if(token!==this.token)return;
+      if(token!==this.token){overlay.remove();return}
     }
     oldTrack.style.transform='translateX(0)';
     outgoing.classList.remove('active');
@@ -137,15 +146,24 @@ export class DiscDirector{
     previousBg.style.zIndex='1';
     nextBg.style.zIndex='2';
     nextBg.classList.add('active');
+    const coverStyle=this.motionEnabled?this.settings.coverTransitionStyle:'off';
+    const coverDuration=this.motionEnabled?this.settings.coverTransitionDuration:0;
+    let coverFrames;
+    if(coverStyle==='fade')coverFrames=[{opacity:1},{opacity:0}];
+    if(coverStyle==='slide')coverFrames=[{transform:'translateX(0)'},{transform:'translateX(-105%)'}];
+    if(coverStyle==='fly')coverFrames=[{transform:'translate(0,0) scale(1)',opacity:1},{transform:'translate(-30%,-110%) scale(.7)',opacity:0}];
+    const coverJob=coverFrames?this.animate(overlay,coverFrames,coverDuration,token):Promise.resolve(true);
+    if(!coverFrames)overlay.remove();
     const bgDuration=this.motionEnabled&&this.settings.backdropTransitionStyle==='fade'?this.settings.backdropTransitionDuration:0;
     const bgJob=bgDuration?this.fadeBackdrop(previousBg,nextBg,bgDuration,token):Promise.resolve(true);
     if(!bgDuration){nextBg.style.opacity='1';previousBg.style.opacity='0'}
     if(half){
       await this.animate(newTrack,[{transform:'translateX(0)'},{transform:'translateX(50%)'}],half,token);
-      if(token!==this.token)return;
+      if(token!==this.token){overlay.remove();return}
     }
     newTrack.style.transform='translateX(50%)';
-    await bgJob;
+    await Promise.all([bgJob,coverJob]);
+    overlay.remove();
     if(token!==this.token)return;
     previousBg.classList.remove('active');
     previousBg.style.opacity='0';
@@ -157,6 +175,7 @@ export class DiscDirector{
   }
   async change(url,onShow){
     this.pendingShow=null;
+    for(const overlay of document.querySelectorAll('.cover-overlay'))overlay.remove();
     const token=++this.token;
     for(const animation of this.animations)animation.cancel();
     this.animations.clear();
@@ -164,7 +183,7 @@ export class DiscDirector{
     this.changing=false;
     await preload(url);
     if(token!==this.token)return;
-    if(document.documentElement.dataset.discAppearance==='vinyl-cover'){
+    if(['vinyl-cover','cd-cover'].includes(document.documentElement.dataset.discAppearance)){
       await this.changeSleeve(url,onShow,token);
       return;
     }

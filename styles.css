@@ -42,3 +42,23 @@
 .track-times .time-separator{display:none}
 :root[data-time-layout='together'] .track-times{justify-content:flex-end;gap:0}
 :root[data-time-layout='together'] .track-times .time-separator{display:inline;white-space:pre}
+
+/* Optical CD finish: subtle diffraction, brushed concentric tracks and a metallic hub.
+   Keep the artwork beneath the sheen and honour the existing configurable aperture. */
+:root[data-disc-appearance='cd'] .disc-image::before{
+  display:block;inset:0;border-radius:50%;
+  background:
+    radial-gradient(circle,transparent 0 8%,rgba(245,247,250,.65) 8.4% 9.2%,rgba(40,47,54,.8) 9.5% 10.1%,rgba(215,222,231,.58) 10.5% 12.5%,transparent 13%),
+    repeating-radial-gradient(circle,transparent 0 2px,rgba(245,249,255,.055) 2.5px,transparent 3px,transparent 5px),
+    conic-gradient(from 16deg,rgba(153,192,245,.24),rgba(238,190,236,.12) 48deg,transparent 78deg,rgba(187,242,222,.23) 115deg,transparent 160deg,rgba(245,227,175,.2) 208deg,transparent 250deg,rgba(167,183,246,.22) 310deg,rgba(153,192,245,.24));
+  mix-blend-mode:screen;opacity:.72;
+  -webkit-mask-image:radial-gradient(circle,transparent 0 7%,#000 12% 96%,transparent 100%);
+  mask-image:radial-gradient(circle,transparent 0 7%,#000 12% 96%,transparent 100%);
+}
+:root[data-disc-appearance='cd'] .disc-image::after{
+  display:block;inset:0;width:auto;height:auto;transform:none;border:0;box-shadow:none;border-radius:50%;
+  background:conic-gradient(from 42deg,transparent 0 12%,rgba(255,255,255,.17) 17%,transparent 24% 49%,rgba(255,255,255,.12) 56%,transparent 63% 100%);
+  opacity:.55;mix-blend-mode:screen;
+  -webkit-mask-image:radial-gradient(circle,transparent 12%,#000 16% 95%,transparent 99%);
+  mask-image:radial-gradient(circle,transparent 12%,#000 16% 95%,transparent 99%);
+}

@@ -167,3 +167,22 @@
 :root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'][data-hole-color='black'] .spindle{
   width:var(--center-hole-diameter,0%);height:var(--center-hole-diameter,0%);z-index:10;
 }
+
+/* Shared CD centre geometry: colour and side cannot change the apparent aperture. */
+:root[data-disc-appearance='cd'] .disc-image::before,
+:root[data-disc-appearance='cd'] .disc-image::after,
+:root[data-disc-appearance='cd-cover'] .disc-image::before,
+:root[data-disc-appearance='cd-cover'] .disc-image::after{
+  -webkit-mask-image:radial-gradient(circle,transparent 0 var(--center-hole-radius),#000 calc(var(--center-hole-radius) + .15%) 97%,transparent 100%);
+  mask-image:radial-gradient(circle,transparent 0 var(--center-hole-radius),#000 calc(var(--center-hole-radius) + .15%) 97%,transparent 100%);
+}
+:root[data-disc-appearance='cd'] .disc-image::before,
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image::before{opacity:.34}
+:root[data-disc-appearance='cd'] .disc-image::after,
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image::after{opacity:.22}
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::before{opacity:.36}
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::after{opacity:.2}
+:root[data-disc-appearance='cd-cover'][data-hole-color='white'] .spindle,
+:root[data-disc-appearance='cd-cover'][data-hole-color='black'] .spindle,
+:root[data-disc-appearance='cd'][data-hole-color='white'] .spindle,
+:root[data-disc-appearance='cd'][data-hole-color='black'] .spindle{width:var(--center-hole-diameter);height:var(--center-hole-diameter);z-index:10}

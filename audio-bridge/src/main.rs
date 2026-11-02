@@ -1,9 +1,17 @@
-use std::{env, process::Stdio, time::Instant, path::PathBuf, sync::Arc};
-use axum::{Router, Json, http::{header, StatusCode}, response::{IntoResponse, Response}, routing::get, extract::State};
-use serde_json::Value;
+use axum::{
+    extract::State,
+    http::{header, StatusCode},
+    response::{IntoResponse, Response},
+    routing::get,
+    Json, Router,
+};
 use futures_util::SinkExt;
 use rustfft::{num_complex::Complex32, FftPlanner};
-use tokio::{io::AsyncReadExt, net::TcpListener, process::Command, sync::broadcast, time::Duration};
+use serde_json::Value;
+use std::{env, path::PathBuf, process::Stdio, sync::Arc, time::Instant};
+use tokio::{
+    io::AsyncReadExt, net::TcpListener, process::Command, sync::broadcast, time::Duration,
+};
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
 const RATE: usize = 22050;
@@ -18,12 +26,14 @@ const SPECTRUM_JS: &str = include_str!("../../src/spectrum.js");
 const SOLOIST_JS: &str = include_str!("../../src/soloist.js");
 
 #[derive(Clone)]
-struct WebState { path: Arc<PathBuf> }
+struct WebState {
+    path: Arc<PathBuf>,
+}
 
 fn config_path() -> PathBuf {
-    let base = env::var_os("XDG_CONFIG_HOME").map(PathBuf::from).unwrap_or_else(|| {
-        PathBuf::from(env::var_os("HOME").unwrap_or_default()).join(".config")
-    });
+    let base = env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(env::var_os("HOME").unwrap_or_default()).join(".config"));
     base.join("soloist-display/config.json")
 }
 
@@ -34,9 +44,19 @@ fn read_settings(path: &PathBuf) -> Value {
         if let Ok(Value::Object(values)) = serde_json::from_str::<Value>(&contents) {
             if let Value::Object(ref mut object) = settings {
                 let old_dot = values.get("discAppearance").and_then(Value::as_str) == Some("dot");
-                for (key, value) in &values { if object.contains_key(key) { object.insert(key.clone(), value.clone()); } }
-                for key in ["transitionStyle","backdropTransitionStyle","panelTransitionStyle"] {
-                    if object.get(key).and_then(Value::as_str) == Some("instant") { object.insert(key.into(), Value::String("off".into())); }
+                for (key, value) in &values {
+                    if object.contains_key(key) {
+                        object.insert(key.clone(), value.clone());
+                    }
+                }
+                for key in [
+                    "transitionStyle",
+                    "backdropTransitionStyle",
+                    "panelTransitionStyle",
+                ] {
+                    if object.get(key).and_then(Value::as_str) == Some("instant") {
+                        object.insert(key.into(), Value::String("off".into()));
+                    }
                 }
                 if old_dot {
                     object.insert("discAppearance".into(), Value::String("basic".into()));
@@ -51,15 +71,27 @@ fn read_settings(path: &PathBuf) -> Value {
 }
 
 async fn get_defaults() -> impl IntoResponse {
-    ([(header::CACHE_CONTROL, "no-store")], [(header::CONTENT_TYPE, "application/json")], DEFAULT_CONFIG)
+    (
+        [(header::CACHE_CONTROL, "no-store")],
+        [(header::CONTENT_TYPE, "application/json")],
+        DEFAULT_CONFIG,
+    )
 }
 
 async fn get_config(State(state): State<WebState>) -> impl IntoResponse {
-    ([(header::CACHE_CONTROL, "no-store")], Json(read_settings(&state.path)))
+    (
+        [(header::CACHE_CONTROL, "no-store")],
+        Json(read_settings(&state.path)),
+    )
 }
 
-async fn put_config(State(state): State<WebState>, Json(input): Json<Value>) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let Value::Object(incoming) = input else { return Err((StatusCode::BAD_REQUEST, "Expected settings object".into())); };
+async fn put_config(
+    State(state): State<WebState>,
+    Json(input): Json<Value>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    let Value::Object(incoming) = input else {
+        return Err((StatusCode::BAD_REQUEST, "Expected settings object".into()));
+    };
     if state.path.exists() {
         let saved = std::fs::read_to_string(&*state.path).map_err(internal_error)?;
         if !matches!(serde_json::from_str::<Value>(&saved), Ok(Value::Object(_))) {
@@ -71,38 +103,104 @@ async fn put_config(State(state): State<WebState>, Json(input): Json<Value>) -> 
     let output_map = output.as_object_mut().unwrap();
     let default_map = defaults.as_object().unwrap();
     for (key, value) in incoming {
-        let Some(default) = default_map.get(&key) else { return Err((StatusCode::BAD_REQUEST, format!("Unknown setting: {key}"))); };
-        if !match default { Value::Bool(_) => value.is_boolean(), Value::Number(_) => value.as_f64().is_some_and(|x| x.is_finite()), Value::String(_) => value.is_string(), _ => false } {
+        let Some(default) = default_map.get(&key) else {
+            return Err((StatusCode::BAD_REQUEST, format!("Unknown setting: {key}")));
+        };
+        if !match default {
+            Value::Bool(_) => value.is_boolean(),
+            Value::Number(_) => value.as_f64().is_some_and(|x| x.is_finite()),
+            Value::String(_) => value.is_string(),
+            _ => false,
+        } {
             return Err((StatusCode::BAD_REQUEST, format!("Invalid type for {key}")));
         }
         if let Some((lo, hi)) = match key.as_str() {
-            "visualizerSensitivity" => Some((0., 10.)), "visualizerSmoothing" => Some((0., 1.)),
-            "discSize" => Some((50., 200.)), "centerHoleBasic" | "centerHoleCd" | "centerHoleVinyl" => Some((0., 20.)), "panelFontSize" => Some((0.6, 1.6)), "discRotationSeconds" => Some((1., 120.)),
-            "transitionDuration" | "backdropTransitionDuration" | "panelTransitionDuration" => Some((100., 10000.)), "backgroundDim" => Some((0., 1.)),
-            "backgroundBlur" => Some((0., 150.)), 
-            "metadataOpacity" => Some((0., 1.)), "metadataScale" => Some((0.5, 2.)),
-            _ => None
+            "visualizerSensitivity" => Some((0., 10.)),
+            "visualizerSmoothing" => Some((0., 1.)),
+            "discSize" => Some((50., 200.)),
+            "centerHoleBasic" | "centerHoleCd" | "centerHoleVinyl" => Some((0., 20.)),
+            "panelFontSize" => Some((0.6, 1.6)),
+            "discRotationSeconds" => Some((1., 120.)),
+            "transitionDuration" | "backdropTransitionDuration" | "panelTransitionDuration" => {
+                Some((100., 10000.))
+            }
+            "backgroundDim" => Some((0., 1.)),
+            "backgroundBlur" => Some((0., 150.)),
+            "metadataOpacity" => Some((0., 1.)),
+            "metadataScale" => Some((0.5, 2.)),
+            _ => None,
         } {
-            if !value.as_f64().is_some_and(|n| n >= lo && n <= hi) { return Err((StatusCode::BAD_REQUEST, format!("Out of range: {key}"))); }
+            if !value.as_f64().is_some_and(|n| n >= lo && n <= hi) {
+                return Err((StatusCode::BAD_REQUEST, format!("Out of range: {key}")));
+            }
         }
-        if key == "transitionStyle" && !["fly","slide","fade","off"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported transition style".into())); }
-        if key == "backdropTransitionStyle" && !["fade","off"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported backdrop transition".into())); }
-        if key == "panelTransitionStyle" && !["slide","fade","off"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported panel transition".into())); }
-        if key == "timeDisplay" && !["off","remaining","total"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported time display".into())); }
-        if key == "timeLayout" && !["split","together"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported time layout".into())); }
-        if key == "panelPosition" && !["bottom-right","bottom-left","top-right","top-left"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported panel position".into())); }
-        if key.starts_with("centerHoleColor") && !["white","black","transparent"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported hole colour".into())); }
-        if key == "discAppearance" && !["basic","cd","vinyl"].contains(&value.as_str().unwrap_or("")) { return Err((StatusCode::BAD_REQUEST, "Unsupported disc appearance".into())); }
+        if key == "transitionStyle"
+            && !["fly", "slide", "fade", "off"].contains(&value.as_str().unwrap_or(""))
+        {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Unsupported transition style".into(),
+            ));
+        }
+        if key == "backdropTransitionStyle"
+            && !["fade", "off"].contains(&value.as_str().unwrap_or(""))
+        {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Unsupported backdrop transition".into(),
+            ));
+        }
+        if key == "panelTransitionStyle"
+            && !["slide", "fade", "off"].contains(&value.as_str().unwrap_or(""))
+        {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Unsupported panel transition".into(),
+            ));
+        }
+        if key == "timeDisplay"
+            && !["off", "remaining", "total"].contains(&value.as_str().unwrap_or(""))
+        {
+            return Err((StatusCode::BAD_REQUEST, "Unsupported time display".into()));
+        }
+        if key == "timeLayout" && !["split", "together"].contains(&value.as_str().unwrap_or("")) {
+            return Err((StatusCode::BAD_REQUEST, "Unsupported time layout".into()));
+        }
+        if key == "panelPosition"
+            && !["bottom-right", "bottom-left", "top-right", "top-left"]
+                .contains(&value.as_str().unwrap_or(""))
+        {
+            return Err((StatusCode::BAD_REQUEST, "Unsupported panel position".into()));
+        }
+        if key.starts_with("centerHoleColor")
+            && !["white", "black", "transparent"].contains(&value.as_str().unwrap_or(""))
+        {
+            return Err((StatusCode::BAD_REQUEST, "Unsupported hole colour".into()));
+        }
+        if key == "discAppearance"
+            && !["basic", "cd", "vinyl"].contains(&value.as_str().unwrap_or(""))
+        {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Unsupported disc appearance".into(),
+            ));
+        }
         output_map.insert(key, value);
     }
     let parent = state.path.parent().unwrap();
     std::fs::create_dir_all(parent).map_err(internal_error)?;
     let temporary = state.path.with_extension("json.tmp");
-    std::fs::write(&temporary, serde_json::to_vec_pretty(&output).map_err(internal_error)?).map_err(internal_error)?;
+    std::fs::write(
+        &temporary,
+        serde_json::to_vec_pretty(&output).map_err(internal_error)?,
+    )
+    .map_err(internal_error)?;
     std::fs::rename(&temporary, &*state.path).map_err(internal_error)?;
     Ok(([(header::CACHE_CONTROL, "no-store")], Json(output)))
 }
-fn internal_error(error: impl std::fmt::Display) -> (StatusCode, String) { (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()) }
+fn internal_error(error: impl std::fmt::Display) -> (StatusCode, String) {
+    (StatusCode::INTERNAL_SERVER_ERROR, error.to_string())
+}
 
 async fn static_file(axum::extract::Path(path): axum::extract::Path<String>) -> Response {
     let (mime, data) = match path.as_str() {
@@ -116,17 +214,29 @@ async fn static_file(axum::extract::Path(path): axum::extract::Path<String>) -> 
         "src/soloist.js" => ("text/javascript; charset=utf-8", SOLOIST_JS),
         _ => return StatusCode::NOT_FOUND.into_response(),
     };
-    ([(header::CONTENT_TYPE, mime), (header::CACHE_CONTROL, "no-store")], data).into_response()
+    (
+        [
+            (header::CONTENT_TYPE, mime),
+            (header::CACHE_CONTROL, "no-store"),
+        ],
+        data,
+    )
+        .into_response()
 }
 
 async fn web_server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let port = env::var("SOLOIST_DISPLAY_HTTP_PORT").unwrap_or_else(|_| "8080".into());
-    let state = WebState { path: Arc::new(config_path()) };
+    let state = WebState {
+        path: Arc::new(config_path()),
+    };
     let app = Router::new()
         .route("/config.json", get(get_config).put(put_config))
         .route("/defaults.json", get(get_defaults))
         .route("/", get(|| static_file(axum::extract::Path(String::new()))))
-        .route("/settings", get(|| static_file(axum::extract::Path("settings".into()))))
+        .route(
+            "/settings",
+            get(|| static_file(axum::extract::Path("settings".into()))),
+        )
         .route("/*path", get(static_file))
         .with_state(state);
     let listener = TcpListener::bind(format!("127.0.0.1:{port}")).await?;
@@ -157,7 +267,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             tokio::time::sleep(Duration::from_secs(2)).await;
         }
     });
-    eprintln!("Spectrum WebSocket listening on ws://127.0.0.1:{port} (6 bands, {:.1} Hz)", RATE as f32 / HOP as f32);
+    eprintln!(
+        "Spectrum WebSocket listening on ws://127.0.0.1:{port} (6 bands, {:.1} Hz)",
+        RATE as f32 / HOP as f32
+    );
     loop {
         let (socket, _) = tokio::select! {
             result = listener.accept() => result?,
@@ -174,21 +287,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Err(broadcast::error::RecvError::Lagged(_)) => continue,
                         Err(_) => break,
                     };
-                    if ws.send(Message::Text(frame.into())).await.is_err() { break; }
+                    if ws.send(Message::Text(frame)).await.is_err() {
+                        break;
+                    }
                 }
             }
         });
     }
 }
 
-async fn capture(sender: broadcast::Sender<String>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn capture(
+    sender: broadcast::Sender<String>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut cmd = Command::new("parec");
-    cmd.args(["--raw", "--format=s16le", "--rate", "22050", "--channels=1", "--latency-msec=25", "--process-time-msec=10"]);
-    let source = env::var("SOLOIST_DISPLAY_MONITOR").ok().filter(|s| !s.is_empty()).or_else(|| {
-        let output = std::process::Command::new("pactl").arg("get-default-sink").output().ok()?;
-        if !output.status.success() { return None; }
-        Some(format!("{}.monitor", String::from_utf8(output.stdout).ok()?.trim()))
-    });
+    cmd.args([
+        "--raw",
+        "--format=s16le",
+        "--rate",
+        "22050",
+        "--channels=1",
+        "--latency-msec=25",
+        "--process-time-msec=10",
+    ]);
+    let source = env::var("SOLOIST_DISPLAY_MONITOR")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .or_else(|| {
+            let output = std::process::Command::new("pactl")
+                .arg("get-default-sink")
+                .output()
+                .ok()?;
+            if !output.status.success() {
+                return None;
+            }
+            Some(format!(
+                "{}.monitor",
+                String::from_utf8(output.stdout).ok()?.trim()
+            ))
+        });
     if let Some(source) = &source {
         cmd.arg("--device").arg(source);
         eprintln!("Capturing monitor source: {source}");
@@ -200,9 +336,9 @@ async fn capture(sender: broadcast::Sender<String>) -> Result<(), Box<dyn std::e
     let mut stdout = child.stdout.take().ok_or("No audio stream")?;
     let mut planner = FftPlanner::<f32>::new();
     let fft = planner.plan_fft_forward(WINDOW);
-    let hann: Vec<f32> = (0..WINDOW).map(|i| {
-        0.5 - 0.5 * (2.0 * std::f32::consts::PI * i as f32 / (WINDOW - 1) as f32).cos()
-    }).collect();
+    let hann: Vec<f32> = (0..WINDOW)
+        .map(|i| 0.5 - 0.5 * (2.0 * std::f32::consts::PI * i as f32 / (WINDOW - 1) as f32).cos())
+        .collect();
     let mut ring = [0f32; WINDOW];
     let mut cursor = 0usize;
     let mut filled = 0usize;
@@ -216,14 +352,16 @@ async fn capture(sender: broadcast::Sender<String>) -> Result<(), Box<dyn std::e
     let mut max_gap = Duration::ZERO;
     loop {
         stdout.read_exact(&mut raw).await?;
-        for bytes in raw.chunks_exact(2) {
-            let sample = i16::from_le_bytes([bytes[0], bytes[1]]) as f32 / 32768.;
+        for offset in (0..raw.len()).step_by(2) {
+            let sample = i16::from_le_bytes([raw[offset], raw[offset + 1]]) as f32 / 32768.;
             peak = peak.max(sample.abs());
             ring[cursor] = sample;
             cursor = (cursor + 1) % WINDOW;
             filled = (filled + 1).min(WINDOW);
         }
-        if filled < WINDOW { continue; }
+        if filled < WINDOW {
+            continue;
+        }
         let now = Instant::now();
         max_gap = max_gap.max(now.duration_since(previous_frame));
         previous_frame = now;
@@ -234,14 +372,19 @@ async fn capture(sender: broadcast::Sender<String>) -> Result<(), Box<dyn std::e
         let mut bands = [0f32; 6];
         for band in 0..6 {
             let lo = ((BANDS[band] * WINDOW as f32 / RATE as f32).floor() as usize).max(1);
-            let hi = ((BANDS[band + 1] * WINDOW as f32 / RATE as f32).ceil() as usize).min(WINDOW / 2);
+            let hi =
+                ((BANDS[band + 1] * WINDOW as f32 / RATE as f32).ceil() as usize).min(WINDOW / 2);
             let mut power = 0f32;
             let mut count = 0usize;
-            for bin in lo..hi {
-                power += frame[bin].norm_sqr();
+            for value in frame.iter().take(hi).skip(lo) {
+                power += value.norm_sqr();
                 count += 1;
             }
-            let rms = if count > 0 { (power / count as f32).sqrt() / (WINDOW as f32 * 0.25) } else { 0. };
+            let rms = if count > 0 {
+                (power / count as f32).sqrt() / (WINDOW as f32 * 0.25)
+            } else {
+                0.
+            };
             // Per-band reference levels compensate for the natural spectral
             // roll-off of music: a shared dB threshold hides the upper bands.
             // These are fixed calibrations, not automatic normalization, so
@@ -284,11 +427,18 @@ mod tests {
 
     #[test]
     fn migrates_legacy_transitions_and_dot_without_losing_durations() {
-        let path = env::temp_dir().join(format!("soloist-display-migration-{}.json", std::process::id()));
+        let path = env::temp_dir().join(format!(
+            "soloist-display-migration-{}.json",
+            std::process::id()
+        ));
         std::fs::write(&path, r#"{"transitionStyle":"instant","backdropTransitionStyle":"instant","panelTransitionStyle":"instant","transitionDuration":3400,"discAppearance":"dot","centerHoleDot":8,"visualizerSensitivity":2.5}"#).unwrap();
         let migrated = read_settings(&path);
         std::fs::remove_file(&path).unwrap();
-        for key in ["transitionStyle", "backdropTransitionStyle", "panelTransitionStyle"] {
+        for key in [
+            "transitionStyle",
+            "backdropTransitionStyle",
+            "panelTransitionStyle",
+        ] {
             assert_eq!(migrated[key], "off");
         }
         assert_eq!(migrated["discAppearance"], "basic");
@@ -300,7 +450,10 @@ mod tests {
 
     #[test]
     fn preserves_defaults_for_missing_fields() {
-        let path = env::temp_dir().join(format!("soloist-display-defaults-{}.json", std::process::id()));
+        let path = env::temp_dir().join(format!(
+            "soloist-display-defaults-{}.json",
+            std::process::id()
+        ));
         std::fs::write(&path, r#"{"backgroundDim":0.2}"#).unwrap();
         let settings = read_settings(&path);
         std::fs::remove_file(&path).unwrap();

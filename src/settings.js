@@ -41,6 +41,7 @@ const sections=[
     title:'Motion',
     fields:[
       ['transitionStyle','Disc transition','select',['fly','slide','fade','off']],
+      ['sleeveTransitionStyle','Sleeve transition','select',['in-out','off']],
       ['backdropTransitionStyle','Backdrop transition','select',['fade','off']],
       ['panelTransitionStyle','Panel transition','select',['slide','fade','off']],
       ['transitionDuration','Disc duration','range',100,10000,50,'ms'],
@@ -99,8 +100,10 @@ function renderNav(){
 }
 
 function renderSection(){
-  const hidden=key=>(key==='timeLayout'&&draft.timeDisplay==='off')||
-    (key==='transitionDuration'&&draft.transitionStyle==='off'&&draft.discAppearance!=='vinyl-cover')||
+  const hidden=key=>(key==='transitionStyle'&&draft.discAppearance==='vinyl-cover')||
+    (key==='sleeveTransitionStyle'&&draft.discAppearance!=='vinyl-cover')||
+    (key==='timeLayout'&&draft.timeDisplay==='off')||
+    (key==='transitionDuration'&&(draft.discAppearance==='vinyl-cover'?(draft.sleeveTransitionStyle??'in-out')==='off':draft.transitionStyle==='off'))||
     (key==='backdropTransitionDuration'&&draft.backdropTransitionStyle==='off')||
     (key==='panelTransitionDuration'&&draft.panelTransitionStyle==='off');
   const section=sections[activeSection];
@@ -142,7 +145,7 @@ function renderSection(){
       line.append(select);
       const output=document.createElement('output');output.htmlFor=key;
       const refresh=()=>{const value=typeof min[0]==='number'?Number(select.value):select.value;draft[key==='centerHoleColor'?selectedHoleColorKey():key]=value;output.textContent=String(value);};
-      select.addEventListener('change',()=>{refresh();if(['discAppearance','timeDisplay','transitionStyle','backdropTransitionStyle','panelTransitionStyle'].includes(key))renderSection();status.textContent='Unsaved changes';});
+      select.addEventListener('change',()=>{refresh();if(['discAppearance','timeDisplay','transitionStyle','sleeveTransitionStyle','backdropTransitionStyle','panelTransitionStyle'].includes(key))renderSection();status.textContent='Unsaved changes';});
       refresh();controls.append(line);continue;
     }else if(type==='range'){
       input.type='range';

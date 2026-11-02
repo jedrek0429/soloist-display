@@ -454,6 +454,7 @@ pub fn install(
         } else {
             soloist::start_existing(paths, &soloist_state)?;
         }
+        soloist::ensure_cli_discovery(paths, &soloist_state)?;
         transaction.set_status(&journal_path, TransactionStatus::Services)?;
         if !quiet {
             eprintln!("  Services      configuring systemd user units");

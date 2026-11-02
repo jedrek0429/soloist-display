@@ -346,6 +346,7 @@ struct Progress {
     active: std::sync::Arc<std::sync::atomic::AtomicBool>,
     stage: std::sync::Arc<std::sync::Mutex<(usize, &'static str)>>,
     worker: Option<std::thread::JoinHandle<()>>,
+    quiet: bool,
 }
 
 impl Progress {
@@ -380,12 +381,12 @@ impl Progress {
             if !quiet { eprintln!("  {label}"); }
             None
         };
-        Self { active, stage, worker }
+        Self { active, stage, worker, quiet }
     }
 
     fn step(&self, number: usize, label: &'static str) {
         *self.stage.lock().unwrap() = (number, label);
-        if self.worker.is_none() { eprintln!("  {number}/4  {label}"); }
+        if self.worker.is_none() && !self.quiet { eprintln!("  {number}/4  {label}"); }
     }
 }
 
@@ -607,6 +608,8 @@ pub fn install(
 }
 
 pub fn update(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
+    let progress = Progress::new(quiet, "Updating Soloist Display");
+    progress.step(1, "Checking release");
     let state =
         InstallState::load(paths)?.ok_or_else(|| anyhow!("Soloist Display is not installed"))?;
     let client = ReleaseClient::new()?;
@@ -626,6 +629,7 @@ pub fn update(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
         }
         return Ok(());
     }
+    progress.step(2, "Downloading & verifying");
     let (mut tx, tx_path) = TransactionJournal::begin(paths, "update")?;
     tx.previous_current = Some(state.active_release.clone());
     tx.persist(&tx_path)?;
@@ -645,7 +649,9 @@ pub fn update(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
                 None,
             )?;
         }
+        progress.step(3, "Starting services");
         service::install_display(paths)?;
+        progress.step(4, "Checking health");
         wait_for_install_health(paths, &next_soloist)?;
         let mut next = state.clone();
         next.previous_release = Some(state.active_release.clone());
@@ -670,6 +676,7 @@ pub fn update(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
         tx.fail(&tx_path, error.to_string()).ok();
         return Err(error.context("update failed; restored the previous release"));
     }
+    drop(progress);
     if !quiet {
         println!("Updated Soloist Display to {}.", manifest.version);
     }
@@ -677,12 +684,15 @@ pub fn update(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
 }
 
 pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
+    let progress = Progress::new(quiet, "Repairing Soloist Display");
+    progress.step(1, "Checking files");
     let mut state = InstallState::load(paths)?
         .ok_or_else(|| anyhow!("Soloist Display is not installed; run the installer first"))?;
     migrations::migrate(paths)?;
     let client = ReleaseClient::new()?;
     let (manifest, _) = client.latest()?;
     if manifest.version.to_string() != state.version {
+        drop(progress);
         return update(paths, platform, quiet);
     }
     let release_valid = ["manager", "audio-bridge"].iter().all(|kind| {
@@ -698,6 +708,7 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
             })
     });
     if !release_valid {
+        progress.step(2, "Restoring files");
         let original_release = state.active_release.clone();
         let backup = paths
             .releases
@@ -725,7 +736,8 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
             state.active_release = release;
             state.save(paths)?;
             service::install_display(paths)?;
-            wait_for_install_health(paths, &state.soloist)?;
+            progress.step(4, "Checking health");
+    wait_for_install_health(paths, &state.soloist)?;
             tx.set_status(&tx_path, TransactionStatus::Committed)?;
             Ok::<_, anyhow::Error>(())
         })();
@@ -744,6 +756,7 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
             fs::remove_dir_all(backup).ok();
         }
     }
+    progress.step(3, "Restoring services");
     atomic_link(&state.active_release, &paths.current)?;
     install_visible_command(paths)?;
     desktop_files(paths)?;
@@ -964,7 +977,10 @@ pub fn uninstall(paths: &Paths, requested: Option<RemoveMode>) -> Result<()> {
     let state =
         InstallState::load(paths)?.ok_or_else(|| anyhow!("Soloist Display is not installed"))?;
     let mode = requested.map(Ok).unwrap_or_else(choose_remove_mode)?;
+    let progress = Progress::new(false, "Removing Soloist Display");
+    progress.step(1, "Stopping services");
     service::disable_owned(paths, "soloist-display.service")?;
+    progress.step(2, "Removing files");
     for path in [
         &paths.display_service,
         &paths.visible_command,
@@ -995,6 +1011,7 @@ pub fn uninstall(paths: &Paths, requested: Option<RemoveMode>) -> Result<()> {
             }
         }
     }
+    progress.step(3, "Cleaning up");
     if matches!(mode, RemoveMode::Data | RemoveMode::All) {
         for path in [&paths.config.join("config.json"), &paths.cache] {
             if path.exists() {
@@ -1016,7 +1033,9 @@ pub fn uninstall(paths: &Paths, requested: Option<RemoveMode>) -> Result<()> {
     if paths.state.exists() {
         safe_remove(&paths.state, &[&paths.state_home])?;
     }
+    progress.step(4, "Finishing");
     service::daemon_reload(paths)?;
+    drop(progress);
     println!(
         "Soloist Display removed{}.",
         if matches!(mode, RemoveMode::Display) {

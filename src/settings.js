@@ -2,7 +2,7 @@ const sections=[
   {
     title:'Disc',
     fields:[
-      ['discAppearance','Appearance','select',['basic','cd','vinyl']],
+      ['discAppearance','Appearance','select',['basic','cd','vinyl','vinyl-cover']],
       ['discSize','Diameter','range',50,200,1,'dvh'],
       ['centerHole','Center hole','range',0,20,.5,'%'],
       ['centerHoleColor','Hole colour','select',['white','black','transparent']]
@@ -69,7 +69,7 @@ const nav=document.querySelector('#section-nav');
 const status=document.querySelector('#status');
 let draft={};
 let activeSection=0;
-const holeKey=style=>'centerHole'+style[0].toUpperCase()+style.slice(1);
+const holeKey=style=>style==='vinyl-cover'?'centerHoleVinyl':'centerHole'+style[0].toUpperCase()+style.slice(1);
 const selectedHoleKey=()=>holeKey(draft.discAppearance||'basic');
 const selectedHoleColorKey=()=>selectedHoleKey().replace('centerHole','centerHoleColor');
 
@@ -100,7 +100,7 @@ function renderNav(){
 
 function renderSection(){
   const hidden=key=>(key==='timeLayout'&&draft.timeDisplay==='off')||
-    (key==='transitionDuration'&&draft.transitionStyle==='off')||
+    (key==='transitionDuration'&&draft.transitionStyle==='off'&&draft.discAppearance!=='vinyl-cover')||
     (key==='backdropTransitionDuration'&&draft.backdropTransitionStyle==='off')||
     (key==='panelTransitionDuration'&&draft.panelTransitionStyle==='off');
   const section=sections[activeSection];

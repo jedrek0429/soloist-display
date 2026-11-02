@@ -342,18 +342,57 @@ pub fn recover(paths: &Paths) -> Result<()> {
     Ok(())
 }
 
-fn install_step(quiet: bool, step: usize, label: &str) {
-    if quiet {
-        return;
+struct Progress {
+    active: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    stage: std::sync::Arc<std::sync::Mutex<(usize, &'static str)>>,
+    worker: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Progress {
+    fn new(quiet: bool, label: &'static str) -> Self {
+        use std::sync::{atomic::AtomicBool, Arc, Mutex};
+        let active = Arc::new(AtomicBool::new(true));
+        let stage = Arc::new(Mutex::new((0, label)));
+        let worker = if !quiet && io::stderr().is_terminal() {
+            let running = active.clone();
+            let current = stage.clone();
+            Some(thread::spawn(move || {
+                let frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+                let color = env::var_os("NO_COLOR").is_none();
+                let mut tick = 0usize;
+                while running.load(std::sync::atomic::Ordering::Relaxed) {
+                    let (step, title) = *current.lock().unwrap();
+                    let filled = step * 20 / 4;
+                    let bar = format!("{}{}", "━".repeat(filled), "─".repeat(20 - filled));
+                    if color {
+                        eprint!("\\r\\x1b[2K  \\x1b[36m{} {}\\x1b[0m  {}/4  {}", frames[tick % frames.len()], bar, step, title);
+                    } else {
+                        eprint!("\\r\\x1b[2K  {} [{}]  {}/4  {}", frames[tick % frames.len()], bar, step, title);
+                    }
+                    let _ = io::stderr().flush();
+                    tick += 1;
+                    thread::sleep(Duration::from_millis(90));
+                }
+                eprint!("\\r\\x1b[2K");
+                let _ = io::stderr().flush();
+            }))
+        } else {
+            if !quiet { eprintln!("  {label}"); }
+            None
+        };
+        Self { active, stage, worker }
     }
-    let color = std::io::stderr().is_terminal() && std::env::var_os("NO_COLOR").is_none();
-    let width = 24usize;
-    let filled = step * width / 4;
-    let bar = format!("{}{}", "━".repeat(filled), "─".repeat(width - filled));
-    if color {
-        eprintln!("  \x1b[36m{bar}\x1b[0m  {step}/4  {label}");
-    } else {
-        eprintln!("  [{bar}]  {step}/4  {label}");
+
+    fn step(&self, number: usize, label: &'static str) {
+        *self.stage.lock().unwrap() = (number, label);
+        if self.worker.is_none() { eprintln!("  {number}/4  {label}"); }
+    }
+}
+
+impl Drop for Progress {
+    fn drop(&mut self) {
+        self.active.store(false, std::sync::atomic::Ordering::Relaxed);
+        if let Some(worker) = self.worker.take() { let _ = worker.join(); }
     }
 }
 
@@ -376,7 +415,8 @@ pub fn install(
     let previous_state = InstallState::load(paths)?;
     let discovered_soloist =
         soloist::discover(paths, previous_state.as_ref().map(|state| &state.soloist));
-    if !quiet {
+    let progress = Progress::new(quiet, "Installing Soloist Display");
+    if !quiet && !io::stderr().is_terminal() {
         let status = match (
             &discovered_soloist.ownership,
             soloist::healthy(&discovered_soloist),
@@ -441,7 +481,7 @@ pub fn install(
     }
     transaction.persist(&journal_path)?;
     if !quiet {
-        install_step(false, 1, "Checking dependencies");
+        progress.step(1, "Checking dependencies");
     }
     let packages = match dependencies::install(platform, quiet) {
         Ok(packages) => packages,
@@ -451,7 +491,7 @@ pub fn install(
         }
     };
     if !quiet {
-        install_step(false, 2, "Downloading & verifying");
+        progress.step(2, "Downloading & verifying");
     }
     let client = ReleaseClient::new()?;
     let (manifest, _) = match client.latest() {
@@ -499,13 +539,13 @@ pub fn install(
         soloist::ensure_cli_discovery(paths, &soloist_state)?;
         transaction.set_status(&journal_path, TransactionStatus::Services)?;
         if !quiet {
-            install_step(false, 3, "Starting services");
+            progress.step(3, "Starting services");
         }
         service::install_display(paths)?;
         let desktop = desktop_files(paths)?;
         transaction.set_status(&journal_path, TransactionStatus::HealthCheck)?;
         if !quiet {
-            install_step(false, 4, "Checking health");
+            progress.step(4, "Checking health");
         }
         wait_for_install_health(paths, &soloist_state)?;
         let mut managed = vec![paths.visible_command.clone(), paths.display_service.clone()];
@@ -546,6 +586,7 @@ pub fn install(
         transaction.fail(&journal_path, error.to_string()).ok();
         return Err(error.context("installation failed; the previous active release was restored"));
     }
+    drop(progress);
     if !quiet {
         let on_path = env::var_os("PATH")
             .is_some_and(|value| env::split_paths(&value).any(|path| path == paths.bin_dir));

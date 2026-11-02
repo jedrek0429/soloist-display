@@ -5,6 +5,7 @@ const sections=[
       ['discAppearance','Appearance','select',['basic','cd','vinyl','vinyl-cover','cd-cover','album-cover']],
       ['discOpacity','Disc opacity','range',0,1,.05],
       ['discSize','Diameter','range',50,200,1,'dvh'],
+      ['vinylLabelSize','Vinyl label size','range',10,70,1,'%'],
       ['centerHole','Center hole','range',0,20,.5,'%'],
       ['centerHoleColor','Hole colour','select',['white','black','transparent']],
       ['cdCoverSide','CD side','select',['up','down']],
@@ -106,7 +107,11 @@ const motionLabel=title=>title==='Disc motion'&&draft.discAppearance==='album-co
 const holeKey=style=>['vinyl','vinyl-cover'].includes(style)?'centerHoleVinyl':['cd','cd-cover'].includes(style)?'centerHoleCd':'centerHoleBasic';
 const selectedOpacityKey=()=>({basic:'discOpacityBasic',cd:'discOpacityCd',vinyl:'discOpacityVinyl','vinyl-cover':'discOpacityVinylCover','cd-cover':draft.cdCoverSide==='up'?'discOpacityCdCoverUp':'discOpacityCdCoverDown','album-cover':'discOpacityAlbumCover'})[draft.discAppearance||'basic'];
 const selectedHoleKey=()=>holeKey(draft.discAppearance||'basic');
-const selectedSizeKey=()=>selectedHoleKey().replace('centerHole','discSize');
+const appearanceSuffix=()=>({basic:'Basic',cd:'Cd',vinyl:'Vinyl','vinyl-cover':'VinylCover','cd-cover':'CdCover','album-cover':'AlbumCover'})[draft.discAppearance||'vinyl-cover'];
+const selectedSizeKey=()=>`discSize${appearanceSuffix()}`;
+const presetKeys=new Set(['transitionStyle','transitionDuration','transitionDelay','sleeveTransitionStyle','sleeveAlignment','sleeveDuration','sleeveDelayIn','sleeveDelayOut']);
+const selectedFieldKey=key=>presetKeys.has(key)?key+appearanceSuffix():key;
+const selectedValue=key=>draft[selectedFieldKey(key)]??draft[key];
 const selectedHoleColorKey=()=>selectedHoleKey().replace('centerHole','centerHoleColor');
 
 function format(value,suffix=''){
@@ -171,14 +176,14 @@ function renderSection(){
     (sections[activeSection].title==='Panel motion'&&draft.panelEnabled===false)||(key==='cdCoverSide'&&draft.discAppearance!=='cd-cover')||
     (key==='cdRainbow'&&(draft.discAppearance!=='cd-cover'||draft.cdCoverSide!=='down'))||
     (['centerHole','centerHoleColor','discRotationSeconds'].includes(key)&&draft.discAppearance==='album-cover')||
-    (key==='vinylGrooveDensity'&&!['vinyl','vinyl-cover'].includes(draft.discAppearance))||
+    (['vinylGrooveDensity','vinylLabelSize'].includes(key)&&!['vinyl','vinyl-cover'].includes(draft.discAppearance))||
     (sections[activeSection].title==='Sleeve motion'&&!isCover(draft.discAppearance))||
     
-    (key==='sleeveDuration'&&draft.sleeveTransitionStyle==='off')||
+    (key==='sleeveDuration'&&selectedValue('sleeveTransitionStyle')==='off')||
     (['sleeveDelayIn','sleeveDelayOut'].includes(key)&&draft.sleeveTransitionStyle==='off')||
     (key==='sleeveAlignment'&&!isCover(draft.discAppearance))||
     (key==='timeLayout'&&draft.timeDisplay==='off')||
-    (key==='transitionDuration'&&draft.transitionStyle==='off')||
+    (key==='transitionDuration'&&selectedValue('transitionStyle')==='off')||
     (key==='transitionDelay'&&draft.transitionStyle==='off')||
     (key==='backdropTransitionDelay'&&draft.backdropTransitionStyle==='off')||
     (key==='panelTransitionDelay'&&draft.panelTransitionStyle==='off')||
@@ -197,7 +202,7 @@ function renderSection(){
     const caption=document.createElement('label');
     caption.className='field-label';
     caption.htmlFor=key;
-    caption.textContent=key==='discSize'&&draft.discAppearance==='album-cover'?'Side length':label;
+    caption.textContent=key==='discSize'&&['vinyl-cover','cd-cover','album-cover'].includes(draft.discAppearance)?'Cover size':label;
     line.append(caption);
     if(key==='transitionStyle')line.classList.add('transition-disc');
     if(key==='backdropTransitionStyle')line.classList.add('transition-backdrop');
@@ -219,10 +224,10 @@ function renderSection(){
       const select=document.createElement('select');
       select.id=key;select.dataset.key=key;
       for(const choice of min){const option=document.createElement('option');option.value=String(choice);option.textContent=({song:'Song change',album:'Album change',cd:'CD','vinyl-cover':'Vinyl & Cover','cd-cover':'CD & Cover','album-cover':'Album cover'}[choice]||String(choice).replace(/^./,c=>c.toUpperCase()));select.append(option)}
-      select.value=String((key==='centerHoleColor'?draft[selectedHoleColorKey()]:draft[key])??min[0]);
+      select.value=String((key==='centerHoleColor'?draft[selectedHoleColorKey()]:selectedValue(key))??min[0]);
       line.append(select);
       const output=document.createElement('output');output.htmlFor=key;
-      const refresh=()=>{const value=typeof min[0]==='number'?Number(select.value):select.value;draft[key==='centerHoleColor'?selectedHoleColorKey():key]=value;output.textContent=String(value);};
+      const refresh=()=>{const value=typeof min[0]==='number'?Number(select.value):select.value;draft[key==='centerHoleColor'?selectedHoleColorKey():selectedFieldKey(key)]=value;output.textContent=String(value);};
       select.addEventListener('change',()=>{refresh();if(['discAppearance','cdCoverSide','timeDisplay','transitionStyle','sleeveTransitionStyle','backdropTransitionStyle','panelTransitionStyle'].includes(key)){if(key==='discAppearance')renderNav();renderSection();}status.textContent='Unsaved changes';});
       refresh();controls.append(line);continue;
     }else if(type==='range'){
@@ -230,7 +235,7 @@ function renderSection(){
       input.min=min;
       input.max=max;
       input.step=step;
-      input.value=(key==='centerHole'?draft[selectedHoleKey()]:key==='discSize'?draft[selectedSizeKey()]:key==='discOpacity'?draft[selectedOpacityKey()]:draft[key])??min;
+      input.value=(key==='centerHole'?draft[selectedHoleKey()]:key==='discSize'?draft[selectedSizeKey()]:key==='discOpacity'?draft[selectedOpacityKey()]:selectedValue(key))??min;
       line.append(input);
     }else{
       input.type='text';
@@ -243,7 +248,7 @@ function renderSection(){
     output.htmlFor=key;
     const refresh=()=>{
       const value=type==='toggle'?input.checked:type==='range'?Number(input.value):input.value;
-      draft[key==='centerHole'?selectedHoleKey():key==='discSize'?selectedSizeKey():key==='discOpacity'?selectedOpacityKey():key]=value;
+      draft[key==='centerHole'?selectedHoleKey():key==='discSize'?selectedSizeKey():key==='discOpacity'?selectedOpacityKey():selectedFieldKey(key)]=value;
       output.textContent=type==='toggle'?(value?'On':'Off'):type==='text'?'Local':format(value,suffix);
     };
     input.addEventListener('input',()=>{
@@ -251,7 +256,7 @@ function renderSection(){
       if(key==='panelEnabled')renderSection();
       status.textContent='Unsaved changes';
     });
-    if(!['centerHole','discOpacity'].includes(key))refresh();else output.textContent=format(Number(input.value),suffix);
+    if(!['centerHole','discOpacity',...presetKeys].includes(key))refresh();else output.textContent=format(Number(input.value),suffix);
     if(type!=='toggle')line.append(output);
     controls.append(line);
   }
@@ -267,9 +272,9 @@ async function load(){
   if(!response.ok)throw Error('Cannot load settings');
   draft=await response.json();
   delete draft['centerHoleColorAlbum-cover'];
-  delete draft['discSizeAlbum-cover'];
   delete draft['centerHoleAlbum-cover'];
   draft.changeDiscOn=draft.changeDiscOn==='song'?'song':'album';
+  draft.discAppearance ||= 'vinyl-cover';
   delete draft.backdropLinked;
   for(const key of ['transitionStyle','backdropTransitionStyle','panelTransitionStyle'])if(draft[key]==='instant')draft[key]='off';
   render();
@@ -285,7 +290,6 @@ document.querySelector('#save').addEventListener('click',async()=>{
     if(!response.ok)throw Error(await response.text());
     draft=await response.json();
     delete draft['centerHoleColorAlbum-cover'];
-    delete draft['discSizeAlbum-cover'];
     delete draft['centerHoleAlbum-cover'];
     draft.changeDiscOn=draft.changeDiscOn==='song'?'song':'album';
     delete draft.backdropLinked;

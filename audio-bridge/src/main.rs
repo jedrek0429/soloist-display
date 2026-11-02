@@ -51,9 +51,34 @@ fn read_settings(path: &PathBuf) -> Value {
                 }
                 // Existing global diameters become the initial size for every appearance.
                 if let Some(size) = values.get("discSize").and_then(Value::as_f64) {
-                    for key in ["discSizeBasic", "discSizeCd", "discSizeVinyl"] {
+                    for key in ["discSizeBasic", "discSizeCd", "discSizeVinyl", "discSizeVinylCover", "discSizeCdCover", "discSizeAlbumCover"] {
                         if !values.contains_key(key) {
                             object.insert(key.into(), Value::from(size));
+                        }
+                    }
+                }
+                // Seed new appearance-specific sizes from the user's previous styles.
+                for (new_key, old_key) in [
+                    ("discSizeVinylCover", "discSizeVinyl"),
+                    ("discSizeCdCover", "discSizeCd"),
+                    ("discSizeAlbumCover", "discSizeBasic"),
+                ] {
+                    if !values.contains_key(new_key) {
+                        if let Some(size) = values.get(old_key).or_else(|| values.get("discSize")) {
+                            object.insert(new_key.into(), size.clone());
+                        }
+                    }
+                }
+                // Legacy global motion settings seed all appearance presets once.
+                for suffix in ["Basic", "Cd", "Vinyl", "VinylCover", "CdCover", "AlbumCover"] {
+                    for key in ["transitionStyle", "transitionDuration", "transitionDelay",
+                        "sleeveTransitionStyle", "sleeveAlignment", "sleeveDuration",
+                        "sleeveDelayIn", "sleeveDelayOut"] {
+                        let name = format!("{key}{suffix}");
+                        if !values.contains_key(&name) {
+                            if let Some(previous) = values.get(key) {
+                                object.insert(name, previous.clone());
+                            }
                         }
                     }
                 }
@@ -126,7 +151,8 @@ async fn put_config(
             "visualizerSensitivity" => Some((0., 10.)),
             "visualizerSmoothing" => Some((0., 1.)),
             "vinylGrooveDensity" => Some((1., 10.)),
-            "discSize" | "discSizeBasic" | "discSizeCd" | "discSizeVinyl" => Some((50., 200.)),
+            "vinylLabelSize" => Some((10., 70.)),
+            "discSize" | "discSizeBasic" | "discSizeCd" | "discSizeVinyl" | "discSizeVinylCover" | "discSizeCdCover" | "discSizeAlbumCover" => Some((50., 200.)),
             "centerHoleBasic" | "centerHoleCd" | "centerHoleVinyl" => Some((0., 20.)),
             "discOpacityBasic"
             | "discOpacityCd"
@@ -153,13 +179,15 @@ async fn put_config(
             "backgroundBlur" => Some((0., 150.)),
             "metadataOpacity" => Some((0., 1.)),
             "metadataScale" => Some((0.5, 2.)),
+            _ if key.starts_with("transitionDuration") || key.starts_with("sleeveDuration") => Some((100., 10000.)),
+            _ if key.starts_with("transitionDelay") || key.starts_with("sleeveDelay") => Some((0., 10000.)),
             _ => None,
         } {
             if !value.as_f64().is_some_and(|n| n >= lo && n <= hi) {
                 return Err((StatusCode::BAD_REQUEST, format!("Out of range: {key}")));
             }
         }
-        if key == "transitionStyle"
+        if key.starts_with("transitionStyle")
             && !["fly", "slide", "fade", "off"].contains(&value.as_str().unwrap_or(""))
         {
             return Err((
@@ -186,7 +214,7 @@ async fn put_config(
         if key == "cdCoverSide" && !["up", "down"].contains(&value.as_str().unwrap_or("")) {
             return Err((StatusCode::BAD_REQUEST, "Unsupported CD side".into()));
         }
-        if key == "sleeveAlignment" && !["left", "center"].contains(&value.as_str().unwrap_or("")) {
+        if key.starts_with("sleeveAlignment") && !["left", "center"].contains(&value.as_str().unwrap_or("")) {
             return Err((
                 StatusCode::BAD_REQUEST,
                 "Unsupported sleeve alignment".into(),
@@ -211,7 +239,7 @@ async fn put_config(
         {
             return Err((StatusCode::BAD_REQUEST, "Unsupported hole colour".into()));
         }
-        if key == "sleeveTransitionStyle"
+        if key.starts_with("sleeveTransitionStyle")
             && !["in-out", "off"].contains(&value.as_str().unwrap_or(""))
         {
             return Err((

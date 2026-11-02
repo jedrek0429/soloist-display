@@ -128,6 +128,9 @@ async fn put_config(
             "vinylGrooveDensity" => Some((1., 10.)),
             "discSize" | "discSizeBasic" | "discSizeCd" | "discSizeVinyl" => Some((50., 200.)),
             "centerHoleBasic" | "centerHoleCd" | "centerHoleVinyl" => Some((0., 20.)),
+            "discOpacityBasic" | "discOpacityCd" | "discOpacityVinyl"
+            | "discOpacityVinylCover" | "discOpacityCdCoverUp"
+            | "discOpacityCdCoverDown" | "discOpacityAlbumCover" => Some((0., 1.)),
             "panelFontSize" => Some((0.6, 1.6)),
             "discRotationSeconds" => Some((1., 120.)),
             "transitionDuration"

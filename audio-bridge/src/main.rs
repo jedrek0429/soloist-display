@@ -478,13 +478,16 @@ mod tests {
 
     #[test]
     fn migrates_global_diameter_to_each_appearance() {
-        let path = env::temp_dir().join(format!("soloist-display-diameter-{}.json", std::process::id()));
+        let path = env::temp_dir().join(format!(
+            "soloist-display-diameter-{}.json",
+            std::process::id()
+        ));
         std::fs::write(&path, r#"{ "discSize": 142, "discSizeCd": 88 }"#).unwrap();
         let settings = read_settings(&path);
         std::fs::remove_file(&path).unwrap();
-        assert_eq!(settings["discSizeBasic"], 142);
-        assert_eq!(settings["discSizeCd"], 88);
-        assert_eq!(settings["discSizeVinyl"], 142);
+        assert_eq!(settings["discSizeBasic"].as_f64(), Some(142.0));
+        assert_eq!(settings["discSizeCd"].as_f64(), Some(88.0));
+        assert_eq!(settings["discSizeVinyl"].as_f64(), Some(142.0));
     }
 
     #[test]

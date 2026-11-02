@@ -48,7 +48,8 @@ const sections=[
       ['sleeveTransitionStyle','Animation','select',['in-out','off']],
       ['sleeveAlignment','Alignment','select',['left','center']],
       ['sleeveDuration','Duration','range',100,10000,50,'ms'],
-      ['sleeveDelay','Delay','range',0,10000,50,'ms']
+      ['sleeveDelayIn','Delay in','range',0,10000,50,'ms'],
+      ['sleeveDelayOut','Delay out','range',0,10000,50,'ms']
     ]
   },
   {
@@ -160,7 +161,7 @@ function renderSection(){
     (sections[activeSection].title==='Sleeve motion'&&!isCover(draft.discAppearance))||
     
     (key==='sleeveDuration'&&draft.sleeveTransitionStyle==='off')||
-    (key==='sleeveDelay'&&draft.sleeveTransitionStyle==='off')||
+    (['sleeveDelayIn','sleeveDelayOut'].includes(key)&&draft.sleeveTransitionStyle==='off')||
     (key==='sleeveAlignment'&&!isCover(draft.discAppearance))||
     (key==='timeLayout'&&draft.timeDisplay==='off')||
     (key==='transitionDuration'&&draft.transitionStyle==='off')||

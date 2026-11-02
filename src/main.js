@@ -48,7 +48,8 @@ const settings={
   sleeveDelayOut:bounded(motionValue('sleeveDelayOut'),950,0,10000),
   transitionDelay:bounded(motionValue('transitionDelay'),1000,0,10000),
   backdropTransitionDelay:bounded(config.backdropTransitionDelay,1000,0,10000),
-  panelTransitionDelay:bounded(config.panelTransitionDelay,0,0,10000)
+  panelDelayIn:bounded(config.panelDelayIn ?? config.panelTransitionDelay,0,0,10000),
+  panelDelayOut:bounded(config.panelDelayOut,0,0,10000)
 };
 const root=document.documentElement;
 root.dataset.progressBar=config.progressBar===false?'off':'on';

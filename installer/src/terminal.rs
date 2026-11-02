@@ -195,9 +195,9 @@ if sys.argv[2] == "quiet":
     assert "Probe complete." not in text, text
 else:
     assert "Probe complete." in text, text
-    assert "\\r\\x1b[2K" in text, repr(text)
+    assert "\r\x1b[2K" in text, repr(text)
     assert text.index("Checking release") < text.index("Probe complete."), text
-    assert re.search(r"\\r\\x1b\\[2K(?:\\r?\\n)?Probe complete\\.", text), repr(text)
+    assert re.search(r"\r\x1b\[2K(?:\r?\n)?Probe complete\.", text), repr(text)
 "#;
         for mode in ["normal", "quiet"] {
             let result = std::process::Command::new("python3")

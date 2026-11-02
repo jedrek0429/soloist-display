@@ -50,7 +50,6 @@ pub fn success(message: String) {
     }
 }
 pub fn log_command(description: &str, stdout: &[u8], stderr: &[u8]) {
-    log_event(description, if stderr.is_empty() { "command" } else { "command-output" }, &String::from_utf8_lossy(stderr).chars().take(8192).collect::<String>());
     if !verbose() {
         return;
     }

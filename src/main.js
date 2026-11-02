@@ -43,7 +43,7 @@ root.dataset.timeLayout=config.timeLayout==='together'?'together':'split';
 root.dataset.discAppearance=['basic','cd','vinyl'].includes(config.discAppearance)?config.discAppearance:'basic';
 root.dataset.panelPosition=['bottom-right','bottom-left','top-right','top-left'].includes(config.panelPosition)?config.panelPosition:'bottom-right';
 const holeKey='centerHole'+root.dataset.discAppearance[0].toUpperCase()+root.dataset.discAppearance.slice(1);
-const holeSize=bounded(config[holeKey],root.dataset.discAppearance==='cd'?12:root.dataset.discAppearance==='vinyl'?.6:1,0,20);
+const holeSize=bounded(config[holeKey],root.dataset.discAppearance==='cd'?16:root.dataset.discAppearance==='vinyl'?.6:1,0,20);
 const colorKey=holeKey.replace('centerHole','centerHoleColor');
 const holeColor=['white','black','transparent'].includes(config[colorKey])?config[colorKey]:'transparent';
 root.dataset.holeColor=holeColor;

@@ -37,8 +37,12 @@ const settings={
   reducedMotion:config.reducedMotion===true,
   transitionStyle:config.transitionStyle||'fly',
   sleeveTransitionStyle:config.sleeveTransitionStyle||'in-out',
-  sleeveDuration:bounded(config.sleeveDuration,2000,100,10000),
-  sleeveAlignment:config.sleeveAlignment==='center'?'center':'left'
+  sleeveDuration:bounded(config.sleeveDuration,1000,100,10000),
+  sleeveAlignment:config.sleeveAlignment==='center'?'center':'left',
+  sleeveDelay:bounded(config.sleeveDelay,0,0,10000),
+  transitionDelay:bounded(config.transitionDelay,1000,0,10000),
+  backdropTransitionDelay:bounded(config.backdropTransitionDelay,1000,0,10000),
+  panelTransitionDelay:bounded(config.panelTransitionDelay,0,0,10000)
 };
 const root=document.documentElement;
 root.dataset.progressBar=config.progressBar===false?'off':'on';

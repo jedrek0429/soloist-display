@@ -1,7 +1,5 @@
 :root{font-family:Inter,"Helvetica Neue",Arial,sans-serif;color-scheme:dark;--ink:#fff;--accent:#eeeae2}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#151515}body{color:var(--ink)}.stage{position:relative;width:100vw;height:100dvh;overflow:hidden;isolation:isolate;background:#151515}.backdrop{position:absolute;inset:0;overflow:hidden;z-index:-1}.backdrop-image{position:absolute;inset:-10%;background-position:center;background-size:cover;filter:blur(var(--background-blur,50px));transform:scale(1.08);opacity:0}.backdrop-image.active{opacity:1}.backdrop-shade{position:absolute;inset:0;z-index:3;background:rgba(0,0,0,var(--background-dim,.52));pointer-events:none}.disc-stage{position:absolute;inset:0;pointer-events:none;perspective:1100px;z-index:1;isolation:isolate}.disc{position:absolute;left:50%;top:50%;height:var(--disc-size,116dvh);width:var(--disc-size,116dvh);transform:translate(-50%,-50%);border-radius:50%;overflow:hidden;visibility:hidden;will-change:transform;backface-visibility:hidden}.disc.active{visibility:visible}.rotor{position:absolute;inset:0;will-change:transform}.disc-image{position:absolute;inset:0;background:#282828 center/cover no-repeat;border-radius:50%}.disc-image::before,.disc-image::after{content:'';position:absolute;pointer-events:none;display:none}
 :root[data-disc-appearance='basic'] .spindle{display:none}
-:root[data-disc-appearance='cd'] .disc-image::after{display:block;left:50%;top:50%;width:12%;height:12%;transform:translate(-50%,-50%);border-radius:50%;background:#161616;border:8px solid #bfc1c2;box-shadow:0 0 0 2px #666, inset 0 0 5px #eee}
-:root[data-disc-appearance='cd'] .spindle{display:none}
 /* The artwork, record label, grooves and spindle all live inside .rotor,
    so the entire record rotates as a single physical object. */
 .disc-label{display:none;position:absolute;left:50%;top:50%;width:34%;height:34%;transform:translate(-50%,-50%);border-radius:50%;background-position:center;background-size:cover;background-repeat:no-repeat;z-index:3;box-shadow:0 0 0 1px rgba(0,0,0,.55),0 0 0 3px rgba(18,18,18,.7);pointer-events:none}
@@ -21,7 +19,6 @@
 /* A real transparent aperture, independently sized for each disc style. */
 .rotor{-webkit-mask-image:radial-gradient(circle,transparent 0 var(--center-hole-radius,0%),#000 calc(var(--center-hole-radius,0%) + .15%));mask-image:radial-gradient(circle,transparent 0 var(--center-hole-radius,0%),#000 calc(var(--center-hole-radius,0%) + .15%))}
 .spindle,:root[data-disc-appearance='vinyl'] .spindle{display:none}
-:root[data-disc-appearance='cd'] .disc-image::after{display:none}
 :root[data-panel-position='bottom-left'] .info{right:auto;left:clamp(16px,3.5vw,48px)}
 :root[data-panel-position='top-right'] .info{bottom:auto;top:clamp(16px,4vh,40px)}
 :root[data-panel-position='top-left'] .info{bottom:auto;right:auto;top:clamp(16px,4vh,40px);left:clamp(16px,3.5vw,48px)}
@@ -43,25 +40,6 @@
 :root[data-time-layout='together'] .track-times{justify-content:flex-end;gap:0}
 :root[data-time-layout='together'] .track-times .time-separator{display:inline;white-space:pre}
 
-:root[data-disc-appearance='cd'] .disc-image::before{
-  display:block;inset:0;border-radius:50%;
-  background:
-    radial-gradient(circle,transparent 0 8%,rgba(255,255,255,.38) 8.5% 9.2%,rgba(90,96,104,.28) 9.5% 10%,rgba(226,230,236,.30) 10.3% 11.6%,transparent 12.1%),
-    repeating-radial-gradient(circle,transparent 0 2px,rgba(245,249,255,.055) 2.5px,transparent 3px,transparent 5px),
-    conic-gradient(from 16deg,rgba(153,192,245,.24),rgba(238,190,236,.12) 48deg,transparent 78deg,rgba(187,242,222,.23) 115deg,transparent 160deg,rgba(245,227,175,.2) 208deg,transparent 250deg,rgba(167,183,246,.22) 310deg,rgba(153,192,245,.24));
-  mix-blend-mode:screen;opacity:.72;
-  -webkit-mask-image:radial-gradient(circle,transparent 0 7%,#000 12% 96%,transparent 100%);
-  mask-image:radial-gradient(circle,transparent 0 7%,#000 12% 96%,transparent 100%);
-}
-:root[data-disc-appearance='cd'] .disc-image::after{
-  display:block;inset:0;width:auto;height:auto;transform:none;border:0;box-shadow:none;border-radius:50%;
-  background:conic-gradient(from 42deg,transparent 0 12%,rgba(255,255,255,.17) 17%,transparent 24% 49%,rgba(255,255,255,.12) 56%,transparent 63% 100%);
-  opacity:.55;mix-blend-mode:screen;
-  -webkit-mask-image:radial-gradient(circle,transparent 12%,#000 16% 95%,transparent 99%);
-  mask-image:radial-gradient(circle,transparent 12%,#000 16% 95%,transparent 99%);
-}
-
-
 :root[data-disc-appearance='vinyl-cover'] .disc{width:calc(var(--disc-size,116dvh)*1.5);height:var(--disc-size,116dvh);border-radius:0;overflow:visible}
 :root[data-disc-appearance='vinyl-cover'] .record-track{position:absolute;inset:0 auto 0 0;width:66.666667%;z-index:1;transform:translateX(50%);will-change:transform}
 :root[data-disc-appearance='vinyl-cover'] .record-sleeve{position:absolute;inset:0 auto 0 0;width:66.666667%;z-index:2;background:#252525 center/cover no-repeat;box-shadow:4px 5px 22px rgba(0,0,0,.35)}
@@ -78,279 +56,52 @@
 :root[data-disc-appearance='vinyl-cover'] .disc:not(.active){visibility:hidden}
 @media(max-aspect-ratio:1/1){:root[data-disc-appearance='vinyl-cover'] .disc{height:min(var(--disc-size,116dvh),72vw);width:calc(min(var(--disc-size,116dvh),72vw)*1.5)}}
 
-/* CD sleeve shares the same geometry and motion as the vinyl sleeve. */
-:root[data-disc-appearance='cd-cover'] .disc{width:calc(var(--disc-size,116dvh)*1.5);height:var(--disc-size,116dvh);border-radius:0;overflow:visible}
-:root[data-disc-appearance='cd-cover'] .record-track{position:absolute;inset:0 auto 0 0;width:66.666667%;z-index:1;transform:translateX(50%);will-change:transform}
-:root[data-disc-appearance='cd-cover'] .record-sleeve{position:absolute;inset:0 auto 0 0;width:66.666667%;z-index:2;background:#252525 center/cover no-repeat;box-shadow:4px 5px 22px rgba(0,0,0,.35)}
-:root[data-disc-appearance='cd-cover'] .record-sleeve::after{content:'';position:absolute;inset:0;border:1px solid rgba(255,255,255,.11);box-shadow:inset -5px 0 9px rgba(0,0,0,.15);pointer-events:none}
-:root[data-disc-appearance='cd-cover'] .rotor{width:100%;height:100%}
-:root[data-disc-appearance='cd-cover'] .disc-image{background-image:none!important;background-color:#111;box-shadow:inset 0 0 24px rgba(0,0,0,.9)}
-:root[data-disc-appearance='cd-cover'] .disc-image::before{display:block;inset:0;border-radius:50%;background:linear-gradient(115deg,transparent 18%,rgba(255,255,255,.005) 43%,rgba(255,255,255,.008) 53%,transparent 77%),repeating-radial-gradient(circle at center,rgba(255,255,255,.025) 0px,rgba(255,255,255,.025) 1px,rgba(0,0,0,.10) 2px,rgba(255,255,255,.015) 3px,transparent 4px,transparent 6px),radial-gradient(circle,#202020 0%,#101010 66%,#080808 100%);mask:radial-gradient(circle,transparent 0 17.8%,#000 18.2% 98.7%,transparent 100%)}
-:root[data-disc-appearance='cd-cover'] .disc-image::after{display:block;inset:0;border-radius:50%;background:repeating-radial-gradient(circle at center,transparent 0 11px,rgba(255,255,255,.012) 12px,transparent 13px,transparent 16px);mask:radial-gradient(circle,transparent 0 21%,#000 23% 96%,transparent 99%)}
-:root[data-disc-appearance='cd-cover'] .disc-label{display:block}
-:root[data-disc-appearance='cd-cover'] .rotor{mask:none;-webkit-mask:none}
-:root[data-disc-appearance='cd-cover'] .spindle{display:none}
-:root[data-disc-appearance='cd-cover'][data-hole-color='white'] .spindle,:root[data-disc-appearance='cd-cover'][data-hole-color='black'] .spindle{display:block}
+
+/* Cover sleeves share layout, not disc material. The track is always square
+   and exactly two-thirds of the extended (1.5x) sleeve container. */
+:root[data-disc-appearance='cd-cover'] .disc{
+  width:calc(var(--disc-size,116dvh)*1.5);
+  height:var(--disc-size,116dvh);
+  border-radius:0;overflow:visible;
+}
+:root[data-disc-appearance='cd-cover'] .record-track{
+  position:absolute;inset:0 auto 0 0;width:66.666667%;height:100%;
+  aspect-ratio:1;z-index:1;transform:translateX(50%);will-change:transform;
+}
+:root[data-disc-appearance='cd-cover'] .record-sleeve{
+  position:absolute;inset:0 auto 0 0;width:66.666667%;z-index:2;
+  background:#252525 center/cover no-repeat;
+  box-shadow:4px 5px 22px rgba(0,0,0,.35);
+  overflow:hidden;
+}
+:root[data-disc-appearance='cd-cover'] .record-sleeve::after{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  border:1px solid rgba(255,255,255,.11);
+  box-shadow:inset -5px 0 9px rgba(0,0,0,.15);
+}
 :root[data-disc-appearance='cd-cover'] .disc:not(.active){visibility:hidden}
-@media(max-aspect-ratio:1/1){:root[data-disc-appearance='cd-cover'] .disc{height:min(var(--disc-size,116dvh),72vw);width:calc(min(var(--disc-size,116dvh),72vw)*1.5)}}
+@media(max-aspect-ratio:1/1){
+  :root[data-disc-appearance='cd-cover'] .disc{
+    height:min(var(--disc-size,116dvh),72vw);
+    width:calc(min(var(--disc-size,116dvh),72vw)*1.5);
+  }
+}
 
-:root[data-disc-appearance='cd-cover'] .disc-image{background:#b5bcc7;box-shadow:inset 0 0 20px rgba(0,0,0,.25)}
-:root[data-disc-appearance='cd-cover'] .disc-image::before{display:block;inset:0;border-radius:50%;background:repeating-radial-gradient(circle,rgba(255,255,255,.14) 0 1px,transparent 2px 5px),conic-gradient(from 30deg,#adb3d0,#cadbcf,#c4b3d0,#d9d1aa,#adb3d0);opacity:.75}
-:root[data-disc-appearance='cd-cover'] .disc-image::after{display:block;inset:0;border-radius:50%;background:radial-gradient(circle,transparent 0 8%,rgba(30,40,50,.6) 8.5% 9.2%,rgba(244,247,255,.8) 9.5% 11%,transparent 12%);pointer-events:none}
-:root[data-disc-appearance='cd-cover'] .disc-label{display:none}
-:root[data-disc-appearance='cd'][data-hole-color='white'] .spindle,
-:root[data-disc-appearance='cd'][data-hole-color='black'] .spindle,
-:root[data-disc-appearance='cd-cover'][data-hole-color='white'] .spindle,
-:root[data-disc-appearance='cd-cover'][data-hole-color='black'] .spindle{width:calc(var(--center-hole-diameter,0%) * .65);height:calc(var(--center-hole-diameter,0%) * .65)}
-.record-sleeve{overflow:hidden}
-
-/* Vinyl grooves: spacing is adjustable without altering disc geometry. */
+/* Vinyl grooves are material effects, separate from the aperture. */
 :root[data-disc-appearance='vinyl'] .disc-image::before,
 :root[data-disc-appearance='vinyl-cover'] .disc-image::before{
- background:linear-gradient(115deg,transparent 18%,rgba(255,255,255,.018) 43%,rgba(255,255,255,.008) 53%,transparent 77%),repeating-radial-gradient(circle at center,rgba(255,255,255,.036) 0 1px,rgba(0,0,0,.11) 1.4px 2.2px,transparent 2.8px var(--vinyl-groove-spacing,6.6px)),radial-gradient(circle,#242424 0%,#111 68%,#080808 100%);
+  background:
+    linear-gradient(115deg,transparent 18%,rgba(255,255,255,.018) 43%,rgba(255,255,255,.008) 53%,transparent 77%),
+    repeating-radial-gradient(circle at center,rgba(255,255,255,.036) 0 1px,rgba(0,0,0,.11) 1.4px 2.2px,transparent 2.8px var(--vinyl-groove-spacing,6.6px)),
+    radial-gradient(circle,#242424 0%,#111 68%,#080808 100%);
 }
 :root[data-disc-appearance='vinyl'] .disc-image::after,
-:root[data-disc-appearance='vinyl-cover'] .disc-image::after{background:radial-gradient(circle at 28% 17%,rgba(255,255,255,.075),transparent 62%);}
-/* The CD's data side is an interference-coated reflective surface, not vinyl grooves. */
-:root[data-disc-appearance='cd-cover'] .disc-image{
- background:radial-gradient(circle at 44% 38%,#f2f5f8 0%,#c4cfda 38%,#8394aa 75%,#bbc5cf 100%);
- box-shadow:inset 0 0 2px rgba(255,255,255,.6),inset 0 0 15px rgba(34,45,65,.36);
-}
-:root[data-disc-appearance='cd-cover'] .disc-image::before{
- display:block;inset:0;border-radius:50%;opacity:.9;
- background:conic-gradient(from 12deg,rgba(255,70,85,.45),rgba(255,194,71,.35) 27deg,rgba(75,242,185,.38) 61deg,rgba(67,162,255,.4) 99deg,rgba(204,99,255,.3) 137deg,transparent 173deg,rgba(255,220,80,.25) 209deg,rgba(90,227,236,.45) 252deg,rgba(122,108,248,.32) 293deg,rgba(255,78,145,.42) 335deg,rgba(255,70,85,.45)),radial-gradient(ellipse at 27% 18%,rgba(255,255,255,.72),transparent 54%);
- -webkit-mask-image:radial-gradient(circle,transparent 0 12%,#000 14% 97%,transparent 100%);
- mask-image:radial-gradient(circle,transparent 0 12%,#000 14% 97%,transparent 100%);
-}
-:root[data-disc-appearance='cd-cover'] .disc-image::after{
- display:block;inset:0;border-radius:50%;opacity:.65;
- background:conic-gradient(from 67deg,transparent 0 7%,rgba(245,255,255,.57) 13%,transparent 19% 34%,rgba(50,100,180,.13) 41%,transparent 48% 67%,rgba(255,255,255,.48) 74%,transparent 81% 100%),radial-gradient(circle,transparent 0 8%,rgba(48,61,84,.78) 8.5% 9%,rgba(235,242,251,.9) 10% 12%,transparent 13%);
-}
-/* Label side reuses the exact same album artwork and CD optical finish as plain CD. */
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image{
-  background:#282828 center/cover no-repeat;
-  background-image:var(--cd-cover-art,none)!important;
-  box-shadow:none;
-}
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image::before{
-  display:block;inset:0;border-radius:50%;
-  background:
-    radial-gradient(circle,transparent 0 8%,rgba(255,255,255,.38) 8.5% 9.2%,rgba(90,96,104,.28) 9.5% 10%,rgba(226,230,236,.30) 10.3% 11.6%,transparent 12.1%),
-    repeating-radial-gradient(circle,transparent 0 2px,rgba(245,249,255,.055) 2.5px,transparent 3px,transparent 5px),
-    conic-gradient(from 16deg,rgba(153,192,245,.24),rgba(238,190,236,.12) 48deg,transparent 78deg,rgba(187,242,222,.23) 115deg,transparent 160deg,rgba(245,227,175,.2) 208deg,transparent 250deg,rgba(167,183,246,.22) 310deg,rgba(153,192,245,.24));
-  mix-blend-mode:screen;opacity:.72;
-  -webkit-mask-image:radial-gradient(circle,transparent 0 7%,#000 12% 96%,transparent 100%);
-  mask-image:radial-gradient(circle,transparent 0 7%,#000 12% 96%,transparent 100%);
-}
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image::after{
-  display:block;inset:0;width:auto;height:auto;transform:none;border:0;box-shadow:none;border-radius:50%;
-  background:conic-gradient(from 42deg,transparent 0 12%,rgba(255,255,255,.17) 17%,transparent 24% 49%,rgba(255,255,255,.12) 56%,transparent 63% 100%);
-  opacity:.55;mix-blend-mode:screen;
-  -webkit-mask-image:radial-gradient(circle,transparent 12%,#000 16% 95%,transparent 99%);
-  mask-image:radial-gradient(circle,transparent 12%,#000 16% 95%,transparent 99%);
+:root[data-disc-appearance='vinyl-cover'] .disc-image::after{
+  background:radial-gradient(circle at 28% 17%,rgba(255,255,255,.075),transparent 62%);
 }
 
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-label{display:none;}
-
-/* Optical layers must not paint a soft secondary ring over the CD aperture. */
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::before{
-  -webkit-mask-image:radial-gradient(circle,transparent 0 12%,#000 12.01% 97%,transparent 100%);
-  mask-image:radial-gradient(circle,transparent 0 12%,#000 12.01% 97%,transparent 100%);
-}
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::after{
-  background:conic-gradient(from 67deg,transparent 0 7%,rgba(245,255,255,.57) 13%,transparent 19% 34%,rgba(50,100,180,.13) 41%,transparent 48% 67%,rgba(255,255,255,.48) 74%,transparent 81% 100%);
-  -webkit-mask-image:radial-gradient(circle,transparent 0 12%,#000 12.01% 95%,transparent 99%);
-  mask-image:radial-gradient(circle,transparent 0 12%,#000 12.01% 95%,transparent 99%);
-}
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'][data-hole-color='white'] .spindle,
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'][data-hole-color='black'] .spindle{
-  width:var(--center-hole-diameter,0%);height:var(--center-hole-diameter,0%);z-index:10;
-}
-
-/* Shared CD centre geometry: colour and side cannot change the apparent aperture. */
-:root[data-disc-appearance='cd'] .disc-image::before,
-:root[data-disc-appearance='cd'] .disc-image::after,
-:root[data-disc-appearance='cd-cover'] .disc-image::before,
-:root[data-disc-appearance='cd-cover'] .disc-image::after{
-  -webkit-mask-image:radial-gradient(circle,transparent 0 var(--center-hole-radius),#000 calc(var(--center-hole-radius) + .15%) 97%,transparent 100%);
-  mask-image:radial-gradient(circle,transparent 0 var(--center-hole-radius),#000 calc(var(--center-hole-radius) + .15%) 97%,transparent 100%);
-}
-:root[data-disc-appearance='cd'] .disc-image::before,
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image::before{opacity:.34}
-:root[data-disc-appearance='cd'] .disc-image::after,
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image::after{opacity:.22}
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::before{opacity:.36}
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::after{opacity:.2}
-:root[data-disc-appearance='cd-cover'][data-hole-color='white'] .spindle,
-:root[data-disc-appearance='cd-cover'][data-hole-color='black'] .spindle,
-:root[data-disc-appearance='cd'][data-hole-color='white'] .spindle,
-:root[data-disc-appearance='cd'][data-hole-color='black'] .spindle{width:var(--center-hole-diameter);height:var(--center-hole-diameter);z-index:10}
-
-/* CD & Cover: use one physical aperture for both faces. The data side must
-   not draw an oversized, dark hub around the actual hole. */
-:root[data-disc-appearance='cd-cover'] .rotor{
-  -webkit-mask-image:radial-gradient(circle,transparent 0 var(--center-hole-radius),#000 calc(var(--center-hole-radius) + .15%));
-  mask-image:radial-gradient(circle,transparent 0 var(--center-hole-radius),#000 calc(var(--center-hole-radius) + .15%));
-}
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image{
-  background:radial-gradient(circle at 45% 34%,#e2e6eb 0%,#c3ccd6 48%,#a5b3c2 83%,#c0c9d1 100%);
-  box-shadow:inset 0 0 14px rgba(25,35,52,.18);
-}
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::before{
-  background:conic-gradient(from 12deg,rgba(255,118,122,.22),rgba(243,218,143,.13) 40deg,rgba(100,211,191,.17) 83deg,rgba(119,172,237,.17) 133deg,transparent 190deg,rgba(170,158,231,.13) 260deg,rgba(255,118,122,.22));
-}
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::after{
-  background:conic-gradient(from 67deg,transparent 0 12%,rgba(255,255,255,.28) 18%,transparent 26% 62%,rgba(255,255,255,.19) 70%,transparent 78%);
-}
-/* Same aperture diameter with every hole colour and on both CD faces. */
-:root[data-disc-appearance='cd-cover'][data-hole-color='white'] .rotor,
-:root[data-disc-appearance='cd-cover'][data-hole-color='black'] .rotor{
-  -webkit-mask-image:none;
-  mask-image:none;
-}
-
-/* CD aperture: use the original small hole on both sides.
-   Optical hub rings are decorative and do not change the actual aperture. */
-:root[data-disc-appearance='cd-cover'] .rotor,
-:root[data-disc-appearance='cd-cover'][data-hole-color='white'] .rotor,
-:root[data-disc-appearance='cd-cover'][data-hole-color='black'] .rotor{
-  -webkit-mask-image:none;mask-image:none;
-}
-:root[data-disc-appearance='cd-cover'][data-hole-color='white'] .spindle,
-:root[data-disc-appearance='cd-cover'][data-hole-color='black'] .spindle{
-  width:var(--center-hole-diameter);height:var(--center-hole-diameter);z-index:10;
-}
-/* Restore concentric metallic rings around the small opening on the data side. */
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::after{
-  display:block;inset:0;border-radius:50%;opacity:.42;
-  background:
-    radial-gradient(circle at center,
-      transparent 0 8%,
-      rgba(32,43,58,.38) 8.25% 8.9%,
-      rgba(241,246,250,.72) 9.2% 10.1%,
-      rgba(99,111,127,.33) 10.35% 10.75%,
-      transparent 11.2%),
-    conic-gradient(from 67deg,transparent 0 12%,rgba(255,255,255,.3) 18%,transparent 26% 62%,rgba(255,255,255,.2) 70%,transparent 78%);
-  -webkit-mask-image:none;mask-image:none;
-}
-/* Keep printed side's original artwork highlights and narrow central aperture. */
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image::before,
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image::after{
-  -webkit-mask-image:radial-gradient(circle,transparent 0 var(--center-hole-radius),#000 calc(var(--center-hole-radius) + .15%) 96%,transparent 100%);
-  mask-image:radial-gradient(circle,transparent 0 var(--center-hole-radius),#000 calc(var(--center-hole-radius) + .15%) 96%,transparent 100%);
-}
-
-/* Canonical CD hole: X% means X% of the full disc diameter.
-   For closest-side gradients, X% of the radius yields the same physical
-   diameter as an element with width:X% of the disc. No face-specific masks. */
-:root[data-disc-appearance='cd'] .rotor,
-:root[data-disc-appearance='cd-cover'] .rotor{
-  -webkit-mask-image:radial-gradient(circle closest-side at center,transparent 0 var(--cd-hole-stop),#000 calc(var(--cd-hole-stop) + .08%));
-  mask-image:radial-gradient(circle closest-side at center,transparent 0 var(--cd-hole-stop),#000 calc(var(--cd-hole-stop) + .08%));
-}
-:root[data-disc-appearance='cd'][data-hole-color='white'] .rotor,
-:root[data-disc-appearance='cd'][data-hole-color='black'] .rotor,
-:root[data-disc-appearance='cd-cover'][data-hole-color='white'] .rotor,
-:root[data-disc-appearance='cd-cover'][data-hole-color='black'] .rotor{
-  -webkit-mask-image:none;mask-image:none;
-}
-:root[data-disc-appearance='cd'] .disc-image::before,
-:root[data-disc-appearance='cd'] .disc-image::after,
-:root[data-disc-appearance='cd-cover'] .disc-image::before,
-:root[data-disc-appearance='cd-cover'] .disc-image::after{
-  -webkit-mask-image:none;mask-image:none;
-}
-:root[data-disc-appearance='cd'][data-hole-color='white'] .spindle,
-:root[data-disc-appearance='cd'][data-hole-color='black'] .spindle,
-:root[data-disc-appearance='cd-cover'][data-hole-color='white'] .spindle,
-:root[data-disc-appearance='cd-cover'][data-hole-color='black'] .spindle{
-  width:var(--center-hole-diameter);height:var(--center-hole-diameter);z-index:10;
-}
-/* The data side is opaque silver with subtle iridescence; optical rings
-   follow the physical hole diameter, remaining decorative rather than cutouts. */
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image{
-  background:radial-gradient(circle at 45% 34%,#e5e9ed 0%,#c8d0d8 46%,#a9b6c4 80%,#c3ccd4 100%);
-  box-shadow:inset 0 0 10px rgba(24,34,48,.16),inset 0 0 2px rgba(255,255,255,.35);
-}
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::before{
-  display:block;inset:0;border-radius:50%;opacity:.24;
-  background:conic-gradient(from 18deg,
-    rgba(255,108,112,.14),rgba(246,214,132,.09) 42deg,
-    rgba(92,205,183,.11) 88deg,rgba(109,166,235,.12) 138deg,
-    transparent 196deg,rgba(165,151,229,.09) 264deg,
-    rgba(255,108,112,.14));
-  -webkit-mask-image:none;mask-image:none;
-}
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::after{
-  display:block;inset:0;width:auto;height:auto;transform:none;border:0;box-shadow:none;
-  border-radius:50%;opacity:.22;
-  background:
-    radial-gradient(circle closest-side at center,
-      transparent 0 calc(var(--cd-hole-stop) * 1.025),
-      rgba(233,239,245,.26) calc(var(--cd-hole-stop) * 1.06) calc(var(--cd-hole-stop) * 1.12),
-      rgba(70,83,98,.14) calc(var(--cd-hole-stop) * 1.15) calc(var(--cd-hole-stop) * 1.20),
-      rgba(236,242,247,.18) calc(var(--cd-hole-stop) * 1.23) calc(var(--cd-hole-stop) * 1.31),
-      transparent calc(var(--cd-hole-stop) * 1.35)),
-    conic-gradient(from 67deg,transparent 0 14%,rgba(255,255,255,.18) 19%,
-      transparent 26% 63%,rgba(255,255,255,.14) 70%,transparent 78%);
-  -webkit-mask-image:none;mask-image:none;
-}
-
-/* Album cover: a static square artwork, with the existing fly/slide/fade/off
-   transitions applied to the artwork container rather than a rotating disc. */
-:root[data-disc-appearance='album-cover'] .disc{border-radius:0;overflow:hidden}
-:root[data-disc-appearance='album-cover'] .record-track,
-:root[data-disc-appearance='album-cover'] .rotor{position:absolute;inset:0;width:100%;height:100%;transform:none!important;-webkit-mask-image:none!important;mask-image:none!important}
-:root[data-disc-appearance='album-cover'] .disc-image{border-radius:0}
-:root[data-disc-appearance='album-cover'] .disc-image::before,
-:root[data-disc-appearance='album-cover'] .disc-image::after,
-:root[data-disc-appearance='album-cover'] .disc-label,
-:root[data-disc-appearance='album-cover'] .spindle,
-:root[data-disc-appearance='album-cover'] .record-sleeve{display:none!important}
-
-/* CD and CD & Cover share the exact same aperture and optical hub geometry.
-   closest-side X% corresponds to X% of the full disc diameter. */
-:root[data-disc-appearance='cd'] .rotor,
-:root[data-disc-appearance='cd-cover'] .rotor{
-  -webkit-mask-image:radial-gradient(circle closest-side at center,transparent 0 var(--cd-hole-stop),#000 calc(var(--cd-hole-stop) + .08%));
-  mask-image:radial-gradient(circle closest-side at center,transparent 0 var(--cd-hole-stop),#000 calc(var(--cd-hole-stop) + .08%));
-}
-:root[data-disc-appearance='cd'][data-hole-color='white'] .rotor,
-:root[data-disc-appearance='cd'][data-hole-color='black'] .rotor,
-:root[data-disc-appearance='cd-cover'][data-hole-color='white'] .rotor,
-:root[data-disc-appearance='cd-cover'][data-hole-color='black'] .rotor{
-  -webkit-mask-image:none;mask-image:none;
-}
-/* Printed sides retain their soft finish, but not the hard-coded 8–12% centre
-   rings that previously made the aperture look different from CD & Cover. */
-:root[data-disc-appearance='cd'] .disc-image::before,
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image::before{
-  background:
-    repeating-radial-gradient(circle,transparent 0 2px,rgba(245,249,255,.055) 2.5px,transparent 3px,transparent 5px),
-    conic-gradient(from 16deg,rgba(153,192,245,.24),rgba(238,190,236,.12) 48deg,transparent 78deg,rgba(187,242,222,.23) 115deg,transparent 160deg,rgba(245,227,175,.2) 208deg,transparent 250deg,rgba(167,183,246,.22) 310deg,rgba(153,192,245,.24));
-}
-/* Concentric hub rings scale with the physical aperture: both ring radii and
-   widths remain proportional to Center hole across CD modes and faces. */
-:root[data-disc-appearance='cd'] .disc-image::after,
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image::after,
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::after{
-  display:block;inset:0;width:auto;height:auto;transform:none;border:0;box-shadow:none;
-  border-radius:50%;opacity:.22;mix-blend-mode:normal;
-  background:
-    radial-gradient(circle closest-side at center,
-      transparent 0 calc(var(--cd-hole-stop) + .45%),
-      rgba(233,239,245,.26) calc(var(--cd-hole-stop) + .85%) calc(var(--cd-hole-stop) + 1.45%),
-      rgba(70,83,98,.14) calc(var(--cd-hole-stop) + 1.7%) calc(var(--cd-hole-stop) + 2.2%),
-      rgba(236,242,247,.18) calc(var(--cd-hole-stop) + 2.5%) calc(var(--cd-hole-stop) + 3.1%),
-      transparent calc(var(--cd-hole-stop) + 3.55%)),
-    conic-gradient(from 67deg,transparent 0 14%,rgba(255,255,255,.18) 19%,transparent 26% 63%,rgba(255,255,255,.14) 70%,transparent 78%);
-  -webkit-mask-image:none;mask-image:none;
-}
-
-/* Canonical CD geometry. X% center hole is X% of the disc diameter.
-   All artwork, substrate and hub decorations live on one square rotor. */
-:root[data-disc-appearance='cd'] .record-track,
-:root[data-disc-appearance='cd-cover'] .record-track{aspect-ratio:1/1}
+/* All CD variants share the same physical hole: X% is X% of disc diameter.
+   A closest-side radial gradient is measured relative to the disc radius. */
 :root[data-disc-appearance='cd'] .rotor,
 :root[data-disc-appearance='cd-cover'] .rotor{
   width:100%;height:100%;
@@ -363,42 +114,47 @@
 :root[data-disc-appearance='cd-cover'][data-hole-color='black'] .rotor{
   -webkit-mask-image:none;mask-image:none;
 }
-/* An earlier cd-cover rule forces background-image:none!important: explicitly
-   override it on the reflective side or the silver substrate never appears. */
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image{
-  background-color:#c8ced6;
-  background-image:radial-gradient(circle at 38% 30%,#e0e4e9 0%,#c8d0d9 43%,#aeb9c7 82%,#c1cbd4 100%)!important;
-  box-shadow:inset 0 0 9px rgba(32,42,58,.13);
+:root[data-disc-appearance='cd'][data-hole-color='white'] .spindle,
+:root[data-disc-appearance='cd'][data-hole-color='black'] .spindle,
+:root[data-disc-appearance='cd-cover'][data-hole-color='white'] .spindle,
+:root[data-disc-appearance='cd-cover'][data-hole-color='black'] .spindle{
+  display:block;width:var(--center-hole-diameter);height:var(--center-hole-diameter);z-index:10;
 }
+:root[data-disc-appearance='cd-cover'] .disc-label{display:none}
 :root[data-disc-appearance='cd'] .disc-image,
+:root[data-disc-appearance='cd-cover'] .disc-image{
+  border-radius:50%;
+}
 :root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image{
+  background:#282828 center/cover no-repeat;
+  background-image:var(--cd-cover-art,none);
   box-shadow:none;
 }
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image{
-  background-image:var(--cd-cover-art,none)!important;
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image{
+  background:#c8d0d9;
+  background-image:radial-gradient(circle at 38% 30%,#e0e4e9 0%,#c8d0d9 43%,#aeb9c7 82%,#c1cbd4 100%);
+  box-shadow:inset 0 0 9px rgba(32,42,58,.13);
 }
 :root[data-disc-appearance='cd'] .disc-image::before,
 :root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image::before{
-  display:block;inset:0;width:auto;height:auto;transform:none;border:0;
-  border-radius:50%;opacity:.28;mix-blend-mode:screen;
+  display:block;inset:0;opacity:.28;border-radius:50%;
   background:conic-gradient(from 16deg,rgba(153,192,245,.23),rgba(238,190,236,.1) 48deg,transparent 78deg,rgba(187,242,222,.2) 115deg,transparent 160deg,rgba(245,227,175,.15) 208deg,transparent 250deg,rgba(167,183,246,.2) 310deg,rgba(153,192,245,.23));
-  -webkit-mask-image:none;mask-image:none;
+  mix-blend-mode:screen;-webkit-mask-image:none;mask-image:none;
 }
 :root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::before{
-  display:block;inset:0;width:auto;height:auto;transform:none;border:0;
-  border-radius:50%;opacity:.35;mix-blend-mode:normal;
+  display:block;inset:0;opacity:.35;border-radius:50%;
   background:conic-gradient(from 18deg,rgba(255,144,149,.18),rgba(245,222,168,.12) 42deg,rgba(128,220,205,.15) 88deg,rgba(137,187,239,.16) 138deg,transparent 196deg,rgba(185,177,234,.13) 264deg,rgba(255,144,149,.18));
-  -webkit-mask-image:none;mask-image:none;
+  mix-blend-mode:normal;-webkit-mask-image:none;mask-image:none;
 }
-/* Thin hub rings touch the aperture. Their radii scale with the hole and
-   their low contrast prevents the hub from reading as a second, larger hole. */
+/* Hub rings touch the hole and scale proportionally with its diameter.
+   No second cutout or independent face-specific mask is used. */
 :root[data-disc-appearance='cd'] .disc-image::after,
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image::after,
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::after{
-  display:block;inset:0;width:auto;height:auto;transform:none;border:0;box-shadow:none;
-  border-radius:50%;opacity:.45;mix-blend-mode:normal;
+:root[data-disc-appearance='cd-cover'] .disc-image::after{
+  display:block;inset:0;width:auto;height:auto;left:0;top:0;transform:none;
+  border:0;border-radius:50%;box-shadow:none;
+  opacity:.45;mix-blend-mode:normal;
   background:radial-gradient(circle closest-side at center,
-    rgba(227,232,238,.25) 0 var(--cd-hole-stop),
+    transparent 0 var(--cd-hole-stop),
     rgba(243,246,249,.55) calc(var(--cd-hole-stop) + .04%) calc(var(--cd-hole-stop) * 1.055),
     rgba(99,111,127,.22) calc(var(--cd-hole-stop) * 1.075) calc(var(--cd-hole-stop) * 1.105),
     rgba(236,240,245,.3) calc(var(--cd-hole-stop) * 1.125) calc(var(--cd-hole-stop) * 1.18),
@@ -406,18 +162,16 @@
   -webkit-mask-image:none;mask-image:none;
 }
 
-/* CD aperture invariant: every face uses one disc-sized closest-side mask.
-   These face-specific rules intentionally override legacy optical masks of
-   higher specificity; the actual hole is cut only by .rotor. */
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image::before,
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image::after,
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::before,
-:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::after{
-  -webkit-mask-image:none;
-  mask-image:none;
+/* Static, square album cover. Motion animates .disc, never the rotor. */
+:root[data-disc-appearance='album-cover'] .disc{border-radius:0;overflow:hidden}
+:root[data-disc-appearance='album-cover'] .record-track,
+:root[data-disc-appearance='album-cover'] .rotor{
+  position:absolute;inset:0;width:100%;height:100%;
+  transform:none!important;-webkit-mask-image:none!important;mask-image:none!important;
 }
-/* A cover contains a real-sized square disc track; the sleeve's extended
-   container must not define the disc's centre-hole percentage. */
-:root[data-disc-appearance='cd-cover'] .record-track{
-  height:100%;
-}
+:root[data-disc-appearance='album-cover'] .disc-image{border-radius:0}
+:root[data-disc-appearance='album-cover'] .disc-image::before,
+:root[data-disc-appearance='album-cover'] .disc-image::after,
+:root[data-disc-appearance='album-cover'] .disc-label,
+:root[data-disc-appearance='album-cover'] .spindle,
+:root[data-disc-appearance='album-cover'] .record-sleeve{display:none!important}

@@ -366,9 +366,21 @@ impl Progress {
                     let filled = step * 20 / 4;
                     let bar = format!("{}{}", "━".repeat(filled), "─".repeat(20 - filled));
                     if color {
-                        eprint!("\\r\\x1b[2K  \\x1b[36m{} {}\\x1b[0m  {}/4  {}", frames[tick % frames.len()], bar, step, title);
+                        eprint!(
+                            "\\r\\x1b[2K  \\x1b[36m{} {}\\x1b[0m  {}/4  {}",
+                            frames[tick % frames.len()],
+                            bar,
+                            step,
+                            title
+                        );
                     } else {
-                        eprint!("\\r\\x1b[2K  {} [{}]  {}/4  {}", frames[tick % frames.len()], bar, step, title);
+                        eprint!(
+                            "\\r\\x1b[2K  {} [{}]  {}/4  {}",
+                            frames[tick % frames.len()],
+                            bar,
+                            step,
+                            title
+                        );
                     }
                     let _ = io::stderr().flush();
                     tick += 1;
@@ -378,22 +390,34 @@ impl Progress {
                 let _ = io::stderr().flush();
             }))
         } else {
-            if !quiet { eprintln!("  {label}"); }
+            if !quiet {
+                eprintln!("  {label}");
+            }
             None
         };
-        Self { active, stage, worker, quiet }
+        Self {
+            active,
+            stage,
+            worker,
+            quiet,
+        }
     }
 
     fn step(&self, number: usize, label: &'static str) {
         *self.stage.lock().unwrap() = (number, label);
-        if self.worker.is_none() && !self.quiet { eprintln!("  {number}/4  {label}"); }
+        if self.worker.is_none() && !self.quiet {
+            eprintln!("  {number}/4  {label}");
+        }
     }
 }
 
 impl Drop for Progress {
     fn drop(&mut self) {
-        self.active.store(false, std::sync::atomic::Ordering::Relaxed);
-        if let Some(worker) = self.worker.take() { let _ = worker.join(); }
+        self.active
+            .store(false, std::sync::atomic::Ordering::Relaxed);
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.join();
+        }
     }
 }
 
@@ -737,7 +761,7 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
             state.save(paths)?;
             service::install_display(paths)?;
             progress.step(4, "Checking health");
-    wait_for_install_health(paths, &state.soloist)?;
+            wait_for_install_health(paths, &state.soloist)?;
             tx.set_status(&tx_path, TransactionStatus::Committed)?;
             Ok::<_, anyhow::Error>(())
         })();

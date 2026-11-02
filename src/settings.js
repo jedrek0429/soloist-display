@@ -214,7 +214,7 @@ function renderSection(){
     }else if(type==='select'){
       const select=document.createElement('select');
       select.id=key;select.dataset.key=key;
-      for(const choice of min){const option=document.createElement('option');option.value=String(choice);option.textContent=({cd:'CD','vinyl-cover':'Vinyl & Cover','cd-cover':'CD & Cover','album-cover':'Album cover'}[choice]||String(choice).replace(/^./,c=>c.toUpperCase()));select.append(option)}
+      for(const choice of min){const option=document.createElement('option');option.value=String(choice);option.textContent=({song:'Song change',album:'Album change',cd:'CD','vinyl-cover':'Vinyl & Cover','cd-cover':'CD & Cover','album-cover':'Album cover'}[choice]||String(choice).replace(/^./,c=>c.toUpperCase()));select.append(option)}
       select.value=String((key==='centerHoleColor'?draft[selectedHoleColorKey()]:draft[key])??min[0]);
       line.append(select);
       const output=document.createElement('output');output.htmlFor=key;
@@ -265,7 +265,7 @@ async function load(){
   delete draft['centerHoleColorAlbum-cover'];
   delete draft['discSizeAlbum-cover'];
   delete draft['centerHoleAlbum-cover'];
-  draft.changeDiscOn=draft.changeDiscOn==='album'?'album':'song';
+  draft.changeDiscOn=draft.changeDiscOn==='song'?'song':'album';
   delete draft.backdropLinked;
   for(const key of ['transitionStyle','backdropTransitionStyle','panelTransitionStyle'])if(draft[key]==='instant')draft[key]='off';
   render();
@@ -283,7 +283,7 @@ document.querySelector('#save').addEventListener('click',async()=>{
     delete draft['centerHoleColorAlbum-cover'];
     delete draft['discSizeAlbum-cover'];
     delete draft['centerHoleAlbum-cover'];
-    draft.changeDiscOn=draft.changeDiscOn==='album'?'album':'song';
+    draft.changeDiscOn=draft.changeDiscOn==='song'?'song':'album';
     delete draft.backdropLinked;
     for(const key of ['transitionStyle','backdropTransitionStyle','panelTransitionStyle'])if(draft[key]==='instant')draft[key]='off';
     renderSection();

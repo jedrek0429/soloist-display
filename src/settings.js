@@ -2,7 +2,7 @@ const sections=[
   {
     title:'Disc',
     fields:[
-      ['discAppearance','Appearance','select',['basic','cd','vinyl','vinyl-cover']],
+      ['discAppearance','Appearance','select',['basic','cd','vinyl','vinyl-cover','cd-cover']],
       ['discSize','Diameter','range',50,200,1,'dvh'],
       ['centerHole','Center hole','range',0,20,.5,'%'],
       ['centerHoleColor','Hole colour','select',['white','black','transparent']]
@@ -43,6 +43,8 @@ const sections=[
       ['changeDiscOn','Change disc on','select',['song','album']],
       ['transitionStyle','Disc transition','select',['fly','slide','fade','off']],
       ['sleeveTransitionStyle','Sleeve transition','select',['in-out','off']],
+      ['coverTransitionStyle','Cover transition','select',['fly','slide','fade','off']],
+      ['coverTransitionDuration','Cover duration','range',100,10000,50,'ms'],
       ['backdropTransitionStyle','Backdrop transition','select',['fade','off']],
       ['panelTransitionStyle','Panel transition','select',['slide','fade','off']],
       ['transitionDuration','Disc duration','range',100,10000,50,'ms'],
@@ -71,7 +73,8 @@ const nav=document.querySelector('#section-nav');
 const status=document.querySelector('#status');
 let draft={};
 let activeSection=0;
-const holeKey=style=>style==='vinyl-cover'?'centerHoleVinyl':'centerHole'+style[0].toUpperCase()+style.slice(1);
+const isCover=style=>style==='vinyl-cover'||style==='cd-cover';
+const holeKey=style=>style==='vinyl-cover'?'centerHoleVinyl':style==='cd-cover'?'centerHoleCd':'centerHole'+style[0].toUpperCase()+style.slice(1);
 const selectedHoleKey=()=>holeKey(draft.discAppearance||'basic');
 const selectedHoleColorKey=()=>selectedHoleKey().replace('centerHole','centerHoleColor');
 
@@ -101,8 +104,10 @@ function renderNav(){
 }
 
 function renderSection(){
-  const hidden=key=>(key==='transitionStyle'&&draft.discAppearance==='vinyl-cover')||
-    (key==='sleeveTransitionStyle'&&draft.discAppearance!=='vinyl-cover')||
+  const hidden=key=>(key==='transitionStyle'&&isCover(draft.discAppearance))||
+    (key==='sleeveTransitionStyle'&&!isCover(draft.discAppearance))||
+    (key==='coverTransitionStyle'&&!isCover(draft.discAppearance))||
+    (key==='coverTransitionDuration'&&(!isCover(draft.discAppearance)||draft.coverTransitionStyle==='off'))||
     (key==='timeLayout'&&draft.timeDisplay==='off')||
     (key==='transitionDuration'&&(draft.discAppearance==='vinyl-cover'?(draft.sleeveTransitionStyle??'in-out')==='off':draft.transitionStyle==='off'))||
     (key==='backdropTransitionDuration'&&draft.backdropTransitionStyle==='off')||
@@ -141,12 +146,12 @@ function renderSection(){
     }else if(type==='select'){
       const select=document.createElement('select');
       select.id=key;select.dataset.key=key;
-      for(const choice of min){const option=document.createElement('option');option.value=String(choice);option.textContent=String(choice).replace(/^./,c=>c.toUpperCase());select.append(option)}
+      for(const choice of min){const option=document.createElement('option');option.value=String(choice);option.textContent=({cd:'CD','vinyl-cover':'Vinyl & Cover','cd-cover':'CD & Cover'}[choice]||String(choice).replace(/^./,c=>c.toUpperCase()));select.append(option)}
       select.value=String((key==='centerHoleColor'?draft[selectedHoleColorKey()]:draft[key])??min[0]);
       line.append(select);
       const output=document.createElement('output');output.htmlFor=key;
       const refresh=()=>{const value=typeof min[0]==='number'?Number(select.value):select.value;draft[key==='centerHoleColor'?selectedHoleColorKey():key]=value;output.textContent=String(value);};
-      select.addEventListener('change',()=>{refresh();if(['discAppearance','timeDisplay','transitionStyle','sleeveTransitionStyle','backdropTransitionStyle','panelTransitionStyle'].includes(key))renderSection();status.textContent='Unsaved changes';});
+      select.addEventListener('change',()=>{refresh();if(['discAppearance','timeDisplay','transitionStyle','sleeveTransitionStyle','coverTransitionStyle','backdropTransitionStyle','panelTransitionStyle'].includes(key))renderSection();status.textContent='Unsaved changes';});
       refresh();controls.append(line);continue;
     }else if(type==='range'){
       input.type='range';

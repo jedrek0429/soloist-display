@@ -8,6 +8,7 @@ const sections=[
       ['centerHole','Center hole','range',0,20,.5,'%'],
       ['centerHoleColor','Hole colour','select',['white','black','transparent']],
       ['cdCoverSide','CD side','select',['up','down']],
+      ['cdRainbow','Rainbow','range',0,1,.05],
       ['vinylGrooveDensity','Groove density','range',1,10,1],
       ['changeDiscOn','Change disc on','select',['song','album']],
       ['discRotationSeconds','Rotation speed','range',1,120,1,'sec'],
@@ -168,6 +169,7 @@ function renderSection(){
   const hidden=key=>
     (sections[activeSection].title==='Panel'&&key!=='panelEnabled'&&draft.panelEnabled===false)||
     (sections[activeSection].title==='Panel motion'&&draft.panelEnabled===false)||(key==='cdCoverSide'&&draft.discAppearance!=='cd-cover')||
+    (key==='cdRainbow'&&(draft.discAppearance!=='cd-cover'||draft.cdCoverSide!=='down'))||
     (['centerHole','centerHoleColor','discRotationSeconds'].includes(key)&&draft.discAppearance==='album-cover')||
     (key==='vinylGrooveDensity'&&!['vinyl','vinyl-cover'].includes(draft.discAppearance))||
     (sections[activeSection].title==='Sleeve motion'&&!isCover(draft.discAppearance))||

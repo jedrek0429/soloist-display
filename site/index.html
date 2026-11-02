@@ -32,10 +32,10 @@ h1{font-size:clamp(40px,4.6vw,72px);font-weight:600;letter-spacing:-.055em;line-
 .command code{flex:1;min-width:0;overflow:auto;white-space:nowrap;padding:16px;font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace}
 .command button{cursor:pointer;background:transparent;border:0;border-left:1px solid var(--line);padding:0 20px}
 .command button:hover{background:var(--ink);color:var(--bg)}
-.footer{display:flex;gap:18px;border-top:1px solid var(--line);margin-top:auto;padding:18px 0 22px;font-size:13px;color:#aaa}
+
 [hidden]{display:none!important}
-@media(min-width:801px) and (max-height:710px){.topbar{padding:14px 0}.footer{padding:10px 0}main{padding:14px 0}.preview{max-height:calc(100dvh - 135px);width:auto;justify-self:center;max-width:100%}.install{margin-top:22px}}
-@media(max-width:800px){.shell{width:calc(100% - 40px)}main{display:flex;flex-direction:column;align-items:stretch;gap:32px;padding:42px 0}.hero{width:100%}h1{font-size:clamp(38px,8vw,60px)}.preview{width:100%;max-width:680px;align-self:center}.footer{margin-top:0}}
+@media(min-width:801px) and (max-height:710px){.topbar{padding:14px 0}main{padding:14px 0}.preview{max-height:calc(100dvh - 105px);width:auto;justify-self:center;max-width:100%}.install{margin-top:22px}}
+@media(max-width:800px){.shell{width:calc(100% - 40px)}main{display:flex;flex-direction:column;align-items:stretch;gap:32px;padding:42px 0}.hero{width:100%}h1{font-size:clamp(38px,8vw,60px)}.preview{width:100%;max-width:680px;align-self:center}}
 @media(max-width:560px){.shell{width:calc(100% - 32px)}.topbar{padding:20px 0}.brand{font-size:22px}main{padding-top:38px;gap:28px}.command{flex-direction:column}.command button{padding:12px;border-left:0;border-top:1px solid var(--line)}}
 @media(prefers-reduced-motion:reduce){.preview iframe{visibility:visible}}
 </style>
@@ -47,7 +47,6 @@ h1{font-size:clamp(40px,4.6vw,72px);font-weight:600;letter-spacing:-.055em;line-
 <section class="hero"><h1>Your music deserves a display.</h1><p class="description">Turn any device into a Spotify Connect speaker with a beautiful display.</p><p class="powered">Powered by <a href="https://developer.spotify.com/documentation/soloist">Soloist</a>.</p><section class="install" id="install" hidden><span class="label">Install</span><div class="command"><code id="command">curl -fsSL https://jedrek0429.github.io/soloist-display/install.sh | sh</code><button type="button" id="copy">Copy</button></div></section></section>
 <figure class="preview" aria-label="Live Soloist Display preview: Miles Davis, So What"><iframe src="./preview.html" title="Animated Soloist Display showing So What by Miles Davis" loading="eager" tabindex="-1"></iframe></figure>
 </main>
-<footer class="footer"><a href="https://github.com/jedrek0429/soloist-display">GitHub</a></footer>
 </div>
 <script>
 const command=document.querySelector('#command').textContent;

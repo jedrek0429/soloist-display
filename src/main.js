@@ -20,11 +20,15 @@ setInterval(async()=>{
 },2000);
 const $=id=>document.getElementById(id);
 const bounded=(value,fallback,min,max)=>Number.isFinite(Number(value))?Math.max(min,Math.min(max,Number(value))):fallback;
+const appearances=['basic','cd','vinyl','vinyl-cover','cd-cover','album-cover'];
+const appearance=appearances.includes(config.discAppearance)?config.discAppearance:'vinyl-cover';
+const suffix={basic:'Basic',cd:'Cd',vinyl:'Vinyl','vinyl-cover':'VinylCover','cd-cover':'CdCover','album-cover':'AlbumCover'}[appearance];
+const motionValue=key=>config[key+suffix]??config[key];
 const settings={
-  discSize:bounded(config['discSize'+(['vinyl','vinyl-cover'].includes(config.discAppearance)?'Vinyl':['cd','cd-cover'].includes(config.discAppearance)?'Cd':'Basic')],bounded(config.discSize,116,50,200),50,200),
+  discSize:bounded(config['discSize'+suffix],bounded(config.discSize,116,50,200),50,200),
   changeDiscOn:config.changeDiscOn==='song'?'song':'album',
   discRotationSeconds:bounded(config.discRotationSeconds,12,1,120),
-  transitionDuration:bounded(config.transitionDuration,2000,100,10000),
+  transitionDuration:bounded(motionValue('transitionDuration'),2000,100,10000),
   backdropTransitionStyle:config.backdropTransitionStyle||'fade',
   backdropTransitionDuration:bounded(config.backdropTransitionDuration,2000,100,10000),
   backgroundDim:bounded(config.backgroundDim,.52,0,1),
@@ -36,13 +40,13 @@ const settings={
   panelTransitionStyle:config.panelTransitionStyle||'slide',
   panelTransitionDuration:bounded(config.panelTransitionDuration,2050,100,10000),
   reducedMotion:config.reducedMotion===true,
-  transitionStyle:config.transitionStyle||'fly',
-  sleeveTransitionStyle:config.sleeveTransitionStyle||'in-out',
-  sleeveDuration:bounded(config.sleeveDuration,1000,100,10000),
-  sleeveAlignment:config.sleeveAlignment==='left'?'left':'center',
-  sleeveDelayIn:bounded(config.sleeveDelayIn,0,0,10000),
-  sleeveDelayOut:bounded(config.sleeveDelayOut,950,0,10000),
-  transitionDelay:bounded(config.transitionDelay,1000,0,10000),
+  transitionStyle:motionValue('transitionStyle')||'fly',
+  sleeveTransitionStyle:motionValue('sleeveTransitionStyle')||'in-out',
+  sleeveDuration:bounded(motionValue('sleeveDuration'),1000,100,10000),
+  sleeveAlignment:motionValue('sleeveAlignment')==='left'?'left':'center',
+  sleeveDelayIn:bounded(motionValue('sleeveDelayIn'),0,0,10000),
+  sleeveDelayOut:bounded(motionValue('sleeveDelayOut'),950,0,10000),
+  transitionDelay:bounded(motionValue('transitionDelay'),1000,0,10000),
   backdropTransitionDelay:bounded(config.backdropTransitionDelay,1000,0,10000),
   panelTransitionDelay:bounded(config.panelTransitionDelay,0,0,10000)
 };
@@ -50,14 +54,15 @@ const root=document.documentElement;
 root.dataset.progressBar=config.progressBar===false?'off':'on';
 root.dataset.timeDisplay=['off','remaining','total'].includes(config.timeDisplay)?config.timeDisplay:'off';
 root.dataset.timeLayout=config.timeLayout==='together'?'together':'split';
-root.dataset.discAppearance=['basic','cd','vinyl','vinyl-cover','cd-cover','album-cover'].includes(config.discAppearance)?config.discAppearance:'basic';
+root.dataset.discAppearance=['basic','cd','vinyl','vinyl-cover','cd-cover','album-cover'].includes(config.discAppearance)?config.discAppearance:'vinyl-cover';
 root.dataset.cdCoverSide=config.cdCoverSide==='up'?'up':'down';
-root.style.setProperty('--cd-rainbow',bounded(config.cdRainbow,.65,0,1));
+root.style.setProperty('--cd-rainbow',bounded(config.cdRainbow,.5,0,1));
+root.style.setProperty('--vinyl-label-size',bounded(config.vinylLabelSize,34,10,70)+'%');
 root.style.setProperty('--vinyl-groove-spacing', (11-Math.max(1,Math.min(10,Number(config.vinylGrooveDensity)||5)))*1.1+'px');
 root.dataset.panelEnabled=settings.panelEnabled?'on':'off';
 root.dataset.panelPosition=['bottom-right','bottom-left','top-right','top-left'].includes(config.panelPosition)?config.panelPosition:'bottom-right';
 const opacityKey=({basic:'discOpacityBasic',cd:'discOpacityCd',vinyl:'discOpacityVinyl','vinyl-cover':'discOpacityVinylCover','cd-cover':root.dataset.cdCoverSide==='up'?'discOpacityCdCoverUp':'discOpacityCdCoverDown','album-cover':'discOpacityAlbumCover'})[root.dataset.discAppearance];
-root.style.setProperty('--disc-opacity',bounded(config[opacityKey],opacityKey==='discOpacityCdCoverDown'?.3:1,0,1));
+root.style.setProperty('--disc-opacity',bounded(config[opacityKey],opacityKey==='discOpacityCdCoverDown'?.7:1,0,1));
 const holeKey='centerHole'+(['vinyl','vinyl-cover'].includes(root.dataset.discAppearance)?'Vinyl':['cd','cd-cover'].includes(root.dataset.discAppearance)?'Cd':'Basic');
 const holeSize=bounded(config[holeKey],['cd','cd-cover'].includes(root.dataset.discAppearance)?14:['vinyl','vinyl-cover'].includes(root.dataset.discAppearance)?.6:1,0,20);
 const colorKey=holeKey.replace('centerHole','centerHoleColor');

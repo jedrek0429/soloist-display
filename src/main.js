@@ -37,8 +37,8 @@ const settings={
   reducedMotion:config.reducedMotion===true,
   transitionStyle:config.transitionStyle||'fly',
   sleeveTransitionStyle:config.sleeveTransitionStyle||'in-out',
-  coverTransitionStyle:config.coverTransitionStyle||'fade',
-  coverTransitionDuration:bounded(config.coverTransitionDuration,2000,100,10000)
+  sleeveDuration:bounded(config.sleeveDuration,2000,100,10000),
+  sleeveAlignment:config.sleeveAlignment==='center'?'center':'left'
 };
 const root=document.documentElement;
 root.dataset.progressBar=config.progressBar===false?'off':'on';

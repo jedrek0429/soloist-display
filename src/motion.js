@@ -20,11 +20,12 @@ export class DiscDirector{
   }
   spin(now){
     const dt=Math.min(.08,(now-this.last)/1000);this.last=now;
-    const sleeve=['vinyl-cover','cd-cover'].includes(document.documentElement.dataset.discAppearance);
-    const target=(this.changing&&!sleeve)?0:this.playing?Math.PI*2/this.settings.discRotationSeconds:0;
+    const appearance=document.documentElement.dataset.discAppearance;
+    const sleeve=['vinyl-cover','cd-cover'].includes(appearance);
+    const target=appearance==='album-cover'||(this.changing&&!sleeve)?0:this.playing?Math.PI*2/this.settings.discRotationSeconds:0;
     this.velocity+=(target-this.velocity)*(1-Math.exp(-dt*(this.changing?12:5)));
     this.angle=(this.angle+this.velocity*dt)%(2*Math.PI);
-    for(const disc of this.discs){if(!disc.classList.contains('active'))continue;disc.querySelector('.rotor').style.transform=`rotate(${disc.dataset.angleOffset?this.angle-Number(disc.dataset.angleOffset):this.angle}rad)`;}
+    for(const disc of this.discs){if(!disc.classList.contains('active')||appearance==='album-cover')continue;disc.querySelector('.rotor').style.transform=`rotate(${disc.dataset.angleOffset?this.angle-Number(disc.dataset.angleOffset):this.angle}rad)`;}
     requestAnimationFrame(t=>this.spin(t));
   }
   setPlaying(value){this.playing=value}

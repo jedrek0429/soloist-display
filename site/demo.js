@@ -25,12 +25,21 @@ const director=new DiscDirector({
  settings:{discRotationSeconds:12,reducedMotion:window.matchMedia('(prefers-reduced-motion: reduce)').matches}
 });
 const spectrum=new Spectrum(document.getElementById('visualizer'),1,.7);
-// Cover Art Archive's front cover of Miles Davis — Kind of Blue.
-const cover='https://coverartarchive.org/release/5fec116b-a6f7-4738-b452-0846cfb6dd0a/front-500';
-director.change(cover,()=>{
- document.getElementById('track').textContent='So What';
- document.getElementById('artist').textContent='Miles Davis';
-});
+// Paint the first frame synchronously: no asynchronous preloading or track transition.
+const cover='./kind-of-blue.jpg';
+const disc=document.getElementById('disc-b');
+disc.querySelector('.disc-label').style.backgroundImage=`url("${cover}")`;
+disc.querySelector('.record-sleeve').style.backgroundImage=`url("${cover}")`;
+disc.querySelector('.record-track').style.transform='translateX(50%)';
+disc.classList.add('active');
+const backdrop=document.getElementById('backdrop-b');
+backdrop.style.backgroundImage=`url("${cover}")`;
+backdrop.style.opacity='1';
+backdrop.classList.add('active');
+director.started=true;
+director.current=1;
+document.getElementById('track').textContent='So What';
+document.getElementById('artist').textContent='Miles Davis';
 director.setPlaying(!window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 const reduce=window.matchMedia('(prefers-reduced-motion: reduce)');
 reduce.addEventListener('change',event=>director.setPlaying(!event.matches));

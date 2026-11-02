@@ -131,26 +131,33 @@ fn run() -> Result<i32> {
 }
 
 fn main() {
-    if let Err(error) = run() {
-        eprintln!("soloist-display: {error:#}");
-        if let Ok(paths) = Paths::discover() {
-            if fs::create_dir_all(&paths.logs).is_ok() {
-                let log = paths.logs.join("installer.log");
-                if let Ok(mut file) = fs::OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .mode(0o600)
-                    .open(&log)
-                {
-                    let _ = writeln!(file, "{}: {error:#}", state::now());
-                    eprintln!("Details: {}", log.display());
-                }
+    match run() {
+        Ok(code) => {
+            if code != 0 {
+                std::process::exit(code);
             }
         }
-        if std::io::stderr().is_terminal() {
-            eprintln!("Run `soloist-display doctor` for diagnostics.");
+        Err(error) => {
+            eprintln!("soloist-display: {error:#}");
+            if let Ok(paths) = Paths::discover() {
+                if fs::create_dir_all(&paths.logs).is_ok() {
+                    let log = paths.logs.join("installer.log");
+                    if let Ok(mut file) = fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .mode(0o600)
+                        .open(&log)
+                    {
+                        let _ = writeln!(file, "{}: {error:#}", state::now());
+                        eprintln!("Details: {}", log.display());
+                    }
+                }
+            }
+            if std::io::stderr().is_terminal() {
+                eprintln!("Run `soloist-display doctor` for diagnostics.");
+            }
+            std::process::exit(1);
         }
-        std::process::exit(1);
     }
 }
 

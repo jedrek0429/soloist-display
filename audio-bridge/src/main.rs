@@ -10,7 +10,11 @@ use rustfft::{num_complex::Complex32, FftPlanner};
 use serde_json::Value;
 use std::{env, path::PathBuf, process::Stdio, sync::Arc, time::Instant};
 use tokio::{
-    io::AsyncReadExt, net::TcpListener, process::Command, sync::{broadcast, Mutex}, time::Duration,
+    io::AsyncReadExt,
+    net::TcpListener,
+    process::Command,
+    sync::{broadcast, Mutex},
+    time::Duration,
 };
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
@@ -171,7 +175,10 @@ async fn get_config(State(state): State<WebState>) -> impl IntoResponse {
     (
         [
             (header::CACHE_CONTROL, HeaderValue::from_static("no-store")),
-            (header::ETAG, HeaderValue::from_str(&tag).expect("valid etag")),
+            (
+                header::ETAG,
+                HeaderValue::from_str(&tag).expect("valid etag"),
+            ),
         ],
         Json(config),
     )
@@ -356,7 +363,10 @@ async fn put_config(
     Ok((
         [
             (header::CACHE_CONTROL, HeaderValue::from_static("no-store")),
-            (header::ETAG, HeaderValue::from_str(&tag).expect("valid etag")),
+            (
+                header::ETAG,
+                HeaderValue::from_str(&tag).expect("valid etag"),
+            ),
         ],
         Json(output),
     ))

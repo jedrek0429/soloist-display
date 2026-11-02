@@ -22,6 +22,9 @@ h1{font-size:26px;font-weight:600;letter-spacing:-.03em;margin:0}
 .section-nav{display:flex;flex-direction:column;align-items:stretch;gap:3px}
 .nav-button{text-align:left;padding:12px;border:0;border-left:2px solid transparent;background:transparent;color:var(--ink)}
 .nav-button[aria-current=page]{border-left-color:var(--ink);font-weight:bold}
+.nav-button:hover,.nav-button[aria-current=page]:hover{background:var(--ink);color:var(--bg)}
+.nav-button[aria-current=page]:hover{border-left-color:var(--ink)}
+.nav-subbutton:hover{color:var(--bg)}
 .nav-group{display:flex;flex-direction:column;min-width:0}
 .nav-group-toggle{display:flex;align-items:center;justify-content:space-between;width:100%}
 .nav-group-toggle:after{content:'⌄';font-size:16px;transform:rotate(-90deg);transition:transform .15s}

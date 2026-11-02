@@ -131,9 +131,11 @@ async fn put_config(
             "panelFontSize" => Some((0.6, 1.6)),
             "discRotationSeconds" => Some((1., 120.)),
             "transitionDuration"
+            | "sleeveDuration"
             | "coverTransitionDuration"
             | "backdropTransitionDuration"
             | "panelTransitionDuration" => Some((100., 10000.)),
+            "sleeveDelay" | "transitionDelay" | "backdropTransitionDelay" | "panelTransitionDelay" => Some((0., 10000.)),
             "backgroundDim" => Some((0., 1.)),
             "backgroundBlur" => Some((0., 150.)),
             "metadataOpacity" => Some((0., 1.)),

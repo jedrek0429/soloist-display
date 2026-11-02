@@ -1,0 +1,47 @@
+name: Publish landing page
+on:
+  push:
+    branches: [main]
+    paths: ['site/**', 'install.sh', '.github/workflows/pages.yml']
+  release:
+    types: [published]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Prepare static site
+        run: |
+          mkdir "$RUNNER_TEMP/pages"
+          cp site/index.html "$RUNNER_TEMP/pages/index.html"
+          if ! curl --fail --location --silent --show-error \
+            https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/install.sh \
+            -o "$RUNNER_TEMP/pages/install.sh"; then
+            cp install.sh "$RUNNER_TEMP/pages/install.sh"
+          fi
+          touch "$RUNNER_TEMP/pages/.nojekyll"
+      - name: Publish gh-pages branch
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git fetch origin gh-pages:refs/remotes/origin/gh-pages || true
+          if git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
+            git switch --track origin/gh-pages
+          else
+            git switch --orphan gh-pages
+          fi
+          cp "$RUNNER_TEMP/pages/index.html" index.html
+          cp "$RUNNER_TEMP/pages/install.sh" install.sh
+          cp "$RUNNER_TEMP/pages/.nojekyll" .nojekyll
+          git add index.html install.sh .nojekyll
+          git commit -m "Publish Soloist Display landing page" || exit 0
+          git push origin HEAD:gh-pages

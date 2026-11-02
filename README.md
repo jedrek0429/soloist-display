@@ -8,10 +8,10 @@ A full-screen now-playing display and live audio visualizer for [Spotify Soloist
 
 Requires Spotify Premium and a systemd-based Arch Linux, Ubuntu, Debian, or Fedora installation with glibc 2.38 or newer (including Ubuntu 24.04+ and Debian 13+) on x86_64, ARM64, or hard-float ARMv7.
 
-> The command below is served by signed `v0.2.0` release assets and becomes available when that release is published.
+> The command below becomes available when the first signed release is published.
 
 ```sh
-curl -fsSL https://github.com/jedrek0429/soloist-display/releases/latest/download/install.sh | sh
+curl -fsSL https://jedrek0429.github.io/soloist-display/install.sh | sh
 ```
 
 The installer verifies signed release files, installs required runtime packages, and configures user services. If Soloist is already working on `127.0.0.1:9090`, it is preserved and reused. Otherwise, have a [Soloist API key](https://developer.spotify.com/dashboard/soloist) ready; setup asks only for the Spotify Connect device name and API key.
@@ -23,7 +23,7 @@ For unattended setup, provide the same values without putting the secret in comm
 ```sh
 export SOLOIST_NAME="Soloist Display"
 read -rsp "Soloist API key: " SOLOIST_API_KEY; export SOLOIST_API_KEY; echo
-curl -fsSL https://github.com/jedrek0429/soloist-display/releases/latest/download/install.sh | sh -s -- --yes
+curl -fsSL https://jedrek0429.github.io/soloist-display/install.sh | sh -s -- --yes
 unset SOLOIST_API_KEY
 ```
 

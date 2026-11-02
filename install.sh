@@ -22,9 +22,8 @@ color=
 if [ -t 2 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-}" != dumb ]; then
   color=$(printf '\033[36m')
   reset=$(printf '\033[0m')
-  green=$(printf '\033[32m')
   red=$(printf '\033[31m')
-else reset=; green=; red=; fi
+else reset=; red=; fi
 say() { [ "${quiet:-0}" -eq 1 ] || printf '  %s%s%s\n' "$color" "$*" "$reset" >&2; }
 fail() { printf '  %serror%s  %s\n' "$red" "$reset" "$*" >&2; exit 1; }
 cleanup() { [ -z "$tmp_dir" ] || rm -rf "$tmp_dir"; }

@@ -212,7 +212,7 @@ async fn put_config(
             ));
         }
         if key == "discAppearance"
-            && !["basic", "cd", "vinyl", "vinyl-cover", "cd-cover"]
+            && !["basic", "cd", "vinyl", "vinyl-cover", "cd-cover", "album-cover"]
                 .contains(&value.as_str().unwrap_or(""))
         {
             return Err((

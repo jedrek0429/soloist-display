@@ -186,3 +186,26 @@
 :root[data-disc-appearance='cd-cover'][data-hole-color='black'] .spindle,
 :root[data-disc-appearance='cd'][data-hole-color='white'] .spindle,
 :root[data-disc-appearance='cd'][data-hole-color='black'] .spindle{width:var(--center-hole-diameter);height:var(--center-hole-diameter);z-index:10}
+
+/* CD & Cover: use one physical aperture for both faces. The data side must
+   not draw an oversized, dark hub around the actual hole. */
+:root[data-disc-appearance='cd-cover'] .rotor{
+  -webkit-mask-image:radial-gradient(circle,transparent 0 var(--center-hole-radius),#000 calc(var(--center-hole-radius) + .15%));
+  mask-image:radial-gradient(circle,transparent 0 var(--center-hole-radius),#000 calc(var(--center-hole-radius) + .15%));
+}
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image{
+  background:radial-gradient(circle at 45% 34%,#e2e6eb 0%,#c3ccd6 48%,#a5b3c2 83%,#c0c9d1 100%);
+  box-shadow:inset 0 0 14px rgba(25,35,52,.18);
+}
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::before{
+  background:conic-gradient(from 12deg,rgba(255,118,122,.22),rgba(243,218,143,.13) 40deg,rgba(100,211,191,.17) 83deg,rgba(119,172,237,.17) 133deg,transparent 190deg,rgba(170,158,231,.13) 260deg,rgba(255,118,122,.22));
+}
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::after{
+  background:conic-gradient(from 67deg,transparent 0 12%,rgba(255,255,255,.28) 18%,transparent 26% 62%,rgba(255,255,255,.19) 70%,transparent 78%);
+}
+/* Same aperture diameter with every hole colour and on both CD faces. */
+:root[data-disc-appearance='cd-cover'][data-hole-color='white'] .rotor,
+:root[data-disc-appearance='cd-cover'][data-hole-color='black'] .rotor{
+  -webkit-mask-image:none;
+  mask-image:none;
+}

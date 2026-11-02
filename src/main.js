@@ -21,7 +21,7 @@ setInterval(async()=>{
 const $=id=>document.getElementById(id);
 const bounded=(value,fallback,min,max)=>Number.isFinite(Number(value))?Math.max(min,Math.min(max,Number(value))):fallback;
 const settings={
-  discSize:bounded(config.discSize,116,50,200),
+  discSize:bounded(config['discSize'+(['vinyl','vinyl-cover'].includes(config.discAppearance)?'Vinyl':['cd','cd-cover'].includes(config.discAppearance)?'Cd':'Basic')],bounded(config.discSize,116,50,200),50,200),
   changeDiscOn:config.changeDiscOn==='album'?'album':'song',
   discRotationSeconds:bounded(config.discRotationSeconds,12,1,120),
   transitionDuration:bounded(config.transitionDuration,2000,100,10000),

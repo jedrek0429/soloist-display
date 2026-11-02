@@ -1,6 +1,6 @@
 use axum::{
     extract::State,
-    http::{header, StatusCode},
+    http::{header, HeaderMap, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
     routing::get,
     Json, Router,
@@ -10,7 +10,7 @@ use rustfft::{num_complex::Complex32, FftPlanner};
 use serde_json::Value;
 use std::{env, path::PathBuf, process::Stdio, sync::Arc, time::Instant};
 use tokio::{
-    io::AsyncReadExt, net::TcpListener, process::Command, sync::broadcast, time::Duration,
+    io::AsyncReadExt, net::TcpListener, process::Command, sync::{broadcast, Mutex}, time::Duration,
 };
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
@@ -28,6 +28,7 @@ const SOLOIST_JS: &str = include_str!("../../src/soloist.js");
 #[derive(Clone)]
 struct WebState {
     path: Arc<PathBuf>,
+    write_lock: Arc<Mutex<()>>,
 }
 
 fn config_path() -> PathBuf {
@@ -156,17 +157,40 @@ async fn get_defaults() -> impl IntoResponse {
     )
 }
 
+fn config_etag(config: &Value) -> String {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    config.to_string().hash(&mut hasher);
+    format!("\"{:016x}\"", hasher.finish())
+}
+
 async fn get_config(State(state): State<WebState>) -> impl IntoResponse {
+    let _guard = state.write_lock.lock().await;
+    let config = read_settings(&state.path);
+    let tag = config_etag(&config);
     (
-        [(header::CACHE_CONTROL, "no-store")],
-        Json(read_settings(&state.path)),
+        [
+            (header::CACHE_CONTROL, HeaderValue::from_static("no-store")),
+            (header::ETAG, HeaderValue::from_str(&tag).expect("valid etag")),
+        ],
+        Json(config),
     )
 }
 
 async fn put_config(
     State(state): State<WebState>,
+    headers: HeaderMap,
     Json(input): Json<Value>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
+    let _guard = state.write_lock.lock().await;
+    let current = read_settings(&state.path);
+    let expected = config_etag(&current);
+    if headers.get(header::IF_MATCH).and_then(|h| h.to_str().ok()) != Some(expected.as_str()) {
+        return Err((
+            StatusCode::PRECONDITION_FAILED,
+            "Settings changed; reload before saving".into(),
+        ));
+    }
     let Value::Object(incoming) = input else {
         return Err((StatusCode::BAD_REQUEST, "Expected settings object".into()));
     };
@@ -177,7 +201,7 @@ async fn put_config(
         }
     }
     let defaults: Value = serde_json::from_str(DEFAULT_CONFIG).expect("valid built-in settings");
-    let mut output = read_settings(&state.path);
+    let mut output = current;
     let output_map = output.as_object_mut().unwrap();
     let default_map = defaults.as_object().unwrap();
     for (key, value) in incoming {
@@ -328,7 +352,14 @@ async fn put_config(
     )
     .map_err(internal_error)?;
     std::fs::rename(&temporary, &*state.path).map_err(internal_error)?;
-    Ok(([(header::CACHE_CONTROL, "no-store")], Json(output)))
+    let tag = config_etag(&output);
+    Ok((
+        [
+            (header::CACHE_CONTROL, HeaderValue::from_static("no-store")),
+            (header::ETAG, HeaderValue::from_str(&tag).expect("valid etag")),
+        ],
+        Json(output),
+    ))
 }
 fn internal_error(error: impl std::fmt::Display) -> (StatusCode, String) {
     (StatusCode::INTERNAL_SERVER_ERROR, error.to_string())
@@ -360,6 +391,7 @@ async fn web_server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let port = env::var("SOLOIST_DISPLAY_HTTP_PORT").unwrap_or_else(|_| "8080".into());
     let state = WebState {
         path: Arc::new(config_path()),
+        write_lock: Arc::new(Mutex::new(())),
     };
     let app = Router::new()
         .route("/config.json", get(get_config).put(put_config))
@@ -556,6 +588,34 @@ async fn capture(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn simultaneous_settings_writes_allow_only_one_revision() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = WebState {
+            path: Arc::new(dir.path().join("config.json")),
+            write_lock: Arc::new(Mutex::new(())),
+        };
+        let initial = read_settings(&state.path);
+        let etag = config_etag(&initial);
+        let mut left = initial.clone();
+        let mut right = initial.clone();
+        left["backgroundDim"] = Value::from(0.25);
+        right["backgroundDim"] = Value::from(0.75);
+        let mut headers = HeaderMap::new();
+        headers.insert(header::IF_MATCH, HeaderValue::from_str(&etag).unwrap());
+        let (a, b) = tokio::join!(
+            put_config(State(state.clone()), headers.clone(), Json(left)),
+            put_config(State(state.clone()), headers, Json(right)),
+        );
+        assert_ne!(a.is_ok(), b.is_ok(), "exactly one writer must succeed");
+        let stale = if let Err(error) = a {
+            error
+        } else {
+            b.err().unwrap()
+        };
+        assert_eq!(stale.0, StatusCode::PRECONDITION_FAILED);
+    }
 
     #[test]
     fn migrates_legacy_transitions_and_dot_without_losing_durations() {

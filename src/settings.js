@@ -99,6 +99,9 @@ const controls=document.querySelector('#controls');
 const nav=document.querySelector('#section-nav');
 const status=document.querySelector('#status');
 let draft={};
+let lastLoadedConfig=null;
+let configEtag=null;
+const snapshot=config=>JSON.stringify(Object.keys(config).sort().map(key=>[key,config[key]]));
 let activeSection=0;
 let motionExpanded=false;
 const motionPages=new Set(['Sleeve motion','Disc motion','Backdrop motion','Panel motion']);
@@ -273,7 +276,9 @@ function render(){
 async function load(){
   const response=await fetch('/config.json',{cache:'no-store'});
   if(!response.ok)throw Error('Cannot load settings');
+  configEtag=response.headers.get('ETag');
   draft=await response.json();
+  lastLoadedConfig=snapshot(draft);
   delete draft['centerHoleColorAlbum-cover'];
   delete draft['centerHoleAlbum-cover'];
   for(const key of Object.keys(draft))if(/^sleeve(?:TransitionStyle|Alignment|Duration|DelayIn|DelayOut)AlbumCover$/.test(key))delete draft[key];
@@ -286,13 +291,16 @@ async function load(){
 
 document.querySelector('#save').addEventListener('click',async()=>{
   try{
+    if(!configEtag)throw Error('Missing settings revision; reload before saving');
     const response=await fetch('/config.json',{
       method:'PUT',
-      headers:{'Content-Type':'application/json'},
+      headers:{'Content-Type':'application/json','If-Match':configEtag},
       body:JSON.stringify(draft)
     });
     if(!response.ok)throw Error(await response.text());
+    configEtag=response.headers.get('ETag');
     draft=await response.json();
+    lastLoadedConfig=snapshot(draft);
     delete draft['centerHoleColorAlbum-cover'];
     delete draft['centerHoleAlbum-cover'];
   for(const key of Object.keys(draft))if(/^sleeve(?:TransitionStyle|Alignment|Duration|DelayIn|DelayOut)AlbumCover$/.test(key))delete draft[key];
@@ -312,13 +320,16 @@ document.querySelector('#reset').addEventListener('click',async()=>{
     const response=await fetch('/defaults.json',{cache:'no-store'});
     if(!response.ok)throw Error('Cannot load defaults');
     const defaults=await response.json();
+    if(!configEtag)throw Error('Missing settings revision; reload before resetting');
     const save=await fetch('/config.json',{
       method:'PUT',
-      headers:{'Content-Type':'application/json'},
+      headers:{'Content-Type':'application/json','If-Match':configEtag},
       body:JSON.stringify(defaults)
     });
     if(!save.ok)throw Error(await save.text());
+    configEtag=save.headers.get('ETag');
     draft=await save.json();
+    lastLoadedConfig=snapshot(draft);
     delete draft.backdropLinked;
     render();
     status.textContent='Defaults restored';

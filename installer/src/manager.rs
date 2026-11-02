@@ -185,12 +185,66 @@ fn desktop_files(paths: &Paths) -> Result<Vec<PathBuf>> {
     Ok(created)
 }
 
+pub const ZSH_COMPLETION: &str = r#"#compdef soloist-display
+_arguments -s \\
+  '(-h --help)'{-h,--help}'[Show help]' \\
+  '(-V --version)'{-V,--version}'[Show version]' \\
+  '--yes[Accept defaults]' \\
+  '--no-color[Disable colour]' \\
+  '--quiet[Minimal output]' \\
+  '--verbose[Detailed output]' \\
+  '1:command:(install launch settings update repair doctor uninstall completions)' \\
+  '*::argument:->args'
+case $words[2] in
+  uninstall) _arguments '--mode[Removal scope]:mode:(display data all)' ;;
+  completions) _values shell zsh ;;
+esac
+"#;
+
+const ZSH_START: &str = "# >>> soloist-display completion >>>";
+const ZSH_END: &str = "# <<< soloist-display completion <<<";
+
+fn install_completion(paths: &Paths) -> Result<()> {
+    let directory = paths.data_home.join("zsh/site-functions");
+    fs::create_dir_all(&directory)?;
+    fs::write(directory.join("_soloist-display"), ZSH_COMPLETION)?;
+    // Zsh does not search ~/.local/share/zsh/site-functions by default.
+    // Register the directory automatically, preserving existing user settings.
+    let rc = paths.home.join(".zshrc");
+    let existing = fs::read_to_string(&rc).unwrap_or_default();
+    if !existing.contains(ZSH_START) {
+        let snippet = format!(
+            "\\n{ZSH_START}\\nfpath=(\\\"{}\\\" $fpath)\\nautoload -Uz compinit\\ncompinit\\n{ZSH_END}\\n",
+            directory.display()
+        );
+        fs::write(rc, format!("{existing}{snippet}"))?;
+    }
+    Ok(())
+}
+
+fn remove_completion(paths: &Paths) -> Result<()> {
+    let file = paths.data_home.join("zsh/site-functions/_soloist-display");
+    if file.exists() { fs::remove_file(file)?; }
+    let rc = paths.home.join(".zshrc");
+    if let Ok(content) = fs::read_to_string(&rc) {
+        if let Some(start) = content.find(ZSH_START) {
+            if let Some(end) = content[start..].find(ZSH_END) {
+                let end = start + end + ZSH_END.len();
+                let cleaned = format!("{}{}", &content[..start], &content[end..]);
+                fs::write(rc, cleaned)?;
+            }
+        }
+    }
+    Ok(())
+}
+
 fn install_visible_command(paths: &Paths) -> Result<()> {
     fs::create_dir_all(&paths.bin_dir)?;
     atomic_link(
         &paths.current.join("bin/soloist-display"),
         &paths.visible_command,
-    )
+    )?;
+    install_completion(paths)
 }
 
 fn port_available(port: u16) -> bool {
@@ -1011,6 +1065,7 @@ pub fn uninstall(paths: &Paths, requested: Option<RemoveMode>) -> Result<()> {
     progress.step(1, "Stopping services");
     service::disable_owned(paths, "soloist-display.service")?;
     progress.step(2, "Removing files");
+    remove_completion(paths)?;
     for path in [
         &paths.display_service,
         &paths.visible_command,

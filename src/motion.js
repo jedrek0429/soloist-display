@@ -96,6 +96,10 @@ export class DiscDirector{
     this.info.style.transform='';
     this.info.style.opacity='';
   }
+  changePanel(onShow){
+    // Leave disc, backdrop, rotation and pending disc transitions untouched.
+    void this.transitionPanel(onShow);
+  }
   async changeSleeve(url,onShow,token){
     const outgoing=this.discs[this.current];
     const incoming=this.discs[1-this.current];

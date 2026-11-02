@@ -40,6 +40,7 @@ const sections=[
   {
     title:'Motion',
     fields:[
+      ['changeDiscOn','Change disc on','select',['song','album']],
       ['transitionStyle','Disc transition','select',['fly','slide','fade','off']],
       ['sleeveTransitionStyle','Sleeve transition','select',['in-out','off']],
       ['backdropTransitionStyle','Backdrop transition','select',['fade','off']],
@@ -187,6 +188,7 @@ async function load(){
   const response=await fetch('/config.json',{cache:'no-store'});
   if(!response.ok)throw Error('Cannot load settings');
   draft=await response.json();
+  draft.changeDiscOn=draft.changeDiscOn==='album'?'album':'song';
   delete draft.backdropLinked;
   for(const key of ['transitionStyle','backdropTransitionStyle','panelTransitionStyle'])if(draft[key]==='instant')draft[key]='off';
   render();
@@ -201,6 +203,7 @@ document.querySelector('#save').addEventListener('click',async()=>{
     });
     if(!response.ok)throw Error(await response.text());
     draft=await response.json();
+    draft.changeDiscOn=draft.changeDiscOn==='album'?'album':'song';
     delete draft.backdropLinked;
     for(const key of ['transitionStyle','backdropTransitionStyle','panelTransitionStyle'])if(draft[key]==='instant')draft[key]='off';
     renderSection();

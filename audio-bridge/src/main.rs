@@ -210,7 +210,9 @@ async fn put_config(
             | "sleeveDelayOut"
             | "transitionDelay"
             | "backdropTransitionDelay"
-            | "panelTransitionDelay" => Some((0., 10000.)),
+            | "panelTransitionDelay"
+            | "panelDelayIn"
+            | "panelDelayOut" => Some((0., 10000.)),
             "backgroundDim" => Some((0., 1.)),
             "backgroundBlur" => Some((0., 150.)),
             "metadataOpacity" => Some((0., 1.)),

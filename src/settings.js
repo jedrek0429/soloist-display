@@ -77,7 +77,8 @@ const sections=[
     fields:[
       ['panelTransitionStyle','Transition','select',['slide','fade','off']],
       ['panelTransitionDuration','Duration','range',100,10000,50,'ms'],
-      ['panelTransitionDelay','Delay','range',0,10000,50,'ms']
+      ['panelDelayIn','Delay in','range',0,10000,50,'ms'],
+      ['panelDelayOut','Delay out','range',0,10000,50,'ms']
     ]
   },
   {
@@ -186,7 +187,7 @@ function renderSection(){
     (key==='transitionDuration'&&selectedValue('transitionStyle')==='off')||
     (key==='transitionDelay'&&draft.transitionStyle==='off')||
     (key==='backdropTransitionDelay'&&draft.backdropTransitionStyle==='off')||
-    (key==='panelTransitionDelay'&&draft.panelTransitionStyle==='off')||
+    (['panelDelayIn','panelDelayOut'].includes(key)&&draft.panelTransitionStyle==='off')||
     (key==='backdropTransitionDuration'&&draft.backdropTransitionStyle==='off')||
     (key==='panelTransitionDuration'&&draft.panelTransitionStyle==='off');
   const section=sections[activeSection];

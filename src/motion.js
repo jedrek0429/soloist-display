@@ -179,7 +179,11 @@ export class DiscDirector{
         newTrack.style.left=offset;newSleeve.style.left=offset;
       }
       jobs.push((async()=>{
-        await delay(sleeveDelayIn+sleeveDuration/2);
+        // The incoming record must not emerge before the outgoing one is tucked away.
+        // Its own delay begins after that point (or the incoming disc's arrival).
+        const discArrival=this.motionEnabled&&['fly','slide'].includes(this.settings.transitionStyle)
+          ?this.settings.transitionDelay+this.settings.transitionDuration/2:0;
+        await delay(Math.max(sleeveDelayOut+sleeveDuration/2,discArrival)+sleeveDelayIn);
         if(token!==this.token)return false;
         const opening=[this.animate(newTrack,[{transform:'translateX(0)'},{transform:'translateX(50%)'}],sleeveDuration/2,token)];
         if(align){

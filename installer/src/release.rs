@@ -13,6 +13,16 @@ use std::{
     time::Duration,
 };
 
+fn hex_encode(bytes: impl AsRef<[u8]>) -> String {
+    use std::fmt::Write as _;
+    let bytes = bytes.as_ref();
+    let mut result = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        write!(&mut result, "{byte:02x}").expect("writing to String cannot fail");
+    }
+    result
+}
+
 pub const RELEASE_PUBLIC_KEY_B64: &str = "N2qrYATzPFCel3Nw7NZHzZtba1Gz9kthPRXWtQMFTiw=";
 pub const GITHUB_LATEST: &str =
     "https://github.com/jedrek0429/soloist-display/releases/latest/download";
@@ -217,7 +227,7 @@ impl ReleaseClient {
                 artifact.size
             );
         }
-        let actual = hex::encode(hasher.finalize());
+        let actual = hex_encode(hasher.finalize());
         if !actual.eq_ignore_ascii_case(&artifact.sha256) {
             bail!("artifact {} SHA-256 mismatch", artifact.name);
         }
@@ -236,7 +246,7 @@ pub fn sha256_file(path: &Path) -> Result<String> {
         }
         hasher.update(&buffer[..read]);
     }
-    Ok(hex::encode(hasher.finalize()))
+    Ok(hex_encode(hasher.finalize()))
 }
 
 #[cfg(test)]
@@ -312,7 +322,7 @@ mod tests {
             target: "test".into(),
             url: format!("{address}/primary"),
             fallback_url: Some(format!("{address}/fallback")),
-            sha256: hex::encode(Sha256::digest(b"good")),
+            sha256: hex_encode(Sha256::digest(b"good")),
             size: 4,
         };
         let directory = tempfile::tempdir().unwrap();

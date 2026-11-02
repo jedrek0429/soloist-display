@@ -304,7 +304,11 @@ pub fn ensure_cli_discovery(paths: &Paths, state: &SoloistState) -> Result<()> {
     fs::create_dir_all(data)?;
     for (filename, value) in [("ws.addr", host.to_owned()), ("ws.port", port.to_string())] {
         let path = data.join(filename);
-        match fs::OpenOptions::new().write(true).create_new(true).open(&path) {
+        match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+        {
             Ok(mut file) => {
                 if let Err(error) = writeln!(file, "{value}") {
                     let _ = fs::remove_file(&path);

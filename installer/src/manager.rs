@@ -278,8 +278,11 @@ fn wait_for_install_health(
         thread::sleep(Duration::from_millis(200));
     }
     if !monitor_ready {
-        let sink = Command::new("pactl").arg("get-default-sink").output()
-            .ok().map(|out| String::from_utf8_lossy(&out.stdout).trim().to_owned())
+        let sink = Command::new("pactl")
+            .arg("get-default-sink")
+            .output()
+            .ok()
+            .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_owned())
             .unwrap_or_else(|| "<pactl unavailable>".to_owned());
         bail!(
             "audio health check failed after 6s: no monitor found for default sink {sink:?}; inspect `pactl list sinks` and `pactl list short sources`"
@@ -340,9 +343,10 @@ pub fn recover(paths: &Paths) -> Result<()> {
 }
 
 fn install_step(quiet: bool, step: usize, label: &str) {
-    if quiet { return; }
-    let color = std::io::stderr().is_terminal()
-        && std::env::var_os("NO_COLOR").is_none();
+    if quiet {
+        return;
+    }
+    let color = std::io::stderr().is_terminal() && std::env::var_os("NO_COLOR").is_none();
     let width = 24usize;
     let filled = step * width / 4;
     let bar = format!("{}{}", "━".repeat(filled), "─".repeat(width - filled));

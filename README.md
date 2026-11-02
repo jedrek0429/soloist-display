@@ -8,7 +8,7 @@ A full-screen now-playing display and live audio visualizer for [Spotify Soloist
 
 Requires Spotify Premium and a systemd-based Arch Linux, Ubuntu, Debian, or Fedora installation with glibc 2.38 or newer (including Ubuntu 24.04+ and Debian 13+) on x86_64, ARM64, or hard-float ARMv7.
 
-> Signed release artifacts have not been published yet. A repository owner must configure `RELEASE_SIGNING_KEY` and publish `v0.2.0` before the command below becomes available.
+> The command below is served by signed `v0.2.0` release assets and becomes available when that release is published.
 
 ```sh
 curl -fsSL https://github.com/jedrek0429/soloist-display/releases/latest/download/install.sh | sh

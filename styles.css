@@ -152,3 +152,18 @@
 }
 
 :root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-label{display:none;}
+
+/* Optical layers must not paint a soft secondary ring over the CD aperture. */
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::before{
+  -webkit-mask-image:radial-gradient(circle,transparent 0 12%,#000 12.01% 97%,transparent 100%);
+  mask-image:radial-gradient(circle,transparent 0 12%,#000 12.01% 97%,transparent 100%);
+}
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::after{
+  background:conic-gradient(from 67deg,transparent 0 7%,rgba(245,255,255,.57) 13%,transparent 19% 34%,rgba(50,100,180,.13) 41%,transparent 48% 67%,rgba(255,255,255,.48) 74%,transparent 81% 100%);
+  -webkit-mask-image:radial-gradient(circle,transparent 0 12%,#000 12.01% 95%,transparent 99%);
+  mask-image:radial-gradient(circle,transparent 0 12%,#000 12.01% 95%,transparent 99%);
+}
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'][data-hole-color='white'] .spindle,
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'][data-hole-color='black'] .spindle{
+  width:var(--center-hole-diameter,0%);height:var(--center-hole-diameter,0%);z-index:10;
+}

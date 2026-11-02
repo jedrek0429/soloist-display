@@ -4,6 +4,10 @@ A full-screen now-playing display and live audio visualizer for [Spotify Soloist
 
 ![Soloist Display](docs/screenshots/now-playing.webp)
 
+Turn your Linux computer or Raspberry Pi into a dedicated Spotify speaker with a beautiful display.
+
+Choose a song on your phone, select your computer in Spotify Connect, and enjoy your music with animated album artwork, track information, and a live audio spectrum.
+
 ## Install
 
 Requires Spotify Premium and a systemd-based Arch Linux, Ubuntu, Debian, or Fedora installation with glibc 2.38 or newer (including Ubuntu 24.04+ and Debian 13+) on x86_64, ARM64, or hard-float ARMv7.

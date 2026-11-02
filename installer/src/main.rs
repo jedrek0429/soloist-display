@@ -101,6 +101,7 @@ fn run() -> Result<i32> {
         return Ok(0);
     }
     let paths = Paths::discover()?;
+    terminal::set_log_path(paths.logs.join("installer.jsonl"));
     let requested = if cli.settings {
         Some(Command::Settings)
     } else {
@@ -155,6 +156,7 @@ fn main() {
             }
         }
         Err(error) => {
+            terminal::log_event("installer", "error", &format!("{error:#}"));
             let plain = std::env::var_os("NO_COLOR").is_some()
                 || !std::io::stderr().is_terminal()
                 || std::env::var("TERM").as_deref() == Ok("dumb");

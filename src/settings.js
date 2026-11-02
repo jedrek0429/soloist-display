@@ -190,7 +190,7 @@ function renderSection(){
     const caption=document.createElement('label');
     caption.className='field-label';
     caption.htmlFor=key;
-    caption.textContent=label;
+    caption.textContent=key==='discSize'&&draft.discAppearance==='album-cover'?'Side length':label;
     line.append(caption);
     if(key==='transitionStyle')line.classList.add('transition-disc');
     if(key==='backdropTransitionStyle')line.classList.add('transition-backdrop');

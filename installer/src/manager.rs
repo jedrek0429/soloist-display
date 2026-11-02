@@ -885,11 +885,17 @@ pub fn launch(paths: &Paths, settings: bool) -> Result<()> {
     if paths.is_test() {
         return Ok(());
     }
-    process::run(
-        Command::new("xdg-open").arg(&url),
-        "open Soloist Display in the default browser",
-        false,
-    )
+    // xdg-open may remain attached to a browser process. Do not block the CLI
+    // or forward Ctrl+C to the browser through the terminal's process group.
+    use std::process::Stdio;
+    Command::new("xdg-open")
+        .arg(&url)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .context("could not launch the default browser")?;
+    Ok(())
 }
 
 pub fn doctor(paths: &Paths) -> Result<bool> {

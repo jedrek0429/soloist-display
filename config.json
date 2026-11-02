@@ -18,6 +18,7 @@
   "discOpacityAlbumCover": 1,
   "discRotationSeconds": 12,
   "cdCoverSide": "down",
+  "cdRainbow": 0.65,
   "vinylGrooveDensity": 5,
   "backgroundDim": 0.52,
   "backgroundBlur": 50,

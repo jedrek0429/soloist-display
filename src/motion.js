@@ -124,6 +124,7 @@ export class DiscDirector{
       bg.style.transition='none';bg.style.opacity=bg===previousBg?'1':'0';bg.style.zIndex='';
     }
     incoming.querySelector('.disc-label').style.backgroundImage=imageStyle(url);
+    incoming.style.setProperty('--cd-cover-art',imageStyle(url));
     newSleeve.style.backgroundImage=imageStyle(url);
     nextBg.style.backgroundImage=imageStyle(url);
     incoming.dataset.angleOffset=String(this.angle);

@@ -1,40 +1,43 @@
-use crate::platform::{Distro, Platform};
+use crate::{
+    platform::{Distro, OperatingSystem, Platform},
+    process,
+};
 use anyhow::{anyhow, bail, Context, Result};
 use std::process::{Command, Stdio};
 
 pub fn required(platform: &Platform) -> Vec<&'static str> {
-    match platform.distro {
-        Distro::Arch => vec!["ca-certificates", "xdg-utils", "libpulse", "firefox"],
-        Distro::Ubuntu => vec![
+    match platform.distro.as_ref() {
+        Some(Distro::Arch) => vec!["ca-certificates", "xdg-utils", "libpulse", "firefox"],
+        Some(Distro::Ubuntu) => vec![
             "ca-certificates",
             "xdg-utils",
             "pulseaudio-utils",
             "firefox",
         ],
-        Distro::Debian => vec![
+        Some(Distro::Debian) => vec![
             "ca-certificates",
             "xdg-utils",
             "pulseaudio-utils",
             "firefox-esr",
         ],
-        Distro::Fedora => vec![
+        Some(Distro::Fedora) => vec![
             "ca-certificates",
             "xdg-utils",
             "pulseaudio-utils",
             "firefox",
         ],
+        None => vec![],
     }
 }
 
 fn command_exists(name: &str) -> bool {
-    Command::new("sh")
-        .args(["-c", "command -v \"$1\" >/dev/null 2>&1", "sh", name])
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+    process::exists(name)
 }
 
-pub fn runtime_ready() -> bool {
+pub fn runtime_ready(platform: &Platform) -> bool {
+    if !matches!(platform.os, OperatingSystem::Linux) {
+        return true;
+    }
     ["pactl", "parec", "xdg-open", "systemctl"]
         .iter()
         .all(|name| command_exists(name))
@@ -57,7 +60,10 @@ pub fn install(platform: &Platform, quiet: bool) -> Result<Vec<String>> {
     if std::env::var_os("SOLOIST_DISPLAY_TEST_ROOT").is_some() {
         return Ok(vec![]);
     }
-    if runtime_ready() {
+    if runtime_ready(platform) {
+        return Ok(vec![]);
+    }
+    if !matches!(platform.os, OperatingSystem::Linux) {
         return Ok(vec![]);
     }
     if !command_exists("sudo") {
@@ -65,11 +71,11 @@ pub fn install(platform: &Platform, quiet: bool) -> Result<Vec<String>> {
     }
     let packages = required(platform);
     let mut command = Command::new("sudo");
-    match platform.distro {
-        Distro::Arch => {
+    match platform.distro.as_ref() {
+        Some(Distro::Arch) => {
             command.args(["pacman", "-S", "--needed", "--noconfirm"]);
         }
-        Distro::Ubuntu | Distro::Debian => {
+        Some(Distro::Ubuntu | Distro::Debian) => {
             let update = Command::new("sudo")
                 .args(["apt-get", "update"])
                 .stdout(Stdio::null())
@@ -81,9 +87,10 @@ pub fn install(platform: &Platform, quiet: bool) -> Result<Vec<String>> {
             }
             command.args(["apt-get", "install", "-y"]);
         }
-        Distro::Fedora => {
+        Some(Distro::Fedora) => {
             command.args(["dnf", "install", "-y"]);
         }
+        None => unreachable!("non-Linux platforms returned before package installation"),
     }
     command.args(&packages);
     let _ = quiet;
@@ -92,7 +99,7 @@ pub fn install(platform: &Platform, quiet: bool) -> Result<Vec<String>> {
     if !status.success() {
         bail!("system dependency installation failed with {status}");
     }
-    if !runtime_ready() {
+    if !runtime_ready(platform) {
         bail!("required audio, desktop, or browser commands are still missing after package installation");
     }
     Ok(packages.into_iter().map(str::to_owned).collect())
@@ -106,7 +113,8 @@ mod tests {
 
     fn platform(distro: Distro) -> Platform {
         Platform {
-            distro,
+            os: OperatingSystem::Linux,
+            distro: Some(distro),
             architecture: Architecture::X86_64,
             target: "test".into(),
             label: "test".into(),

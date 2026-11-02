@@ -52,7 +52,7 @@ impl ReleaseManifest {
     }
 
     pub fn soloist<'a>(&'a self, platform: &Platform) -> Result<&'a Artifact> {
-        let archive = platform.soloist_archive();
+        let archive = platform.soloist_archive()?;
         self.artifacts
             .iter()
             .find(|artifact| artifact.kind == "soloist" && artifact.target == archive)

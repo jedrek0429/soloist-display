@@ -185,9 +185,53 @@ pub fn atomic_json<T: Serialize>(path: &Path, value: &T, mode: Option<u32>) -> R
     file.write_all(&bytes)?;
     file.write_all(b"\n")?;
     file.sync_all()?;
-    fs::rename(&temporary, path).with_context(|| format!("activate {}", path.display()))?;
+    atomic_replace(&temporary, path).with_context(|| format!("activate {}", path.display()))?;
+    #[cfg(unix)]
     fs::File::open(parent)?.sync_all()?;
     Ok(())
+}
+
+#[cfg(unix)]
+fn atomic_replace(source: &Path, destination: &Path) -> std::io::Result<()> {
+    fs::rename(source, destination)
+}
+
+#[cfg(windows)]
+fn atomic_replace(source: &Path, destination: &Path) -> std::io::Result<()> {
+    use std::{ffi::OsStr, os::windows::ffi::OsStrExt, ptr};
+    use windows_sys::Win32::Storage::FileSystem::{
+        MoveFileExW, ReplaceFileW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
+        REPLACEFILE_WRITE_THROUGH,
+    };
+    fn wide(value: &OsStr) -> Vec<u16> {
+        value.encode_wide().chain(Some(0)).collect()
+    }
+    let destination_exists = destination.exists();
+    let source = wide(source.as_os_str());
+    let destination = wide(destination.as_os_str());
+    let success = unsafe {
+        if destination_exists {
+            ReplaceFileW(
+                destination.as_ptr(),
+                source.as_ptr(),
+                ptr::null(),
+                REPLACEFILE_WRITE_THROUGH,
+                ptr::null(),
+                ptr::null(),
+            )
+        } else {
+            MoveFileExW(
+                source.as_ptr(),
+                destination.as_ptr(),
+                MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+            )
+        }
+    };
+    if success == 0 {
+        Err(std::io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
 }
 
 #[cfg(test)]

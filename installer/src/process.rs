@@ -1,11 +1,32 @@
 use anyhow::{bail, Context, Result};
-use std::process::{Command, Stdio};
+use std::{
+    env,
+    path::Path,
+    process::{Command, Stdio},
+};
 
 pub fn exists(name: &str) -> bool {
-    Command::new("sh")
-        .args(["-c", "command -v \"$1\" >/dev/null 2>&1", "sh", name])
-        .status()
-        .is_ok_and(|status| status.success())
+    let candidate = Path::new(name);
+    if candidate.components().count() > 1 {
+        return candidate.is_file();
+    }
+    env::var_os("PATH").is_some_and(|path| {
+        env::split_paths(&path).any(|directory| {
+            let plain = directory.join(name);
+            if plain.is_file() {
+                return true;
+            }
+            #[cfg(windows)]
+            return env::var_os("PATHEXT").is_some_and(|extensions| {
+                extensions
+                    .to_string_lossy()
+                    .split(';')
+                    .any(|extension| directory.join(format!("{name}{extension}")).is_file())
+            });
+            #[cfg(not(windows))]
+            false
+        })
+    })
 }
 
 pub fn run(command: &mut Command, description: &str, quiet: bool) -> Result<()> {

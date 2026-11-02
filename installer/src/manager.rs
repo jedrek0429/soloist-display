@@ -1,7 +1,7 @@
 use crate::{
-    dependencies, migrations,
+    dependencies, filesystem, migrations,
     paths::{path_string, Paths},
-    platform::{Architecture, Platform},
+    platform::{Architecture, OperatingSystem, Platform},
     process,
     release::{Artifact, ReleaseClient, ReleaseManifest},
     service, soloist,
@@ -13,7 +13,6 @@ use std::{
     env, fs,
     io::{self, IsTerminal, Write},
     net::{SocketAddr, TcpListener, TcpStream},
-    os::unix::fs::{symlink, PermissionsExt},
     path::{Path, PathBuf},
     process::Command,
     thread,
@@ -29,29 +28,54 @@ pub enum RemoveMode {
 
 fn artifact_destination(release: &Path, artifact: &Artifact) -> Result<PathBuf> {
     let name = match artifact.kind.as_str() {
+        "manager" if cfg!(windows) => "soloist-display.exe",
         "manager" => "soloist-display",
+        "audio-bridge" if cfg!(windows) => "soloist-audio-bridge.exe",
         "audio-bridge" => "soloist-audio-bridge",
         other => bail!("unexpected executable artifact kind {other}"),
     };
     Ok(release.join("bin").join(name))
 }
 
-fn validate_executable(path: &Path, architecture: &Architecture) -> Result<()> {
+fn validate_executable(path: &Path, platform: &Platform) -> Result<()> {
     let bytes = fs::read(path)?;
-    if bytes.len() < 40 || &bytes[..4] != b"\x7fELF" || bytes[5] != 1 {
-        bail!(
-            "{} is not a supported little-endian ELF executable",
-            path.display()
-        );
-    }
-    let machine = u16::from_le_bytes([bytes[18], bytes[19]]);
-    let valid = match architecture {
-        Architecture::X86_64 => bytes[4] == 2 && machine == 62,
-        Architecture::Aarch64 => bytes[4] == 2 && machine == 183,
-        Architecture::Armv7 => {
-            let flags = u32::from_le_bytes(bytes[36..40].try_into()?);
-            bytes[4] == 1 && machine == 40 && flags & 0x400 != 0
+    let valid = match platform.os {
+        OperatingSystem::Linux
+            if bytes.len() >= 40 && &bytes[..4] == b"\x7fELF" && bytes[5] == 1 =>
+        {
+            let machine = u16::from_le_bytes([bytes[18], bytes[19]]);
+            match platform.architecture {
+                Architecture::X86_64 => bytes[4] == 2 && machine == 62,
+                Architecture::Aarch64 => bytes[4] == 2 && machine == 183,
+                Architecture::Armv7 => {
+                    bytes[4] == 1
+                        && machine == 40
+                        && u32::from_le_bytes(bytes[36..40].try_into()?) & 0x400 != 0
+                }
+            }
         }
+        OperatingSystem::Windows if bytes.len() >= 0x40 && &bytes[..2] == b"MZ" => {
+            let offset = u32::from_le_bytes(bytes[0x3c..0x40].try_into()?) as usize;
+            bytes.get(offset..offset + 6).is_some_and(|header| {
+                &header[..4] == b"PE\0\0"
+                    && u16::from_le_bytes([header[4], header[5]])
+                        == match platform.architecture {
+                            Architecture::X86_64 => 0x8664,
+                            Architecture::Aarch64 => 0xaa64,
+                            Architecture::Armv7 => 0,
+                        }
+            })
+        }
+        OperatingSystem::Macos if bytes.len() >= 8 => {
+            u32::from_le_bytes(bytes[..4].try_into()?) == 0xfeedfacf
+                && u32::from_le_bytes(bytes[4..8].try_into()?)
+                    == match platform.architecture {
+                        Architecture::X86_64 => 0x01000007,
+                        Architecture::Aarch64 => 0x0100000c,
+                        Architecture::Armv7 => 0,
+                    }
+        }
+        _ => false,
     };
     if !valid {
         bail!(
@@ -74,16 +98,7 @@ fn ensure_staging_space(available: u64, required: u64) -> Result<()> {
 }
 
 fn atomic_link(target: &Path, link: &Path) -> Result<()> {
-    let parent = link.parent().context("activation link has no parent")?;
-    fs::create_dir_all(parent)?;
-    let temporary = parent.join(format!(".current.{}", std::process::id()));
-    if temporary.exists() {
-        fs::remove_file(&temporary)?;
-    }
-    symlink(target, &temporary)?;
-    fs::rename(&temporary, link).context("activate release")?;
-    fs::File::open(parent)?.sync_all()?;
-    Ok(())
+    filesystem::atomic_activate(target, link)
 }
 
 fn install_artifacts(
@@ -121,7 +136,7 @@ fn install_artifacts(
                     release.display()
                 );
             }
-            validate_executable(&destination, &platform.architecture)?;
+            validate_executable(&destination, platform)?;
         }
         return Ok(release);
     }
@@ -137,8 +152,8 @@ fn install_artifacts(
             let artifact = manifest.artifact(kind, platform)?;
             let destination = artifact_destination(&staging, artifact)?;
             client.download(artifact, &destination)?;
-            validate_executable(&destination, &platform.architecture)?;
-            fs::set_permissions(&destination, fs::Permissions::from_mode(0o755))?;
+            validate_executable(&destination, platform)?;
+            filesystem::set_executable(&destination)?;
             let metadata = fs::metadata(&destination)?;
             if metadata.len() == 0 {
                 bail!("downloaded {} is empty", artifact.name);
@@ -156,7 +171,10 @@ fn install_artifacts(
     Ok(release)
 }
 
-fn desktop_files(paths: &Paths) -> Result<Vec<PathBuf>> {
+fn desktop_files(paths: &Paths, platform: &Platform) -> Result<Vec<PathBuf>> {
+    if !matches!(platform.os, OperatingSystem::Linux) {
+        return Ok(vec![]);
+    }
     fs::create_dir_all(&paths.applications)?;
     let executable = path_string(&paths.visible_command)
         .replace('%', "%%")
@@ -256,6 +274,9 @@ fn integrate_zshrc(existing: &str, directory: &Path) -> String {
 }
 
 fn install_completion(paths: &Paths) -> Result<()> {
+    if cfg!(windows) {
+        return Ok(());
+    }
     use clap::CommandFactory;
     let directory = completion_directory(paths);
     fs::create_dir_all(&directory)?;
@@ -284,6 +305,9 @@ fn install_completion(paths: &Paths) -> Result<()> {
 }
 
 fn remove_completion(paths: &Paths) -> Result<()> {
+    if cfg!(windows) {
+        return Ok(());
+    }
     let file = completion_directory(paths).join("_soloist-display");
     if file.exists() {
         fs::remove_file(file)?;
@@ -306,6 +330,15 @@ fn remove_completion(paths: &Paths) -> Result<()> {
 
 fn install_visible_command(paths: &Paths) -> Result<()> {
     fs::create_dir_all(&paths.bin_dir)?;
+    #[cfg(windows)]
+    {
+        let manager = paths.current.join("bin/soloist-display.exe");
+        fs::write(
+            &paths.visible_command,
+            format!("@echo off\r\n\"{}\" %*\r\n", manager.display()),
+        )?;
+    }
+    #[cfg(not(windows))]
     atomic_link(
         &paths.current.join("bin/soloist-display"),
         &paths.visible_command,
@@ -419,6 +452,7 @@ fn audio_monitor_available() -> bool {
 
 fn wait_for_install_health(
     paths: &Paths,
+    platform: &Platform,
     soloist_state: &crate::state::SoloistState,
 ) -> Result<()> {
     if std::env::var("SOLOIST_DISPLAY_FAULT").as_deref() == Ok("health_check") {
@@ -445,6 +479,9 @@ fn wait_for_install_health(
     }
     if TcpStream::connect("127.0.0.1:9091").is_err() {
         bail!("audio bridge health check failed: WebSocket 127.0.0.1:9091 is unavailable");
+    }
+    if !matches!(platform.os, OperatingSystem::Linux) {
+        return Ok(());
     }
     // PipeWire may expose its PulseAudio monitor after the bridge's socket opens.
     // Use the same probe as doctor, but allow device discovery to settle.
@@ -491,23 +528,21 @@ pub fn recover(paths: &Paths) -> Result<()> {
         }
         transaction.status = TransactionStatus::RollingBack;
         transaction.persist(&path)?;
+        let allowed: [&Path; 4] = [&paths.root, &paths.state, &paths.config, &paths.cache];
         for created in transaction.created.iter().rev() {
-            if created.starts_with(&paths.root) {
-                if created.is_dir() {
-                    fs::remove_dir_all(created).ok();
-                } else {
-                    fs::remove_file(created).ok();
-                }
+            if filesystem::is_managed_path(created, &allowed) {
+                filesystem::safe_remove(created, &allowed).ok();
             }
         }
         for backup in transaction.backups.iter().rev() {
             if backup.backup.exists() {
+                if !filesystem::is_managed_path(&backup.original, &allowed)
+                    || !filesystem::is_managed_path(&backup.backup, &allowed)
+                {
+                    bail!("transaction contains a backup outside installer-owned directories");
+                }
                 if backup.original.exists() {
-                    if backup.original.is_dir() {
-                        fs::remove_dir_all(&backup.original)?;
-                    } else {
-                        fs::remove_file(&backup.original)?;
-                    }
+                    filesystem::safe_remove(&backup.original, &allowed)?;
                 }
                 fs::rename(&backup.backup, &backup.original)?;
             }
@@ -619,6 +654,14 @@ pub fn install(
     let previous_state = InstallState::load(paths)?;
     let discovered_soloist =
         soloist::discover(paths, previous_state.as_ref().map(|state| &state.soloist));
+    if discovered_soloist.ownership == SoloistOwnership::None
+        && !platform.managed_soloist_supported()
+    {
+        bail!(
+            "Spotify does not publish Soloist for {}; install and start a compatible external Soloist before installing Display",
+            platform.label
+        );
+    }
     let progress = Progress::new(quiet, "Installing Soloist Display");
     if !quiet && !io::stderr().is_terminal() {
         let status = match (
@@ -640,21 +683,19 @@ pub fn install(
     // transaction rolls back before writing installation metadata. Reclaim
     // only our recognizable unit; never stop an unrelated port owner.
     if previous_state.is_none() && (!port_available(8080) || !port_available(9091)) {
-        let owned_unit = fs::read_to_string(&paths.display_service)
-            .ok()
-            .is_some_and(|unit| {
-                unit.contains("Description=Soloist Display local server and audio spectrum")
-                    && unit.contains("soloist-audio-bridge")
-                    && unit.contains(&paths.current.display().to_string())
-            });
+        let owned_unit = if matches!(platform.os, OperatingSystem::Linux) {
+            fs::read_to_string(&paths.display_service)
+                .ok()
+                .is_some_and(|unit| {
+                    unit.contains("Description=Soloist Display local server and audio spectrum")
+                        && unit.contains("soloist-audio-bridge")
+                        && unit.contains(&paths.current.display().to_string())
+                })
+        } else {
+            paths.display_service.exists()
+        };
         if owned_unit && !paths.is_test() {
-            let status = Command::new("systemctl")
-                .args(["--user", "stop", "soloist-display.service"])
-                .status()
-                .context("stop orphaned Soloist Display service")?;
-            if !status.success() {
-                bail!("could not stop the orphaned Soloist Display service");
-            }
+            service::stop_display(paths).context("stop orphaned Soloist Display service")?;
             // Wait briefly for the bridge to release its listeners.
             for _ in 0..20 {
                 if port_available(8080) && port_available(9091) {
@@ -677,7 +718,7 @@ pub fn install(
     transaction.previous_current = previous_state
         .as_ref()
         .map(|state| state.active_release.clone());
-    if !dependencies::runtime_ready() {
+    if !dependencies::runtime_ready(platform) {
         transaction.package_changes = dependencies::required(platform)
             .into_iter()
             .map(str::to_owned)
@@ -733,6 +774,7 @@ pub fn install(
         if soloist_state.ownership == SoloistOwnership::None {
             soloist_state = soloist::install(
                 paths,
+                platform,
                 &client,
                 manifest.soloist(platform)?,
                 &manifest.version.to_string(),
@@ -748,12 +790,12 @@ pub fn install(
             progress.step(3, "Starting services");
         }
         service::install_display(paths)?;
-        let desktop = desktop_files(paths)?;
+        let desktop = desktop_files(paths, platform)?;
         transaction.set_status(&journal_path, TransactionStatus::HealthCheck)?;
         if !quiet {
             progress.step(4, "Checking health");
         }
-        wait_for_install_health(paths, &soloist_state)?;
+        wait_for_install_health(paths, platform, &soloist_state)?;
         let mut managed = vec![paths.visible_command.clone(), paths.display_service.clone()];
         managed.extend(desktop);
         if soloist_state.ownership == SoloistOwnership::Installer {
@@ -782,9 +824,7 @@ pub fn install(
         // On a failed first install, do not leave a running bridge behind
         // without committed installation metadata.
         if previous_state.is_none() && !paths.is_test() {
-            let _ = Command::new("systemctl")
-                .args(["--user", "stop", "soloist-display.service"])
-                .status();
+            let _ = service::stop_display(paths);
         }
         if let Some(previous) = transaction.previous_current.as_ref() {
             atomic_link(previous, &paths.current).ok();
@@ -849,6 +889,7 @@ pub fn update(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
         if state.soloist.ownership == SoloistOwnership::Installer {
             next_soloist = soloist::install(
                 paths,
+                platform,
                 &client,
                 manifest.soloist(platform)?,
                 &manifest.version.to_string(),
@@ -859,7 +900,7 @@ pub fn update(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
         progress.step(3, "Starting services");
         service::install_display(paths)?;
         progress.step(4, "Checking health");
-        wait_for_install_health(paths, &next_soloist)?;
+        wait_for_install_health(paths, platform, &next_soloist)?;
         let mut next = state.clone();
         next.previous_release = Some(state.active_release.clone());
         next.active_release = release;
@@ -944,7 +985,7 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
             state.save(paths)?;
             service::install_display(paths)?;
             progress.step(4, "Checking health");
-            wait_for_install_health(paths, &state.soloist)?;
+            wait_for_install_health(paths, platform, &state.soloist)?;
             tx.set_status(&tx_path, TransactionStatus::Committed)?;
             Ok::<_, anyhow::Error>(())
         })();
@@ -966,7 +1007,7 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
     progress.step(3, "Restoring services");
     atomic_link(&state.active_release, &paths.current)?;
     install_visible_command(paths)?;
-    desktop_files(paths)?;
+    desktop_files(paths, platform)?;
     service::install_display(paths)?;
     if state.soloist.ownership == SoloistOwnership::Installer {
         let executable = state
@@ -978,7 +1019,7 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
     } else {
         soloist::start_existing(paths, &state.soloist)?;
     }
-    wait_for_install_health(paths, &state.soloist)?;
+    wait_for_install_health(paths, platform, &state.soloist)?;
     if !quiet {
         println!("Repair complete.");
     }
@@ -1068,11 +1109,21 @@ pub fn launch(paths: &Paths, settings: bool) -> Result<()> {
     if paths.is_test() {
         return Ok(());
     }
-    // xdg-open may remain attached to a browser process. Do not block the CLI
-    // or forward Ctrl+C to the browser through the terminal's process group.
     use std::process::Stdio;
-    Command::new("xdg-open")
-        .arg(&url)
+    let mut browser = if cfg!(target_os = "macos") {
+        let mut command = Command::new("open");
+        command.arg(&url);
+        command
+    } else if cfg!(windows) {
+        let mut command = Command::new("cmd");
+        command.args(["/C", "start", "", &url]);
+        command
+    } else {
+        let mut command = Command::new("xdg-open");
+        command.arg(&url);
+        command
+    };
+    browser
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -1083,6 +1134,7 @@ pub fn launch(paths: &Paths, settings: bool) -> Result<()> {
 
 pub fn doctor(paths: &Paths) -> Result<bool> {
     let mut ok = true;
+    let platform = Platform::detect()?;
     let state = InstallState::load(paths)?;
     macro_rules! check {
         ($label:expr, $value:expr, $help:expr) => {{
@@ -1101,18 +1153,26 @@ pub fn doctor(paths: &Paths) -> Result<bool> {
     );
     check!(
         "Display executable",
-        paths.current.join("bin/soloist-audio-bridge").is_file(),
+        paths
+            .current
+            .join("bin")
+            .join(if cfg!(windows) {
+                "soloist-audio-bridge.exe"
+            } else {
+                "soloist-audio-bridge"
+            })
+            .is_file(),
         "Run `soloist-display repair`."
     );
     check!(
-        "systemd user manager",
+        "User service manager",
         service::user_manager_available(paths),
-        "Use a normal graphical/user login with systemd."
+        "Use a normal signed-in user session and run repair."
     );
     check!(
         "Display service",
         service::active(paths, "soloist-display.service"),
-        "Run `soloist-display repair`; inspect journalctl --user -u soloist-display."
+        "Run `soloist-display repair`, then inspect the platform service logs."
     );
     check!(
         "Display HTTP :8080",
@@ -1131,28 +1191,31 @@ pub fn doctor(paths: &Paths) -> Result<bool> {
             "Start Soloist and verify loopback WebSocket port 9090."
         );
         if state.soloist.ownership == SoloistOwnership::Installer {
-            let secure = fs::metadata(&paths.soloist_env)
-                .map(|metadata| metadata.permissions().mode() & 0o077 == 0)
-                .unwrap_or(false);
+            let secure = filesystem::is_private(&paths.soloist_env);
             check!(
                 "Soloist credentials",
                 secure,
-                "Run `chmod 600 ~/.config/soloist-display/soloist.env`, then repair."
+                "Run `soloist-display repair` to restore private credential permissions."
             );
         }
     }
-    check!(
-        "Audio tools",
-        process::exists("pactl") && process::exists("parec"),
-        "Install PipeWire PulseAudio compatibility tools."
-    );
-    if process::exists("pactl") {
+    if matches!(platform.os, OperatingSystem::Linux) {
+        check!(
+            "Audio tools",
+            process::exists("pactl") && process::exists("parec"),
+            "Install PipeWire/PulseAudio compatibility tools."
+        );
         let monitor = audio_monitor_available();
         check!(
             "Audio monitor",
             monitor,
             "Start PipeWire/PulseAudio and select a default output sink."
         );
+    } else if matches!(platform.os, OperatingSystem::Macos) {
+        println!("{:<22} ScreenCaptureKit", "Audio backend");
+        eprintln!("  macOS must grant Screen Recording permission for system-output audio.");
+    } else {
+        println!("{:<22} WASAPI loopback", "Audio backend");
     }
     Ok(ok)
 }
@@ -1175,15 +1238,7 @@ fn choose_remove_mode() -> Result<RemoveMode> {
 }
 
 fn safe_remove(path: &Path, allowed: &[&Path]) -> Result<()> {
-    if !allowed.iter().any(|root| path.starts_with(root)) {
-        bail!("refusing to remove unmanaged path {}", path.display());
-    }
-    if path.is_symlink() || path.is_file() {
-        fs::remove_file(path)?;
-    } else if path.is_dir() {
-        fs::remove_dir_all(path)?;
-    }
-    Ok(())
+    filesystem::safe_remove(path, allowed)
 }
 
 pub fn uninstall(paths: &Paths, requested: Option<RemoveMode>) -> Result<()> {
@@ -1324,7 +1379,12 @@ mod tests {
     fn failed_health_check_is_injectable_at_transaction_boundary() {
         let (_directory, paths) = test_paths();
         std::env::set_var("SOLOIST_DISPLAY_FAULT", "health_check");
-        assert!(wait_for_install_health(&paths, &SoloistState::default()).is_err());
+        assert!(wait_for_install_health(
+            &paths,
+            &Platform::detect().unwrap(),
+            &SoloistState::default()
+        )
+        .is_err());
         std::env::remove_var("SOLOIST_DISPLAY_FAULT");
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }

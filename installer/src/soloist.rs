@@ -1,6 +1,8 @@
 use crate::{
     engine_policy::{classify, EngineMode},
+    filesystem,
     paths::Paths,
+    platform::{OperatingSystem, Platform},
     process,
     release::{Artifact, ReleaseClient},
     service,
@@ -11,12 +13,12 @@ use flate2::read::GzDecoder;
 use std::{
     fs,
     io::{self, IsTerminal, Write},
-    os::unix::fs::{symlink, OpenOptionsExt, PermissionsExt},
     path::{Component, Path, PathBuf},
     process::Command,
     time::Duration,
 };
 use tar::Archive;
+use zip::ZipArchive;
 
 const DEFAULT_WS: &str = "ws://127.0.0.1:9090";
 
@@ -37,48 +39,32 @@ fn websocket_healthy(url: &str) -> bool {
     tungstenite::client(url.as_str(), stream).is_ok()
 }
 
-fn executable_from_service() -> Option<PathBuf> {
-    let output = Command::new("systemctl")
-        .args([
-            "--user",
-            "show",
-            "soloist.service",
-            "--property=ExecStart",
-            "--value",
-        ])
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let text = String::from_utf8_lossy(&output.stdout);
-    let token = text
-        .split(|character: char| character.is_whitespace() || character == '{' || character == ';')
-        .find(|part| part.ends_with("/soloist"))?;
-    let path = PathBuf::from(token);
-    path.is_file().then_some(path)
-}
-
 pub fn discover(paths: &Paths, installed: Option<&SoloistState>) -> SoloistState {
     let websocket_url = Some(DEFAULT_WS.to_owned());
+    let executable_name = if cfg!(windows) {
+        "soloist.exe"
+    } else {
+        "soloist"
+    };
     let candidates = [
         installed.and_then(|state| state.executable.clone()),
         paths
             .managed_soloist_current
-            .join("soloist")
+            .join(executable_name)
             .is_file()
-            .then(|| paths.managed_soloist_current.join("soloist")),
-        executable_from_service(),
-        Some(paths.home.join(".local/bin/soloist")),
-        process::exists("soloist").then(|| PathBuf::from("soloist")),
+            .then(|| paths.managed_soloist_current.join(executable_name)),
+        service::external_soloist_executable(),
+        Some(paths.home.join(".local/bin").join(executable_name)),
+        Some(paths.home.join("bin").join(executable_name)),
+        process::exists(executable_name).then(|| PathBuf::from(executable_name)),
     ];
     let executable = candidates
         .into_iter()
         .flatten()
-        .find(|candidate| candidate == Path::new("soloist") || candidate.is_file());
+        .find(|candidate| candidate == Path::new(executable_name) || candidate.is_file());
     let running = websocket_healthy(DEFAULT_WS);
-    let independent_service_exists =
-        paths.soloist_service.exists() && !installed.is_some_and(|state| state.service_owned);
+    let independent_service_exists = service::independent_soloist_service_exists(paths)
+        && !installed.is_some_and(|state| state.service_owned);
     let mode = classify(
         installed.is_some_and(|state| state.ownership == SoloistOwnership::Installer),
         executable.as_deref(),
@@ -166,12 +152,29 @@ pub fn configure(paths: &Paths, name: Option<String>, api_key: Option<String>) -
             env_quote(key.trim())?
         ),
     )?;
-    fs::set_permissions(&temporary, fs::Permissions::from_mode(0o600))?;
+    filesystem::set_private(&temporary)?;
     fs::rename(temporary, &paths.soloist_env)?;
     Ok(())
 }
 
-fn safe_extract_soloist(archive_path: &Path, destination: &Path) -> Result<()> {
+fn safe_extract_soloist(archive_path: &Path, destination: &Path, windows: bool) -> Result<()> {
+    if windows {
+        let file = fs::File::open(archive_path)?;
+        let mut archive = ZipArchive::new(file)?;
+        let mut entry = archive
+            .by_name("soloist.exe")
+            .context("Soloist executable is missing from its archive")?;
+        if entry.is_dir() || entry.enclosed_name().as_deref() != Some(Path::new("soloist.exe")) {
+            bail!("unsafe Soloist Windows archive layout");
+        }
+        let mut output = fs::OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(destination)?;
+        io::copy(&mut entry, &mut output)?;
+        output.sync_all()?;
+        return Ok(());
+    }
     let file = fs::File::open(archive_path)?;
     let mut archive = Archive::new(GzDecoder::new(file));
     let mut found = false;
@@ -190,11 +193,14 @@ fn safe_extract_soloist(archive_path: &Path, destination: &Path) -> Result<()> {
             if !entry.header().entry_type().is_file() {
                 bail!("Soloist archive executable is not a regular file");
             }
-            let mut output = fs::OpenOptions::new()
-                .create_new(true)
-                .write(true)
-                .mode(0o755)
-                .open(destination)?;
+            let mut options = fs::OpenOptions::new();
+            options.create_new(true).write(true);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                options.mode(0o755);
+            }
+            let mut output = options.open(destination)?;
             io::copy(&mut entry, &mut output)?;
             output.sync_all()?;
             found = true;
@@ -206,18 +212,34 @@ fn safe_extract_soloist(archive_path: &Path, destination: &Path) -> Result<()> {
     Ok(())
 }
 
-fn validate_soloist_elf(path: &Path, target: &str) -> Result<()> {
+fn validate_soloist_binary(path: &Path, target: &str) -> Result<()> {
     let bytes = fs::read(path)?;
-    if bytes.len() < 40 || &bytes[..4] != b"\x7fELF" || bytes[5] != 1 {
-        bail!("Spotify Soloist artifact is not a supported little-endian ELF executable");
-    }
-    let machine = u16::from_le_bytes([bytes[18], bytes[19]]);
     let valid = match target {
-        "x86_64" => bytes[4] == 2 && machine == 62,
-        "arm64" => bytes[4] == 2 && machine == 183,
-        "arm32" => {
+        "linux-x86_64" => {
+            bytes.len() >= 40
+                && &bytes[..4] == b"\x7fELF"
+                && bytes[4] == 2
+                && u16::from_le_bytes([bytes[18], bytes[19]]) == 62
+        }
+        "linux-arm64" => {
+            bytes.len() >= 40
+                && &bytes[..4] == b"\x7fELF"
+                && bytes[4] == 2
+                && u16::from_le_bytes([bytes[18], bytes[19]]) == 183
+        }
+        "linux-arm32" if bytes.len() >= 40 && &bytes[..4] == b"\x7fELF" => {
             let flags = u32::from_le_bytes(bytes[36..40].try_into()?);
-            bytes[4] == 1 && machine == 40 && flags & 0x400 != 0
+            bytes[4] == 1 && u16::from_le_bytes([bytes[18], bytes[19]]) == 40 && flags & 0x400 != 0
+        }
+        "windows-x86_64" if bytes.len() >= 0x40 && &bytes[..2] == b"MZ" => {
+            let offset = u32::from_le_bytes(bytes[0x3c..0x40].try_into()?) as usize;
+            bytes.get(offset..offset + 6).is_some_and(|header| {
+                &header[..4] == b"PE\0\0" && u16::from_le_bytes([header[4], header[5]]) == 0x8664
+            })
+        }
+        "macos-arm64" if bytes.len() >= 8 => {
+            u32::from_le_bytes(bytes[..4].try_into()?) == 0xfeedfacf
+                && u32::from_le_bytes(bytes[4..8].try_into()?) == 0x0100000c
         }
         _ => false,
     };
@@ -229,6 +251,7 @@ fn validate_soloist_elf(path: &Path, target: &str) -> Result<()> {
 
 pub fn install(
     paths: &Paths,
+    platform: &Platform,
     client: &ReleaseClient,
     artifact: &Artifact,
     version: &str,
@@ -250,28 +273,33 @@ pub fn install(
     }
     let archive_path = paths
         .cache
-        .join(format!("soloist-{}.tar.gz.part", std::process::id()));
+        .join(format!("soloist-{}.part", std::process::id()));
     if archive_path.exists() {
         fs::remove_file(&archive_path)?;
     }
     client.download(artifact, &archive_path)?;
-    let executable = version_dir.join("soloist");
-    let staged_executable = version_dir.join(format!(".soloist.{}.part", std::process::id()));
+    let executable_name = if matches!(platform.os, OperatingSystem::Windows) {
+        "soloist.exe"
+    } else {
+        "soloist"
+    };
+    let executable = version_dir.join(executable_name);
+    let staged_executable =
+        version_dir.join(format!(".{executable_name}.{}.part", std::process::id()));
     if staged_executable.exists() {
         fs::remove_file(&staged_executable)?;
     }
-    safe_extract_soloist(&archive_path, &staged_executable)?;
-    validate_soloist_elf(&staged_executable, &artifact.target)?;
+    safe_extract_soloist(
+        &archive_path,
+        &staged_executable,
+        matches!(platform.os, OperatingSystem::Windows),
+    )?;
+    validate_soloist_binary(&staged_executable, &artifact.target)?;
+    filesystem::set_executable(&staged_executable)?;
     fs::rename(&staged_executable, &executable)?;
     fs::remove_file(&archive_path).ok();
-    let temporary = paths
-        .managed_soloist
-        .join(format!(".current.{}", std::process::id()));
-    let relative = PathBuf::from(version);
-    symlink(relative, &temporary)?;
-    fs::rename(&temporary, &paths.managed_soloist_current)?;
-    fs::File::open(&paths.managed_soloist)?.sync_all()?;
-    service::install_soloist(paths, &paths.managed_soloist_current.join("soloist"))?;
+    filesystem::atomic_activate(&version_dir, &paths.managed_soloist_current)?;
+    service::install_soloist(paths, &paths.managed_soloist_current.join(executable_name))?;
     Ok(SoloistState {
         ownership: SoloistOwnership::Installer,
         executable: Some(executable),
@@ -286,7 +314,7 @@ pub fn install(
 /// Never replace an existing endpoint: independent Soloist installations may
 /// have their own configuration, which the installer must not take over.
 pub fn ensure_cli_discovery(paths: &Paths, state: &SoloistState) -> Result<()> {
-    if paths.is_test() || !healthy(state) {
+    if paths.is_test() || !healthy(state) || state.ownership != SoloistOwnership::Installer {
         return Ok(());
     }
     let Some(url) = state.websocket_url.as_deref() else {
@@ -329,11 +357,7 @@ pub fn start_existing(paths: &Paths, state: &SoloistState) -> Result<()> {
         return Ok(());
     }
     if state.ownership == SoloistOwnership::Independent {
-        if !paths.is_test() {
-            let _ = Command::new("systemctl")
-                .args(["--user", "start", "soloist.service"])
-                .status();
-        }
+        service::start_external_soloist(paths);
         for _ in 0..20 {
             if healthy(state) {
                 return Ok(());
@@ -343,6 +367,69 @@ pub fn start_existing(paths: &Paths, state: &SoloistState) -> Result<()> {
         if !healthy(state) {
             return Err(anyhow!("Soloist is installed but its WebSocket is unavailable at 127.0.0.1:9090; start the existing installation, then run `soloist-display repair`"));
         }
+    }
+    Ok(())
+}
+
+fn unquote_env(value: &str) -> Result<String> {
+    let value = value
+        .strip_prefix('"')
+        .and_then(|value| value.strip_suffix('"'))
+        .unwrap_or(value);
+    let mut output = String::new();
+    let mut escaped = false;
+    for character in value.chars() {
+        if escaped {
+            output.push(character);
+            escaped = false;
+        } else if character == '\\' {
+            escaped = true;
+        } else {
+            output.push(character);
+        }
+    }
+    if escaped {
+        bail!("invalid trailing escape in Soloist configuration");
+    }
+    Ok(output)
+}
+
+pub fn run_managed(paths: &Paths, executable: &Path) -> Result<()> {
+    if !filesystem::canonical_contained(executable, &paths.managed_soloist) {
+        bail!("refusing to run Soloist outside the installer-owned directory");
+    }
+    let contents =
+        fs::read_to_string(&paths.soloist_env).context("read managed Soloist credentials")?;
+    let mut name = None;
+    let mut key = None;
+    for line in contents.lines() {
+        if let Some((field, value)) = line.split_once('=') {
+            match field {
+                "SOLOIST_NAME" => name = Some(unquote_env(value)?),
+                "SOLOIST_API_KEY" => key = Some(unquote_env(value)?),
+                _ => {}
+            }
+        }
+    }
+    let name = name.context("managed Soloist device name is missing")?;
+    let key = key.context("managed Soloist API key is missing")?;
+    let status = Command::new(executable)
+        .args([
+            "--device-name",
+            &name,
+            "--api-key",
+            &key,
+            "--ws",
+            "127.0.0.1:9090",
+            "--data-dir",
+        ])
+        .arg(&paths.soloist_data)
+        .arg("--cache-dir")
+        .arg(&paths.soloist_cache)
+        .status()
+        .context("start managed Spotify Soloist")?;
+    if !status.success() {
+        bail!("managed Spotify Soloist exited with {status}");
     }
     Ok(())
 }

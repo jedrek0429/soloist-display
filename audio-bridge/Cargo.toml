@@ -6,10 +6,17 @@ license.workspace = true
 description = "Local PipeWire audio capture and real-time six-band FFT bridge"
 
 [dependencies]
+anyhow = "1"
 tokio = { version = "1", features = ["full"] }
 tokio-tungstenite = "0.30"
 futures-util = "0.3"
 rustfft = "6"
 axum = "0.7"
 serde_json = "1"
+
+[target.'cfg(windows)'.dependencies]
+wasapi = "0.26"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+screencapturekit = { version = "11.1", features = ["macos_13_0"] }
 

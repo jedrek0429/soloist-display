@@ -1,5 +1,6 @@
 mod dependencies;
 mod engine_policy;
+mod filesystem;
 mod lock;
 mod manager;
 mod migrations;
@@ -21,7 +22,7 @@ use platform::Platform;
 use std::{
     fs,
     io::{IsTerminal, Write},
-    os::unix::fs::OpenOptionsExt,
+    path::PathBuf,
     time::Duration,
 };
 
@@ -53,6 +54,11 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Command {
+    #[command(hide = true)]
+    EngineService {
+        #[arg(long)]
+        executable: PathBuf,
+    },
     /// Generate shell completion script (e.g. `soloist-display completions zsh`).
     Completions { shell: Shell },
     /// Install Soloist Display and, when absent, Spotify Soloist.
@@ -114,6 +120,7 @@ fn run() -> Result<i32> {
         },
     };
     match command {
+        Command::EngineService { executable } => soloist::run_managed(&paths, &executable)?,
         Command::Install {
             device_name,
             api_key,
@@ -163,12 +170,14 @@ fn main() {
             if let Ok(paths) = Paths::discover() {
                 if fs::create_dir_all(&paths.logs).is_ok() {
                     let log = paths.logs.join("installer.log");
-                    if let Ok(mut file) = fs::OpenOptions::new()
-                        .create(true)
-                        .append(true)
-                        .mode(0o600)
-                        .open(&log)
+                    let mut options = fs::OpenOptions::new();
+                    options.create(true).append(true);
+                    #[cfg(unix)]
                     {
+                        use std::os::unix::fs::OpenOptionsExt;
+                        options.mode(0o600);
+                    }
+                    if let Ok(mut file) = options.open(&log) {
                         let _ = writeln!(file, "{}: {error:#}", state::now());
                         eprintln!("  Log: {}", log.display());
                     }

@@ -65,6 +65,7 @@ jobs:
           shellcheck /tmp/bootstrap-test/install.sh
           grep -Fq "PIN_RELEASE_BASE='https://github.com/jedrek0429/soloist-display/releases/download/v0.0.0'" /tmp/bootstrap-test/install.sh
           ! grep -q '@SOLOIST_DISPLAY_' /tmp/bootstrap-test/install.sh
+          sh scripts/test-bootstrap-e2e.sh
       - name: CLI smoke test
         run: |
           cargo build --workspace

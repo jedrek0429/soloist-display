@@ -339,6 +339,20 @@ pub fn recover(paths: &Paths) -> Result<()> {
     Ok(())
 }
 
+fn install_step(quiet: bool, step: usize, label: &str) {
+    if quiet { return; }
+    let color = std::io::stderr().is_terminal()
+        && std::env::var_os("NO_COLOR").is_none();
+    let width = 24usize;
+    let filled = step * width / 4;
+    let bar = format!("{}{}", "━".repeat(filled), "─".repeat(width - filled));
+    if color {
+        eprintln!("  \\x1b[36m{bar}\\x1b[0m  {step}/4  {label}");
+    } else {
+        eprintln!("  [{bar}]  {step}/4  {label}");
+    }
+}
+
 pub fn install(
     paths: &Paths,
     platform: &Platform,
@@ -371,12 +385,8 @@ pub fn install(
                 "existing installation is stopped or incomplete"
             }
         };
-        eprintln!(
-            "  System   {}\n  Soloist  {}\n  Layout   {}",
-            platform.label,
-            status,
-            paths.root.display()
-        );
+        eprintln!("  Soloist Display · {}", platform.label);
+        eprintln!("  Soloist: {status}");
     }
     // A failed first install can leave our systemd unit running while the
     // transaction rolls back before writing installation metadata. Reclaim
@@ -427,7 +437,7 @@ pub fn install(
     }
     transaction.persist(&journal_path)?;
     if !quiet {
-        eprintln!("  Dependencies  checking runtime packages");
+        install_step(false, 1, "Checking dependencies");
     }
     let packages = match dependencies::install(platform, quiet) {
         Ok(packages) => packages,
@@ -437,7 +447,7 @@ pub fn install(
         }
     };
     if !quiet {
-        eprintln!("  Release       downloading and verifying signed artifacts");
+        install_step(false, 2, "Downloading & verifying");
     }
     let client = ReleaseClient::new()?;
     let (manifest, _) = match client.latest() {
@@ -485,13 +495,13 @@ pub fn install(
         soloist::ensure_cli_discovery(paths, &soloist_state)?;
         transaction.set_status(&journal_path, TransactionStatus::Services)?;
         if !quiet {
-            eprintln!("  Services      configuring systemd user units");
+            install_step(false, 3, "Starting services");
         }
         service::install_display(paths)?;
         let desktop = desktop_files(paths)?;
         transaction.set_status(&journal_path, TransactionStatus::HealthCheck)?;
         if !quiet {
-            eprintln!("  Health        checking Soloist, display, and audio");
+            install_step(false, 4, "Checking health");
         }
         wait_for_install_health(paths, &soloist_state)?;
         let mut managed = vec![paths.visible_command.clone(), paths.display_service.clone()];

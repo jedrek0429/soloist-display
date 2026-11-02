@@ -39,8 +39,6 @@ git clone https://github.com/jedrek0429/soloist-display.git
 cd soloist-display
 ```
 
-Arch users can alternatively install the display with `makepkg -si` after setting up Soloist.
-
 #### Ubuntu / Debian
 
 ```sh
@@ -98,6 +96,8 @@ Once Soloist is installed, run:
 ```sh
 bash packaging/install.sh
 ```
+
+Arch users can alternatively install the display with `makepkg -si`.
 
 ## Run
 

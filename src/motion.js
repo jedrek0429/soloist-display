@@ -198,7 +198,7 @@ export class DiscDirector{
     }
     if(style==='fly'){
       incoming.style.transform='translate(55%,-115%) scale(.72) rotateX(65deg)';
-      jobs.push(this.after(this.settings.transitionDelay,token,()=>this.animate(outgoing,[{transform:'translate(-50%,-50%) scale(1) rotateX(0deg)'},{transform:'translate(-145%,-98%) scale(.72) rotateX(65deg)'}],duration/2,token));
+      jobs.push(this.after(this.settings.transitionDelay,token,()=>this.animate(outgoing,[{transform:'translate(-50%,-50%) scale(1) rotateX(0deg)'},{transform:'translate(-145%,-98%) scale(.72) rotateX(65deg)'}],duration/2,token)));
       jobs.push((async()=>{
         await delay(this.settings.transitionDelay+duration/2);
         if(token!==this.token)return false;

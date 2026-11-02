@@ -43,17 +43,41 @@ const sections=[
     title:'Motion',
     fields:[
       ['changeDiscOn','Change disc on','select',['song','album']],
-      ['transitionStyle','Disc transition','select',['fly','slide','fade','off']],
-      ['sleeveTransitionStyle','Sleeve animation','select',['in-out','off']],
-      ['sleeveDuration','Sleeve duration','range',100,10000,50,'ms'],
-      ['sleeveAlignment','Sleeve alignment','select',['left','center']],
-      ['backdropTransitionStyle','Backdrop transition','select',['fade','off']],
-      ['panelTransitionStyle','Panel transition','select',['slide','fade','off']],
-      ['transitionDuration','Disc duration','range',100,10000,50,'ms'],
-      ['backdropTransitionDuration','Backdrop duration','range',100,10000,50,'ms'],
-      ['panelTransitionDuration','Panel duration','range',100,10000,50,'ms'],
       ['discRotationSeconds','Rotation speed','range',1,120,1,'sec'],
       ['reducedMotion','Reduced motion','toggle']
+    ]
+  },
+  {
+    title:'Sleeve motion',
+    fields:[
+      ['sleeveTransitionStyle','Animation','select',['in-out','off']],
+      ['sleeveAlignment','Alignment','select',['left','center']],
+      ['sleeveDuration','Duration','range',100,10000,50,'ms'],
+      ['sleeveDelay','Delay','range',0,10000,50,'ms']
+    ]
+  },
+  {
+    title:'Disc motion',
+    fields:[
+      ['transitionStyle','Transition','select',['fly','slide','fade','off']],
+      ['transitionDuration','Duration','range',100,10000,50,'ms'],
+      ['transitionDelay','Delay','range',0,10000,50,'ms']
+    ]
+  },
+  {
+    title:'Backdrop motion',
+    fields:[
+      ['backdropTransitionStyle','Transition','select',['fade','off']],
+      ['backdropTransitionDuration','Duration','range',100,10000,50,'ms'],
+      ['backdropTransitionDelay','Delay','range',0,10000,50,'ms']
+    ]
+  },
+  {
+    title:'Panel motion',
+    fields:[
+      ['panelTransitionStyle','Transition','select',['slide','fade','off']],
+      ['panelTransitionDuration','Duration','range',100,10000,50,'ms'],
+      ['panelTransitionDelay','Delay','range',0,10000,50,'ms']
     ]
   },
   {
@@ -109,12 +133,16 @@ function renderNav(){
 function renderSection(){
   const hidden=key=>(key==='cdCoverSide'&&draft.discAppearance!=='cd-cover')||
     (key==='vinylGrooveDensity'&&!['vinyl','vinyl-cover'].includes(draft.discAppearance))||
-    (key==='transitionStyle'&&isCover(draft.discAppearance))||
-    (key==='sleeveTransitionStyle'&&!isCover(draft.discAppearance))||
-    (key==='sleeveDuration'&&(!isCover(draft.discAppearance)||draft.sleeveTransitionStyle==='off'))||
+    (activeSection===5&&!isCover(draft.discAppearance))||
+    
+    (key==='sleeveDuration'&&draft.sleeveTransitionStyle==='off')||
+    (key==='sleeveDelay'&&draft.sleeveTransitionStyle==='off')||
     (key==='sleeveAlignment'&&!isCover(draft.discAppearance))||
     (key==='timeLayout'&&draft.timeDisplay==='off')||
     (key==='transitionDuration'&&draft.transitionStyle==='off')||
+    (key==='transitionDelay'&&draft.transitionStyle==='off')||
+    (key==='backdropTransitionDelay'&&draft.backdropTransitionStyle==='off')||
+    (key==='panelTransitionDelay'&&draft.panelTransitionStyle==='off')||
     (key==='backdropTransitionDuration'&&draft.backdropTransitionStyle==='off')||
     (key==='panelTransitionDuration'&&draft.panelTransitionStyle==='off');
   const section=sections[activeSection];

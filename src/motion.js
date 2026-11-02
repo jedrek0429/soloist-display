@@ -1,0 +1,242 @@
+const imageStyle=url=>url?'url('+JSON.stringify(url)+')':'none';
+function preload(url){
+  return new Promise(resolve=>{
+    if(!url)return resolve();
+    const img=new Image();let finished=false;
+    const done=()=>{if(!finished){finished=true;resolve()}};
+    img.onload=done;img.onerror=done;img.src=url;setTimeout(done,1500);
+  });
+}
+const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+export class DiscDirector{
+  constructor({discs,backdrops,info,settings={}}){
+    this.settings={discRotationSeconds:12,transitionDuration:2000,backdropTransitionStyle:'fade',backdropTransitionDuration:2000,transitionStyle:'fly',sleeveTransitionStyle:'in-out',panelTransitionStyle:'slide',panelTransitionDuration:2050,reducedMotion:false,...settings};
+    this.motionEnabled=!this.settings.reducedMotion;
+    this.discs=discs;this.backdrops=backdrops;this.info=info;
+    this.current=0;this.token=0;this.started=false;this.angle=0;
+    this.velocity=0;this.playing=false;this.changing=false;this.last=performance.now();
+    this.pendingShow=null;this.fadeTimer=null;this.animations=new Set();this.panelAnimation=null;this.panelToken=0;
+    requestAnimationFrame(t=>this.spin(t));
+  }
+  spin(now){
+    const dt=Math.min(.08,(now-this.last)/1000);this.last=now;
+    const sleeve=document.documentElement.dataset.discAppearance==='vinyl-cover';
+    const target=(this.changing&&!sleeve)?0:this.playing?Math.PI*2/this.settings.discRotationSeconds:0;
+    this.velocity+=(target-this.velocity)*(1-Math.exp(-dt*(this.changing?12:5)));
+    this.angle=(this.angle+this.velocity*dt)%(2*Math.PI);
+    for(const disc of this.discs)disc.querySelector('.rotor').style.transform=`rotate(${disc.dataset.angleOffset?this.angle-Number(disc.dataset.angleOffset):this.angle}rad)`;
+    requestAnimationFrame(t=>this.spin(t));
+  }
+  setPlaying(value){this.playing=value}
+  animate(element,keyframes,duration,token){
+    if(duration<=0){Object.assign(element.style,keyframes.at(-1));return Promise.resolve(true)}
+    return new Promise(resolve=>{
+      const animation=element.animate(keyframes,{duration,easing:'ease-in-out',fill:'forwards'});
+      this.animations.add(animation);
+      const finish=()=>{
+        this.animations.delete(animation);
+        if(token===this.token){try{animation.commitStyles?.()}catch{}animation.cancel();resolve(true)}
+        else{animation.cancel();resolve(false)}
+      };
+      // A timer rather than animation.finished avoids compositor stalls on CRT browsers.
+      setTimeout(finish,duration+35);
+    });
+  }
+  fadeBackdrop(outgoing,incoming,duration,token){
+    if(duration<=0){incoming.style.opacity='1';return Promise.resolve(true)}
+    return new Promise(resolve=>{
+      // CSS crossfade keeps the old image fully opaque beneath the incoming one.
+      // Avoid WAAPI commitStyles()/cancel(), which can expose a frame of the wrong image.
+      incoming.style.transition='none';
+      incoming.style.opacity='0';
+      outgoing.style.transition='none';
+      outgoing.style.opacity='1';
+      void incoming.offsetWidth;
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        if(token!==this.token){resolve(false);return}
+        incoming.style.transition=`opacity ${duration}ms ease-in-out`;
+        incoming.style.opacity='1';
+      }));
+      setTimeout(()=>resolve(token===this.token),duration+60);
+    });
+  }
+  async transitionPanel(show){
+    const token=++this.panelToken;
+    this.panelAnimation?.cancel();
+    this.panelAnimation=null;
+    this.info.classList.remove('metadata-exiting','metadata-entering','revealing');
+    this.info.style.transform='';
+    this.info.style.opacity='';
+    const style=this.motionEnabled?this.settings.panelTransitionStyle:'off';
+    const duration=this.motionEnabled?this.settings.panelTransitionDuration:0;
+    if(style==='off'||duration<=0){show();return}
+    const half=duration/2;
+    const distance='calc(100% + 6vh + 60px)';
+    const exit=style==='slide'
+      ?[{transform:'translateY(0)',opacity:1},{transform:`translateY(${distance})`,opacity:1}]
+      :[{opacity:1},{opacity:0}];
+    const enter=style==='slide'
+      ?[{transform:`translateY(${distance})`,opacity:1},{transform:'translateY(0)',opacity:1}]
+      :[{opacity:0},{opacity:1}];
+    const run=frames=>new Promise(resolve=>{
+      const animation=this.info.animate(frames,{duration:half,easing:'ease-in-out',fill:'forwards'});
+      this.panelAnimation=animation;
+      animation.onfinish=()=>resolve(true);
+      animation.oncancel=()=>resolve(false);
+    });
+    if(!await run(exit)||token!==this.panelToken)return;
+    // Swap the text only after the old panel has fully left the screen.
+    show();
+    this.panelAnimation?.cancel();
+    if(token!==this.panelToken)return;
+    await run(enter);
+    if(token!==this.panelToken)return;
+    this.panelAnimation?.cancel();
+    this.panelAnimation=null;
+    this.info.style.transform='';
+    this.info.style.opacity='';
+  }
+  changePanel(onShow){
+    // Leave disc, backdrop, rotation and pending disc transitions untouched.
+    void this.transitionPanel(onShow);
+  }
+  async changeSleeve(url,onShow,token){
+    const outgoing=this.discs[this.current];
+    const incoming=this.discs[1-this.current];
+    const previousBg=this.backdrops[this.current];
+    const nextBg=this.backdrops[1-this.current];
+    const oldTrack=outgoing.querySelector('.record-track');
+    const newTrack=incoming.querySelector('.record-track');
+    incoming.querySelector('.disc-label').style.backgroundImage=imageStyle(url);
+    incoming.querySelector('.record-sleeve').style.backgroundImage=imageStyle(url);
+    nextBg.style.backgroundImage=imageStyle(url);
+    newTrack.style.transform='translateX(0)';
+    incoming.dataset.angleOffset=String(this.angle);
+    if(!this.started){
+      this.started=true;
+      outgoing.classList.remove('active');
+      incoming.classList.add('active');
+      newTrack.style.transform='translateX(50%)';
+      this.current=1-this.current;
+      nextBg.classList.add('active');
+      nextBg.style.opacity='1';
+      onShow();
+      return;
+    }
+    const duration=this.motionEnabled&&this.settings.sleeveTransitionStyle!=='off'?this.settings.transitionDuration:0;
+    const half=duration/2;
+    this.changing=true;
+    void this.transitionPanel(onShow);
+    if(half){
+      await this.animate(oldTrack,[{transform:'translateX(50%)'},{transform:'translateX(0)'}],half,token);
+      if(token!==this.token)return;
+    }
+    oldTrack.style.transform='translateX(0)';
+    outgoing.classList.remove('active');
+    incoming.classList.add('active');
+    previousBg.style.zIndex='1';
+    nextBg.style.zIndex='2';
+    nextBg.classList.add('active');
+    const bgDuration=this.motionEnabled&&this.settings.backdropTransitionStyle==='fade'?this.settings.backdropTransitionDuration:0;
+    const bgJob=bgDuration?this.fadeBackdrop(previousBg,nextBg,bgDuration,token):Promise.resolve(true);
+    if(!bgDuration){nextBg.style.opacity='1';previousBg.style.opacity='0'}
+    if(half){
+      await this.animate(newTrack,[{transform:'translateX(0)'},{transform:'translateX(50%)'}],half,token);
+      if(token!==this.token)return;
+    }
+    newTrack.style.transform='translateX(50%)';
+    await bgJob;
+    if(token!==this.token)return;
+    previousBg.classList.remove('active');
+    previousBg.style.opacity='0';
+    nextBg.style.opacity='1';
+    nextBg.style.zIndex='';
+    previousBg.style.zIndex='';
+    this.current=1-this.current;
+    this.changing=false;
+  }
+  async change(url,onShow){
+    this.pendingShow=null;
+    const token=++this.token;
+    for(const animation of this.animations)animation.cancel();
+    this.animations.clear();
+    clearTimeout(this.fadeTimer);
+    this.changing=false;
+    await preload(url);
+    if(token!==this.token)return;
+    if(document.documentElement.dataset.discAppearance==='vinyl-cover'){
+      await this.changeSleeve(url,onShow,token);
+      return;
+    }
+    const outgoingIndex=this.current;
+    const incomingIndex=this.started?1-outgoingIndex:outgoingIndex;
+    const outgoing=this.discs[outgoingIndex],incoming=this.discs[incomingIndex];
+    const previousBg=this.backdrops[outgoingIndex],nextBg=this.backdrops[incomingIndex];
+    for(const disc of this.discs){disc.style.transform='';disc.style.opacity='';disc.classList.remove('active')}
+    for(const bg of this.backdrops){bg.style.transition='none';bg.style.transform='';bg.style.opacity=bg===previousBg?'1':'0';bg.style.zIndex='';}
+    incoming.querySelector('.disc-image').style.backgroundImage=imageStyle(url);
+    incoming.querySelector('.disc-label').style.backgroundImage=imageStyle(url);
+    incoming.dataset.angleOffset=String(this.angle);
+    nextBg.style.backgroundImage=imageStyle(url);
+    const commit=()=>{
+      if(token!==this.token)return;
+      this.current=incomingIndex;
+      outgoing.classList.remove('active');
+      incoming.classList.add('active');
+      outgoing.style.transform='';outgoing.style.opacity='';
+      incoming.style.transform='';incoming.style.opacity='';
+      previousBg.classList.remove('active');nextBg.classList.add('active');
+      previousBg.style.transform='';previousBg.style.transition='none';previousBg.style.opacity='0';
+      nextBg.style.transform='';nextBg.style.transition='none';nextBg.style.opacity='1';
+      this.changing=false;this.pendingShow=null;
+
+    };
+    if(!this.started){this.started=true;commit();onShow();return}
+    // Panel timing is independent of the disc and backdrop transitions.
+    void this.transitionPanel(onShow);
+    const duration=this.motionEnabled?this.settings.transitionDuration:0;
+    const discStyle=this.motionEnabled?this.settings.transitionStyle:'off';
+    const backdropStyle=this.motionEnabled?this.settings.backdropTransitionStyle:'off';
+    const backdropDuration=this.motionEnabled?(this.settings.backdropTransitionDuration):0;
+    this.changing=discStyle==='slide'||discStyle==='fly';
+    this.pendingShow=commit;
+    outgoing.classList.add('active');incoming.classList.add('active');
+    previousBg.classList.add('active');nextBg.classList.add('active');
+    // The outgoing backdrop stays underneath until the incoming image is fully opaque.
+    previousBg.style.zIndex='1';nextBg.style.zIndex='2';
+    if(discStyle==='fade')incoming.style.opacity='0';
+    if(discStyle==='slide')incoming.style.transform='translate(65%,-50%)';
+    if(discStyle==='fly')incoming.style.transform='translate(55%,-115%) scale(.72) rotateX(65deg)';
+    if(backdropStyle==='fade')nextBg.style.opacity='0';
+    // Ensure the initial frame is committed before starting the animations.
+    void incoming.offsetWidth;
+    const jobs=[];
+    if(discStyle==='fade')jobs.push(this.animate(incoming,[{opacity:0},{opacity:1}],duration,token));
+    if(discStyle==='slide'){
+      jobs.push(this.animate(outgoing,[{transform:'translate(-50%,-50%)'},{transform:'translate(-165%,-50%)'}],duration,token));
+      jobs.push(this.animate(incoming,[{transform:'translate(65%,-50%)'},{transform:'translate(-50%,-50%)'}],duration,token));
+    }
+    if(discStyle==='fly'){
+      jobs.push(this.animate(outgoing,[{transform:'translate(-50%,-50%) scale(1) rotateX(0deg)'},{transform:'translate(-145%,-98%) scale(.72) rotateX(65deg)'}],duration*.5,token));
+      jobs.push((async()=>{
+        await delay(duration*.5);
+        if(token!==this.token)return false;
+        return this.animate(incoming,[{transform:'translate(55%,-115%) scale(.72) rotateX(65deg)'},{transform:'translate(-50%,-50%) scale(1) rotateX(0deg)'}],duration*.5,token);
+      })());
+    }
+    if(backdropStyle==='fade'){
+      jobs.push(this.fadeBackdrop(previousBg,nextBg,backdropDuration,token));
+    }else{
+      nextBg.style.opacity='1';
+      previousBg.style.opacity='0';
+    }
+    if(discStyle==='off'){
+      // Disc changes immediately even when the backdrop continues fading.
+      outgoing.classList.remove('active');incoming.classList.add('active');
+      this.current=incomingIndex;
+    }
+    if(discStyle==='off'&&backdropStyle==='off'){commit();return}
+    await Promise.all(jobs);
+    if(token===this.token)commit();
+  }
+}

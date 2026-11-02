@@ -6,10 +6,10 @@ license.workspace = true
 description = "Local PipeWire audio capture and real-time six-band FFT bridge"
 
 [dependencies]
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", default-features = false, features = ["macros", "rt-multi-thread", "net", "process", "sync", "time", "io-util"] }
 tokio-tungstenite = "0.30"
 futures-util = "0.3"
 rustfft = "6"
-axum = "0.7"
+axum = { version = "0.7", default-features = false, features = ["http1", "json", "tokio"] }
 serde_json = "1"
 

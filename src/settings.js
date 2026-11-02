@@ -23,6 +23,7 @@ const sections=[
   {
     title:'Panel',
     fields:[
+      ['panelEnabled','Enabled','toggle'],
       ['metadataOpacity','Opacity','range',0,1,.01],
       ['metadataScale','Scale','range',.5,2,.05,'×'],
       ['panelPosition','Position','select',['bottom-right','bottom-left','top-right','top-left']],
@@ -162,7 +163,9 @@ function renderSection(){
     activeSection=sections.findIndex(section=>section.title==='Disc motion');
     renderNav();
   }
-  const hidden=key=>(key==='cdCoverSide'&&draft.discAppearance!=='cd-cover')||
+  const hidden=key=>
+    (sections[activeSection].title==='Panel'&&key!=='panelEnabled'&&draft.panelEnabled===false)||
+    (sections[activeSection].title==='Panel motion'&&draft.panelEnabled===false)||(key==='cdCoverSide'&&draft.discAppearance!=='cd-cover')||
     (['centerHole','centerHoleColor','discRotationSeconds'].includes(key)&&draft.discAppearance==='album-cover')||
     (key==='vinylGrooveDensity'&&!['vinyl','vinyl-cover'].includes(draft.discAppearance))||
     (sections[activeSection].title==='Sleeve motion'&&!isCover(draft.discAppearance))||
@@ -241,6 +244,7 @@ function renderSection(){
     };
     input.addEventListener('input',()=>{
       refresh();
+      if(key==='panelEnabled')renderSection();
       status.textContent='Unsaved changes';
     });
     if(key!=='centerHole')refresh();else output.textContent=format(Number(input.value),suffix);

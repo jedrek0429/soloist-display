@@ -5,6 +5,7 @@ mod migrations;
 mod paths;
 mod platform;
 mod process;
+mod terminal;
 mod release;
 mod service;
 mod soloist;
@@ -86,6 +87,7 @@ fn locked<T>(paths: &Paths, operation: impl FnOnce() -> Result<T>) -> Result<T> 
 
 fn run() -> Result<i32> {
     let cli = Cli::parse();
+    terminal::configure(cli.quiet, cli.verbose);
     if cli.no_color {
         std::env::set_var("NO_COLOR", "1");
     }
@@ -138,7 +140,7 @@ fn run() -> Result<i32> {
                 return Ok(1);
             }
         }
-        Command::Uninstall { mode } => locked(&paths, || manager::uninstall(&paths, mode))?,
+        Command::Uninstall { mode } => locked(&paths, || manager::uninstall(&paths, mode, cli.quiet))?,
     }
     Ok(0)
 }
@@ -155,9 +157,9 @@ fn main() {
                 || !std::io::stderr().is_terminal()
                 || std::env::var("TERM").as_deref() == Ok("dumb");
             if plain {
-                eprintln!("  error  {error}");
+                eprintln!("  error  {error:#}");
             } else {
-                eprintln!("  \x1b[31m✗\x1b[0m {error}");
+                eprintln!("  \x1b[31m✗\x1b[0m {error:#}");
             }
             if let Ok(paths) = Paths::discover() {
                 if fs::create_dir_all(&paths.logs).is_ok() {
@@ -173,7 +175,7 @@ fn main() {
                     }
                 }
             }
-            if std::env::var_os("SOLOIST_DISPLAY_VERBOSE").is_some() {
+            if terminal::verbose() {
                 let executable = std::env::current_exe().ok();
                 if let Some(executable) = executable {
                     eprintln!("Diagnostics: {} doctor", executable.display());

@@ -2,6 +2,7 @@
   "soloistWebSocket": "ws://127.0.0.1:9090",
   "audioWebSocket": "ws://127.0.0.1:9091",
   "visualizer": true,
+  "panelEnabled": true,
   "visualizerSensitivity": 1,
   "visualizerSmoothing": 0.7,
   "discSize": 116,

@@ -55,6 +55,8 @@ root.dataset.cdCoverSide=config.cdCoverSide==='up'?'up':'down';
 root.style.setProperty('--vinyl-groove-spacing', (11-Math.max(1,Math.min(10,Number(config.vinylGrooveDensity)||5)))*1.1+'px');
 root.dataset.panelEnabled=settings.panelEnabled?'on':'off';
 root.dataset.panelPosition=['bottom-right','bottom-left','top-right','top-left'].includes(config.panelPosition)?config.panelPosition:'bottom-right';
+const opacityKey=({basic:'discOpacityBasic',cd:'discOpacityCd',vinyl:'discOpacityVinyl','vinyl-cover':'discOpacityVinylCover','cd-cover':root.dataset.cdCoverSide==='up'?'discOpacityCdCoverUp':'discOpacityCdCoverDown','album-cover':'discOpacityAlbumCover'})[root.dataset.discAppearance];
+root.style.setProperty('--disc-opacity',bounded(config[opacityKey],opacityKey==='discOpacityCdCoverDown'?.8:1,0,1));
 const holeKey='centerHole'+(['vinyl','vinyl-cover'].includes(root.dataset.discAppearance)?'Vinyl':['cd','cd-cover'].includes(root.dataset.discAppearance)?'Cd':'Basic');
 const holeSize=bounded(config[holeKey],['cd','cd-cover'].includes(root.dataset.discAppearance)?14:['vinyl','vinyl-cover'].includes(root.dataset.discAppearance)?.6:1,0,20);
 const colorKey=holeKey.replace('centerHole','centerHoleColor');

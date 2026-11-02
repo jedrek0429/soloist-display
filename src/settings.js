@@ -76,6 +76,7 @@ let activeSection=0;
 const isCover=style=>style==='vinyl-cover'||style==='cd-cover';
 const holeKey=style=>style==='vinyl-cover'?'centerHoleVinyl':style==='cd-cover'?'centerHoleCd':'centerHole'+style[0].toUpperCase()+style.slice(1);
 const selectedHoleKey=()=>holeKey(draft.discAppearance||'basic');
+const selectedSizeKey=()=>selectedHoleKey().replace('centerHole','discSize');
 const selectedHoleColorKey=()=>selectedHoleKey().replace('centerHole','centerHoleColor');
 
 function format(value,suffix=''){
@@ -158,7 +159,7 @@ function renderSection(){
       input.min=min;
       input.max=max;
       input.step=step;
-      input.value=(key==='centerHole'?draft[selectedHoleKey()]:draft[key])??min;
+      input.value=(key==='centerHole'?draft[selectedHoleKey()]:key==='discSize'?draft[selectedSizeKey()]:draft[key])??min;
       line.append(input);
     }else{
       input.type='text';
@@ -171,7 +172,7 @@ function renderSection(){
     output.htmlFor=key;
     const refresh=()=>{
       const value=type==='toggle'?input.checked:type==='range'?Number(input.value):input.value;
-      draft[key==='centerHole'?selectedHoleKey():key]=value;
+      draft[key==='centerHole'?selectedHoleKey():key==='discSize'?selectedSizeKey():key]=value;
       output.textContent=type==='toggle'?(value?'On':'Off'):type==='text'?'Local':format(value,suffix);
     };
     input.addEventListener('input',()=>{

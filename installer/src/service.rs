@@ -92,11 +92,9 @@ pub fn install_display(paths: &Paths) -> Result<()> {
         0o644,
     )?;
     systemctl(paths, &["daemon-reload"], true)?;
-    systemctl(
-        paths,
-        &["enable", "--now", "soloist-display.service"],
-        false,
-    )
+    // Restart the running bridge so embedded HTML/JS comes from the new release.
+    systemctl(paths, &["enable", "soloist-display.service"], true)?;
+    systemctl(paths, &["restart", "soloist-display.service"], false)
 }
 
 pub fn install_soloist(paths: &Paths, executable: &Path) -> Result<()> {

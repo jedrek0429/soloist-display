@@ -110,7 +110,7 @@ const selectedHoleKey=()=>holeKey(draft.discAppearance||'basic');
 const appearanceSuffix=()=>({basic:'Basic',cd:'Cd',vinyl:'Vinyl','vinyl-cover':'VinylCover','cd-cover':'CdCover','album-cover':'AlbumCover'})[draft.discAppearance||'vinyl-cover'];
 const selectedSizeKey=()=>`discSize${appearanceSuffix()}`;
 const presetKeys=new Set(['transitionStyle','transitionDuration','transitionDelay','sleeveTransitionStyle','sleeveAlignment','sleeveDuration','sleeveDelayIn','sleeveDelayOut']);
-const selectedFieldKey=key=>presetKeys.has(key)?key+appearanceSuffix():key;
+const selectedFieldKey=key=>presetKeys.has(key)&&(!key.startsWith('sleeve')||isCover(draft.discAppearance))?key+appearanceSuffix():key;
 const selectedValue=key=>draft[selectedFieldKey(key)]??draft[key];
 const selectedHoleColorKey=()=>selectedHoleKey().replace('centerHole','centerHoleColor');
 
@@ -273,6 +273,7 @@ async function load(){
   draft=await response.json();
   delete draft['centerHoleColorAlbum-cover'];
   delete draft['centerHoleAlbum-cover'];
+  for(const key of Object.keys(draft))if(/^sleeve(?:TransitionStyle|Alignment|Duration|DelayIn|DelayOut)AlbumCover$/.test(key))delete draft[key];
   draft.changeDiscOn=draft.changeDiscOn==='song'?'song':'album';
   draft.discAppearance ||= 'vinyl-cover';
   delete draft.backdropLinked;
@@ -291,6 +292,7 @@ document.querySelector('#save').addEventListener('click',async()=>{
     draft=await response.json();
     delete draft['centerHoleColorAlbum-cover'];
     delete draft['centerHoleAlbum-cover'];
+  for(const key of Object.keys(draft))if(/^sleeve(?:TransitionStyle|Alignment|Duration|DelayIn|DelayOut)AlbumCover$/.test(key))delete draft[key];
     draft.changeDiscOn=draft.changeDiscOn==='song'?'song':'album';
     delete draft.backdropLinked;
     for(const key of ['transitionStyle','backdropTransitionStyle','panelTransitionStyle'])if(draft[key]==='instant')draft[key]='off';

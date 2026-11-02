@@ -605,6 +605,13 @@ mod tests {
         assert_eq!(defaults["discOpacityCdCoverDown"], 0.7);
         assert_eq!(defaults["cdRainbow"], 0.5);
         assert_eq!(defaults["vinylLabelSize"], 34);
+        for key in [
+            "discSizeVinylCover",
+            "discSizeCdCover",
+            "discSizeAlbumCover",
+        ] {
+            assert_eq!(defaults[key], 75, "{key} should default to 75");
+        }
 
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("config.json");

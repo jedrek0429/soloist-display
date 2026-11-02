@@ -99,7 +99,8 @@ impl ReleaseClient {
         let base = if let Ok(custom) = std::env::var("SOLOIST_DISPLAY_RELEASE_BASE") {
             custom
         } else {
-            let requested = std::env::var("SOLOIST_DISPLAY_VERSION").unwrap_or_else(|_| "latest".into());
+            let requested =
+                std::env::var("SOLOIST_DISPLAY_VERSION").unwrap_or_else(|_| "latest".into());
             if requested == "latest" {
                 GITHUB_LATEST.into()
             } else {
@@ -108,7 +109,9 @@ impl ReleaseClient {
                 if parsed.to_string() != requested {
                     bail!("SOLOIST_DISPLAY_VERSION must be canonical X.Y.Z");
                 }
-                format!("https://github.com/jedrek0429/soloist-display/releases/download/v{requested}")
+                format!(
+                    "https://github.com/jedrek0429/soloist-display/releases/download/v{requested}"
+                )
             }
         };
         let manifest_url = format!("{}/release-manifest.json", base.trim_end_matches('/'));
@@ -122,7 +125,10 @@ impl ReleaseClient {
         let verified = self.verify_manifest(bytes, signature)?;
         if let Ok(requested) = std::env::var("SOLOIST_DISPLAY_VERSION") {
             if requested != "latest" && verified.0.version.to_string() != requested {
-                bail!("signed release version {} does not match requested {requested}", verified.0.version);
+                bail!(
+                    "signed release version {} does not match requested {requested}",
+                    verified.0.version
+                );
             }
         }
         Ok(verified)

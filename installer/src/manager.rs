@@ -521,81 +521,22 @@ pub fn recover(paths: &Paths) -> Result<()> {
     Ok(())
 }
 
+// All operation progress is emitted through the same terminal writer.
+// RAII guarantees cleanup on errors and early returns.
 struct Progress {
-    active: std::sync::Arc<std::sync::atomic::AtomicBool>,
-    stage: std::sync::Arc<std::sync::Mutex<(usize, &'static str)>>,
-    worker: Option<std::thread::JoinHandle<()>>,
     quiet: bool,
+    last_step: std::sync::atomic::AtomicUsize,
 }
 
 impl Progress {
-    fn new(quiet: bool, label: &'static str) -> Self {
-        use std::sync::{atomic::AtomicBool, Arc, Mutex};
-        let active = Arc::new(AtomicBool::new(true));
-        let stage = Arc::new(Mutex::new((0, label)));
-        let worker = if !quiet && io::stderr().is_terminal() {
-            let running = active.clone();
-            let current = stage.clone();
-            Some(thread::spawn(move || {
-                let frames = ["|", "/", "-", "\\"];
-                let color = env::var_os("NO_COLOR").is_none();
-                let mut tick = 0usize;
-                while running.load(std::sync::atomic::Ordering::Relaxed) {
-                    let (step, title) = *current.lock().unwrap();
-                    let filled = step * 20 / 4;
-                    let bar = format!("{}{}", "=".repeat(filled), "-".repeat(20 - filled));
-                    if color {
-                        eprint!(
-                            "\r\x1b[2K  \x1b[36m{} {}\x1b[0m  {}/4  {}",
-                            frames[tick % frames.len()],
-                            bar,
-                            step,
-                            title
-                        );
-                    } else {
-                        eprint!(
-                            "\r\x1b[2K  {} [{}]  {}/4  {}",
-                            frames[tick % frames.len()],
-                            bar,
-                            step,
-                            title
-                        );
-                    }
-                    let _ = io::stderr().flush();
-                    tick += 1;
-                    thread::sleep(Duration::from_millis(90));
-                }
-                eprint!("\r\x1b[2K");
-                let _ = io::stderr().flush();
-            }))
-        } else {
-            if !quiet {
-                eprintln!("  {label}");
-            }
-            None
-        };
-        Self {
-            active,
-            stage,
-            worker,
-            quiet,
-        }
+    fn new(quiet: bool, _label: &'static str) -> Self {
+        Self { quiet, last_step: std::sync::atomic::AtomicUsize::new(0) }
     }
 
     fn step(&self, number: usize, label: &'static str) {
-        *self.stage.lock().unwrap() = (number, label);
-        if self.worker.is_none() && !self.quiet {
-            eprintln!("  {number}/4  {label}");
-        }
-    }
-}
-
-impl Drop for Progress {
-    fn drop(&mut self) {
-        self.active
-            .store(false, std::sync::atomic::Ordering::Relaxed);
-        if let Some(worker) = self.worker.take() {
-            let _ = worker.join();
+        let previous = self.last_step.fetch_max(number, std::sync::atomic::Ordering::Relaxed);
+        if !self.quiet && number > previous {
+            crate::terminal::progress(number, 4, label);
         }
     }
 }
@@ -813,8 +754,6 @@ pub fn install(
 }
 
 pub fn update(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
-    let progress = Progress::new(quiet, "Updating Soloist Display");
-    progress.step(1, "Checking release");
     let state =
         InstallState::load(paths)?.ok_or_else(|| anyhow!("Soloist Display is not installed"))?;
     let client = ReleaseClient::new()?;
@@ -831,11 +770,11 @@ pub fn update(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
         );
     }
     if manifest.version.to_string() == state.version {
-        if !quiet {
-            println!("Soloist Display {} is already current.", state.version);
-        }
+        crate::terminal::success(format!("Soloist Display {} is up to date.", state.version));
         return Ok(());
     }
+    let progress = Progress::new(quiet, "Updating Soloist Display");
+    progress.step(1, "Checking release");
     progress.step(2, "Downloading & verifying");
     let (mut tx, tx_path) = TransactionJournal::begin(paths, "update")?;
     tx.previous_current = Some(state.active_release.clone());
@@ -943,7 +882,6 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
             state.active_release = release;
             state.save(paths)?;
             service::install_display(paths)?;
-            progress.step(4, "Checking health");
             wait_for_install_health(paths, &state.soloist)?;
             tx.set_status(&tx_path, TransactionStatus::Committed)?;
             Ok::<_, anyhow::Error>(())
@@ -978,7 +916,9 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
     } else {
         soloist::start_existing(paths, &state.soloist)?;
     }
+    progress.step(4, "Checking health");
     wait_for_install_health(paths, &state.soloist)?;
+    drop(progress);
     if !quiet {
         println!("Repair complete.");
     }
@@ -1186,11 +1126,11 @@ fn safe_remove(path: &Path, allowed: &[&Path]) -> Result<()> {
     Ok(())
 }
 
-pub fn uninstall(paths: &Paths, requested: Option<RemoveMode>) -> Result<()> {
+pub fn uninstall(paths: &Paths, requested: Option<RemoveMode>, quiet: bool) -> Result<()> {
     let state =
         InstallState::load(paths)?.ok_or_else(|| anyhow!("Soloist Display is not installed"))?;
     let mode = requested.map(Ok).unwrap_or_else(choose_remove_mode)?;
-    let progress = Progress::new(false, "Removing Soloist Display");
+    let progress = Progress::new(quiet, "Removing Soloist Display");
     progress.step(1, "Stopping services");
     service::disable_owned(paths, "soloist-display.service")?;
     progress.step(2, "Removing files");
@@ -1250,14 +1190,14 @@ pub fn uninstall(paths: &Paths, requested: Option<RemoveMode>) -> Result<()> {
     progress.step(4, "Finishing");
     service::daemon_reload(paths)?;
     drop(progress);
-    println!(
+    if !quiet { println!(
         "Soloist Display removed{}.",
         if matches!(mode, RemoveMode::Display) {
             "; settings and Soloist were preserved"
         } else {
             ""
         }
-    );
+    ); }
     Ok(())
 }
 
@@ -1390,7 +1330,7 @@ mod tests {
         };
         installed_state(&paths, soloist_state).save(&paths).unwrap();
         atomic_link(&paths.releases.join("1.0.0-test"), &paths.current).unwrap();
-        uninstall(&paths, Some(RemoveMode::Display)).unwrap();
+        uninstall(&paths, Some(RemoveMode::Display), false).unwrap();
         assert!(paths.managed_soloist.join("soloist").exists());
         assert!(paths.config.join("config.json").exists());
         assert!(!paths.releases.exists());
@@ -1413,7 +1353,7 @@ mod tests {
         };
         installed_state(&paths, soloist_state).save(&paths).unwrap();
         atomic_link(&paths.releases.join("1.0.0-test"), &paths.current).unwrap();
-        uninstall(&paths, Some(RemoveMode::All)).unwrap();
+        uninstall(&paths, Some(RemoveMode::All), false).unwrap();
         assert_eq!(fs::read(independent).unwrap(), b"independent");
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
@@ -1437,7 +1377,7 @@ mod tests {
         };
         installed_state(&paths, soloist_state).save(&paths).unwrap();
         atomic_link(&paths.releases.join("1.0.0-test"), &paths.current).unwrap();
-        uninstall(&paths, Some(RemoveMode::Data)).unwrap();
+        uninstall(&paths, Some(RemoveMode::Data), false).unwrap();
         assert!(!paths.config.join("config.json").exists());
         assert!(paths.soloist_env.exists());
         assert!(independent.exists());

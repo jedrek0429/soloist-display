@@ -267,9 +267,22 @@ fn wait_for_install_health(
     if TcpStream::connect("127.0.0.1:9091").is_err() {
         bail!("audio bridge health check failed: WebSocket 127.0.0.1:9091 is unavailable");
     }
-    if !audio_monitor_available() {
+    // PipeWire may expose its PulseAudio monitor after the bridge's socket opens.
+    // Use the same probe as doctor, but allow device discovery to settle.
+    let mut monitor_ready = false;
+    for _ in 0..30 {
+        if audio_monitor_available() {
+            monitor_ready = true;
+            break;
+        }
+        thread::sleep(Duration::from_millis(200));
+    }
+    if !monitor_ready {
+        let sink = Command::new("pactl").arg("get-default-sink").output()
+            .ok().map(|out| String::from_utf8_lossy(&out.stdout).trim().to_owned())
+            .unwrap_or_else(|| "<pactl unavailable>".to_owned());
         bail!(
-            "audio health check failed: the default PipeWire/PulseAudio sink has no monitor source"
+            "audio health check failed after 6s: no monitor found for default sink {sink:?}; inspect `pactl list sinks` and `pactl list short sources`"
         );
     }
     Ok(())

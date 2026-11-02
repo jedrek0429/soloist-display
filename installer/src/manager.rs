@@ -185,56 +185,95 @@ fn desktop_files(paths: &Paths) -> Result<Vec<PathBuf>> {
     Ok(created)
 }
 
-pub const ZSH_COMPLETION: &str = r#"#compdef soloist-display
-_arguments -s \
-  '(-h --help)'{-h,--help}'[Show help]' \
-  '(-V --version)'{-V,--version}'[Show version]' \
-  '--yes[Accept defaults]' \
-  '--no-color[Disable colour]' \
-  '--quiet[Minimal output]' \
-  '--verbose[Detailed output]' \
-  '1:command:(install launch settings update repair doctor uninstall completions)' \
-  '*::argument:->args'
-case $words[2] in
-  uninstall) _arguments '--mode[Removal scope]:mode:(display data all)' ;;
-  completions) _values shell zsh ;;
-esac
-"#;
-
 const ZSH_START: &str = "# >>> soloist-display completion >>>";
 const ZSH_END: &str = "# <<< soloist-display completion <<<";
 
+fn completion_directory(paths: &Paths) -> PathBuf {
+    paths.data_home.join("zsh/site-functions")
+}
+
+fn completion_snippet(directory: &Path, activate: bool) -> String {
+    let quoted = directory.to_string_lossy().replace('\'', "'\\''");
+    let mut snippet = format!("{ZSH_START}\nfpath=('{quoted}' $fpath)\n");
+    if activate {
+        snippet.push_str("autoload -Uz compinit\ncompinit\n");
+    }
+    snippet.push_str(&format!("{ZSH_END}\n"));
+    snippet
+}
+
+fn integrate_zshrc(existing: &str, directory: &Path) -> String {
+    if existing.contains(ZSH_START) {
+        return existing.to_owned();
+    }
+    // fpath must be set before compinit or the shell framework that invokes it.
+    let lines: Vec<&str> = existing.split_inclusive('\n').collect();
+    let insertion = lines.iter().position(|line| {
+        let trimmed = line.trim_start();
+        !trimmed.starts_with('#') && (
+            trimmed.starts_with("compinit")
+            || (trimmed.starts_with("autoload") && trimmed.contains("compinit"))
+            || trimmed.contains("oh-my-zsh.sh")
+            || trimmed.contains("prezto/init.zsh")
+        )
+    });
+    let mut output = String::new();
+    if let Some(index) = insertion {
+        for line in &lines[..index] { output.push_str(line); }
+        output.push_str(&completion_snippet(directory, false));
+        for line in &lines[index..] { output.push_str(line); }
+    } else {
+        output.push_str(existing);
+        if !output.is_empty() && !output.ends_with('\n') { output.push('\n'); }
+        output.push_str(&completion_snippet(directory, true));
+    }
+    output
+}
+
 fn install_completion(paths: &Paths) -> Result<()> {
-    let directory = paths.data_home.join("zsh/site-functions");
+    use clap::CommandFactory;
+    let directory = completion_directory(paths);
     fs::create_dir_all(&directory)?;
-    fs::write(directory.join("_soloist-display"), ZSH_COMPLETION)?;
-    // Zsh does not search ~/.local/share/zsh/site-functions by default.
-    // Register the directory automatically, preserving existing user settings.
+    let mut script = Vec::new();
+    clap_complete::generate(
+        clap_complete::Shell::Zsh,
+        &mut crate::Cli::command(),
+        "soloist-display",
+        &mut script,
+    );
+    fs::write(directory.join("_soloist-display"), script)?;
     let rc = paths.home.join(".zshrc");
-    let existing = fs::read_to_string(&rc).unwrap_or_default();
-    if !existing.contains(ZSH_START) {
-        let snippet = format!(
-            "\n{ZSH_START}\nfpath=(\"{}\" $fpath)\nautoload -Uz compinit\ncompinit\n{ZSH_END}\n",
-            directory.display()
-        );
-        fs::write(rc, format!("{existing}{snippet}"))?;
+    if rc.is_symlink() {
+        bail!("refusing to modify symlinked .zshrc");
+    }
+    let existing = match fs::read_to_string(&rc) {
+        Ok(value) => value,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
+        Err(error) => return Err(error.into()),
+    };
+    let updated = integrate_zshrc(&existing, &directory);
+    if updated != existing {
+        fs::write(rc, updated)?;
     }
     Ok(())
 }
 
 fn remove_completion(paths: &Paths) -> Result<()> {
-    let file = paths.data_home.join("zsh/site-functions/_soloist-display");
-    if file.exists() {
-        fs::remove_file(file)?;
-    }
+    let file = completion_directory(paths).join("_soloist-display");
+    if file.exists() { fs::remove_file(file)?; }
     let rc = paths.home.join(".zshrc");
-    if let Ok(content) = fs::read_to_string(&rc) {
-        if let Some(start) = content.find(ZSH_START) {
-            if let Some(end) = content[start..].find(ZSH_END) {
-                let end = start + end + ZSH_END.len();
-                let cleaned = format!("{}{}", &content[..start], &content[end..]);
-                fs::write(rc, cleaned)?;
-            }
+    if rc.is_symlink() { return Ok(()); }
+    let content = match fs::read_to_string(&rc) {
+        Ok(value) => value,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.into()),
+    };
+    // Remove only a complete, unchanged installer-owned block.
+    for activate in [false, true] {
+        let snippet = completion_snippet(&completion_directory(paths), activate);
+        if content.contains(&snippet) {
+            fs::write(&rc, content.replacen(&snippet, "", 1))?;
+            break;
         }
     }
     Ok(())
@@ -246,7 +285,43 @@ fn install_visible_command(paths: &Paths) -> Result<()> {
         &paths.current.join("bin/soloist-display"),
         &paths.visible_command,
     )?;
-    install_completion(paths)
+    // Optional shell integration must never roll back an otherwise valid installation.
+    if let Err(error) = install_completion(paths) {
+        eprintln!("warning: could not configure Zsh completion: {error:#}");
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod completion_tests {
+    use super::*;
+
+    #[test]
+    fn inserts_before_existing_compinit_without_duplicating_it() {
+        let path = Path::new("/home/test/.local/share/zsh/site-functions");
+        let original = "export EDITOR=vim\nautoload -Uz compinit\ncompinit\n";
+        let once = integrate_zshrc(original, path);
+        assert!(once.find("fpath=").unwrap() < once.find("autoload -Uz compinit").unwrap());
+        assert_eq!(once.matches("\ncompinit\n").count(), 1);
+        assert_eq!(once, integrate_zshrc(&once, path));
+    }
+
+    #[test]
+    fn initializes_once_when_no_completion_system_exists() {
+        let path = Path::new("/tmp/site-functions");
+        let once = integrate_zshrc("export FOO=bar\n", path);
+        assert_eq!(once.matches("\ncompinit\n").count(), 1);
+        assert_eq!(once, integrate_zshrc(&once, path));
+    }
+
+    #[test]
+    fn preserves_existing_framework_and_handles_quoted_paths() {
+        let path = Path::new("/home/it's me/zsh");
+        let updated = integrate_zshrc("source $ZSH/oh-my-zsh.sh\n", path);
+        assert!(updated.contains("it'\\''s me"));
+        assert!(updated.find("fpath=").unwrap() < updated.find("source ").unwrap());
+        assert!(!updated.contains("compinit\n"));
+    }
 }
 
 fn port_available(port: u16) -> bool {

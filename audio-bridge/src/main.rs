@@ -135,7 +135,10 @@ async fn put_config(
             | "coverTransitionDuration"
             | "backdropTransitionDuration"
             | "panelTransitionDuration" => Some((100., 10000.)),
-            "sleeveDelay" | "transitionDelay" | "backdropTransitionDelay" | "panelTransitionDelay" => Some((0., 10000.)),
+            "sleeveDelay"
+            | "transitionDelay"
+            | "backdropTransitionDelay"
+            | "panelTransitionDelay" => Some((0., 10000.)),
             "backgroundDim" => Some((0., 1.)),
             "backgroundBlur" => Some((0., 150.)),
             "metadataOpacity" => Some((0., 1.)),

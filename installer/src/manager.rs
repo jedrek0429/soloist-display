@@ -8,6 +8,7 @@ use crate::{
     state::{now, InstallState, SoloistOwnership, TransactionJournal, TransactionStatus},
 };
 use anyhow::{anyhow, bail, Context, Result};
+use crate::terminal::Progress;
 use serde::{Deserialize, Serialize};
 use std::{
     env, fs,
@@ -519,26 +520,6 @@ pub fn recover(paths: &Paths) -> Result<()> {
         transaction.persist(&path)?;
     }
     Ok(())
-}
-
-// All operation progress is emitted through the same terminal writer.
-// RAII guarantees cleanup on errors and early returns.
-struct Progress {
-    quiet: bool,
-    last_step: std::sync::atomic::AtomicUsize,
-}
-
-impl Progress {
-    fn new(quiet: bool, _label: &'static str) -> Self {
-        Self { quiet, last_step: std::sync::atomic::AtomicUsize::new(0) }
-    }
-
-    fn step(&self, number: usize, label: &'static str) {
-        let previous = self.last_step.fetch_max(number, std::sync::atomic::Ordering::Relaxed);
-        if !self.quiet && number > previous {
-            crate::terminal::progress(number, 4, label);
-        }
-    }
 }
 
 pub fn install(

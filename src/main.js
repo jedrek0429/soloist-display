@@ -40,7 +40,7 @@ const settings={
   sleeveDuration:bounded(config.sleeveDuration,1000,100,10000),
   sleeveAlignment:config.sleeveAlignment==='center'?'center':'left',
   sleeveDelayIn:bounded(config.sleeveDelayIn,0,0,10000),
-  sleeveDelayOut:bounded(config.sleeveDelayOut,2000,0,10000),
+  sleeveDelayOut:bounded(config.sleeveDelayOut,50,0,10000),
   transitionDelay:bounded(config.transitionDelay,1000,0,10000),
   backdropTransitionDelay:bounded(config.backdropTransitionDelay,1000,0,10000),
   panelTransitionDelay:bounded(config.panelTransitionDelay,0,0,10000)

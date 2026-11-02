@@ -23,6 +23,17 @@ export function coverFor(item){
   }
   return '';
 }
+// Prefer the album's stable identity; fall back to its cover when Soloist omits album IDs.
+export function albumKeyFor(item){
+  const candidates=[unwrap(item?.album),unwrap(item?.parent),unwrap(item?.release)];
+  for(const album of candidates){
+    if(!album)continue;
+    const identity=album.uri||album.id||album.gid;
+    if(identity)return 'album:'+String(identity);
+  }
+  const cover=coverFor(item);
+  return cover?'cover:'+cover:null;
+}
 export function normalize(event){
   const item=event?.item||event?.playback?.item||event?.state?.item||null;
   const position=event?.position||event?.playback?.position||event?.state?.position||null;

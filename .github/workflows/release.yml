@@ -3,13 +3,13 @@ on:
   push:
     tags: ['v*']
 permissions:
-  contents: write
+  contents: read
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  publish:
+  build:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -47,16 +47,37 @@ jobs:
           file "$RUNNER_TEMP/soloist-arm64" | grep -q 'ARM aarch64'
           file "$RUNNER_TEMP/soloist-arm32" | grep -q 'ARM.*EABI5'
           readelf -h "$RUNNER_TEMP/soloist-arm32" | grep -q 'hard-float ABI'
+      - name: Save unsigned release inputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-release
+          path: dist/
+          retention-days: 30
+          if-no-files-found: error
+
+  sign:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore unsigned release inputs
+        uses: actions/download-artifact@v4
+        with:
+          name: unsigned-release
+          path: dist/
       - name: Create and sign manifests
         env:
           RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
         run: |
           test -n "$RELEASE_SIGNING_KEY"
           python3 scripts/build-release-manifest.py dist "$GITHUB_REF_NAME" "${GITHUB_REF_NAME#v}"
-          printf '%s\n' "$RELEASE_SIGNING_KEY" > "$RUNNER_TEMP/release-key.pem"
-          chmod 600 "$RUNNER_TEMP/release-key.pem"
-          openssl pkeyutl -sign -inkey "$RUNNER_TEMP/release-key.pem" -rawin -in dist/release-manifest.json -out "$RUNNER_TEMP/release.sig"
-          openssl pkeyutl -sign -inkey "$RUNNER_TEMP/release-key.pem" -rawin -in dist/bootstrap-manifest.txt -out "$RUNNER_TEMP/bootstrap.sig"
+          key="$RUNNER_TEMP/release-key.pem"
+          trap 'rm -f "$key"' EXIT
+          printf '%s\n' "$RELEASE_SIGNING_KEY" > "$key"
+          chmod 600 "$key"
+          openssl pkey -in "$key" -noout -check
+          openssl pkeyutl -sign -inkey "$key" -rawin -in dist/release-manifest.json -out "$RUNNER_TEMP/release.sig"
+          openssl pkeyutl -sign -inkey "$key" -rawin -in dist/bootstrap-manifest.txt -out "$RUNNER_TEMP/bootstrap.sig"
           openssl base64 -A -in "$RUNNER_TEMP/release.sig" -out dist/release-manifest.sig
           openssl base64 -A -in "$RUNNER_TEMP/bootstrap.sig" -out dist/bootstrap-manifest.sig
           printf '\n' >> dist/release-manifest.sig
@@ -66,7 +87,26 @@ jobs:
           chmod 755 dist/install.sh
           sh -n dist/install.sh
           rm dist/soloist_release_*.tar.gz
+      - name: Save signed release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-release
+          path: dist/
+          retention-days: 30
+          if-no-files-found: error
+
+  publish:
+    needs: sign
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Restore signed release assets
+        uses: actions/download-artifact@v4
+        with:
+          name: signed-release
+          path: dist/
       - name: Publish immutable release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --title "Soloist Display $GITHUB_REF_NAME" --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag --title "Soloist Display $GITHUB_REF_NAME" --generate-notes

@@ -7,7 +7,10 @@ const sections=[
       ['centerHole','Center hole','range',0,20,.5,'%'],
       ['centerHoleColor','Hole colour','select',['white','black','transparent']],
       ['cdCoverSide','CD side','select',['up','down']],
-      ['vinylGrooveDensity','Groove density','range',1,10,1]
+      ['vinylGrooveDensity','Groove density','range',1,10,1],
+      ['changeDiscOn','Change disc on','select',['song','album']],
+      ['discRotationSeconds','Rotation speed','range',1,120,1,'sec'],
+      ['reducedMotion','Reduced motion','toggle']
     ]
   },
   {
@@ -37,14 +40,6 @@ const sections=[
       ['visualizerSmoothing','Smoothing','range',0,1,.05],
       ['visualizerAutoNormalize','Automatic normalisation','toggle'],
       ['visualizerPeakHold','Peak hold','toggle']
-    ]
-  },
-  {
-    title:'Motion',
-    fields:[
-      ['changeDiscOn','Change disc on','select',['song','album']],
-      ['discRotationSeconds','Rotation speed','range',1,120,1,'sec'],
-      ['reducedMotion','Reduced motion','toggle']
     ]
   },
   {
@@ -99,6 +94,8 @@ const nav=document.querySelector('#section-nav');
 const status=document.querySelector('#status');
 let draft={};
 let activeSection=0;
+let motionExpanded=false;
+const motionPages=new Set(['Sleeve motion','Disc motion','Backdrop motion','Panel motion']);
 const isCover=style=>style==='vinyl-cover'||style==='cd-cover';
 const holeKey=style=>style==='vinyl-cover'?'centerHoleVinyl':style==='cd-cover'?'centerHoleCd':'centerHole'+style[0].toUpperCase()+style.slice(1);
 const selectedHoleKey=()=>holeKey(draft.discAppearance||'basic');
@@ -111,29 +108,56 @@ function format(value,suffix=''){
 }
 
 function renderNav(){
-  nav.querySelectorAll('.nav-button').forEach(button=>button.remove());
-  sections.forEach((section,index)=>{
+  nav.replaceChildren();
+  const selectPage=(index)=>{
+    activeSection=index;
+    renderNav();
+    renderSection();
+  };
+  const makePage=(section,index,subpage=false)=>{
     const button=document.createElement('button');
     button.type='button';
-    button.className='nav-button';
+    button.className='nav-button'+(subpage?' nav-subbutton':'');
     button.setAttribute('aria-current',index===activeSection?'page':'false');
-    const title=document.createElement('span');
-    title.className='nav-title';
-    title.textContent=section.title;
-    button.append(title);
-    button.addEventListener('click',()=>{
-      activeSection=index;
+    button.textContent=subpage?section.title.replace(' motion',''):section.title;
+    button.addEventListener('click',()=>selectPage(index));
+    return button;
+  };
+  sections.forEach((section,index)=>{
+    if(!motionPages.has(section.title)){
+      nav.append(makePage(section,index));
+      return;
+    }
+    if(section.title!=='Sleeve motion')return;
+    const group=document.createElement('div');
+    group.className='nav-group';
+    const toggle=document.createElement('button');
+    toggle.type='button';
+    toggle.className='nav-button nav-group-toggle';
+    toggle.setAttribute('aria-expanded',String(motionExpanded));
+    toggle.setAttribute('aria-controls','motion-subnav');
+    toggle.textContent='Motion';
+    toggle.addEventListener('click',()=>{
+      motionExpanded=!motionExpanded;
       renderNav();
-      renderSection();
     });
-    nav.append(button);
+    group.append(toggle);
+    const subnav=document.createElement('div');
+    subnav.id='motion-subnav';
+    subnav.className='nav-subnav';
+    subnav.hidden=!motionExpanded;
+    sections.forEach((page,pageIndex)=>{
+      if(motionPages.has(page.title))subnav.append(makePage(page,pageIndex,true));
+    });
+    group.append(subnav);
+    nav.append(group);
   });
 }
 
 function renderSection(){
   const hidden=key=>(key==='cdCoverSide'&&draft.discAppearance!=='cd-cover')||
     (key==='vinylGrooveDensity'&&!['vinyl','vinyl-cover'].includes(draft.discAppearance))||
-    (activeSection===5&&!isCover(draft.discAppearance))||
+    (sections[activeSection].title==='Sleeve motion'&&!isCover(draft.discAppearance))||
     
     (key==='sleeveDuration'&&draft.sleeveTransitionStyle==='off')||
     (key==='sleeveDelay'&&draft.sleeveTransitionStyle==='off')||

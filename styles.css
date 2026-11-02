@@ -180,3 +180,6 @@
 :root[data-disc-appearance='album-cover'] .disc-label,
 :root[data-disc-appearance='album-cover'] .spindle,
 :root[data-disc-appearance='album-cover'] .record-sleeve{display:none!important}
+
+/* The metadata panel owns the visualiser: both disappear when disabled. */
+:root[data-panel-enabled='off'] .info{display:none!important}

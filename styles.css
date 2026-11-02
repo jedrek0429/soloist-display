@@ -104,4 +104,3 @@
 :root[data-disc-appearance='cd-cover'][data-hole-color='white'] .spindle,
 :root[data-disc-appearance='cd-cover'][data-hole-color='black'] .spindle{width:calc(var(--center-hole-diameter,0%) * .65);height:calc(var(--center-hole-diameter,0%) * .65)}
 .record-sleeve{overflow:hidden}
-.cover-overlay{position:absolute;inset:0;background:inherit;background-size:cover;background-position:center;pointer-events:none;z-index:3;will-change:transform,opacity}

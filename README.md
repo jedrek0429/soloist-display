@@ -1,143 +1,54 @@
 # Soloist Display
 
-Turn a Linux computer into a Spotify Connect player with a simple, full-screen now-playing display. Pick music on your phone. The computer plays it and shows album art, track info and a live audio spectrum.
-
-The screen is for display, not playback controls. Good for a spare monitor or a dedicated music setup.
+A full-screen now-playing display and live audio visualizer for [Spotify Soloist](https://developer.spotify.com/documentation/soloist).
 
 ![Soloist Display](docs/screenshots/now-playing.webp)
 
-It uses [Spotify Soloist](https://developer.spotify.com/documentation/soloist) for playback and Spotify Connect. Soloist Display adds the screen. You install both.
-
-## Features
-
-- Album art, artist, track, progress and time.
-- Spinning CD, vinyl or plain disc, with adjustable size and speed.
-- Fly, slide and fade transitions. Separate backdrop and text animations.
-- Blurred album-art background with adjustable darkness.
-- Six-band FFT spectrum from PipeWire audio. Sensitivity, smoothing, auto-normalization and peak hold.
-- Movable text panel, font size, opacity and progress bar.
-- Reduced motion and burn-in protection.
-- Browser settings saved locally. Changes appear without restarting the service.
-- Automatic WebSocket reconnection.
-- CLI, desktop shortcuts and a systemd user service.
-
 ## Install
 
-Requires Linux, systemd, PipeWire/PulseAudio, a browser and Spotify Premium. You'll also install Spotify Soloist, the playback service, and get its API key.
-
-### 1. Install dependencies and clone the repository
-
-Choose your distribution. The installation supports x86_64, ARM64 and ARMv7.
-
-#### Arch Linux
+Requires Spotify Premium and a systemd-based Arch Linux, Ubuntu, Debian, or Fedora installation with glibc 2.38 or newer (including Ubuntu 24.04+ and Debian 13+) on x86_64, ARM64, or hard-float ARMv7.
 
 ```sh
-sudo pacman -Syu --needed base-devel git curl xdg-utils pipewire pipewire-pulse wireplumber libpulse rust
-git clone https://github.com/jedrek0429/soloist-display.git
-cd soloist-display
+curl -fsSL https://github.com/jedrek0429/soloist-display/releases/latest/download/install.sh | sh
 ```
 
-Arch users can alternatively install the display with `makepkg -si` after setting up Soloist.
+The installer verifies signed release files, installs required runtime packages, and configures user services. If Soloist is already working on `127.0.0.1:9090`, it is preserved and reused. Otherwise, have a [Soloist API key](https://developer.spotify.com/dashboard/soloist) ready; setup asks only for the Spotify Connect device name and API key.
 
-#### Ubuntu / Debian
+Open a new terminal after the first installation if `soloist-display` is not yet on your `PATH`.
+
+For unattended setup, provide the same values without putting the secret in command history:
 
 ```sh
-sudo apt update
-sudo apt install -y git curl xdg-utils build-essential pkg-config libpulse0 pulseaudio-utils pipewire pipewire-pulse wireplumber cargo rustc
-git clone https://github.com/jedrek0429/soloist-display.git
-cd soloist-display
+export SOLOIST_NAME="Soloist Display"
+read -rsp "Soloist API key: " SOLOIST_API_KEY; export SOLOIST_API_KEY; echo
+curl -fsSL https://github.com/jedrek0429/soloist-display/releases/latest/download/install.sh | sh -s -- --yes
+unset SOLOIST_API_KEY
 ```
 
-#### Fedora
+## Use
 
 ```sh
-sudo dnf upgrade --refresh -y
-sudo dnf install -y git curl xdg-utils gcc make pkgconf-pkg-config pulseaudio-libs pulseaudio-utils pipewire pipewire-pulseaudio wireplumber cargo rust
-git clone https://github.com/jedrek0429/soloist-display.git
-cd soloist-display
+soloist-display             # open the display
+soloist-display settings    # open settings
+soloist-display update      # install a verified update
+soloist-display repair      # restore managed files and services
+soloist-display doctor      # check services, ports, Soloist and audio
 ```
 
-The commands above prepare the system and clone the repository. Install Soloist below, then run `bash packaging/install.sh` to install the display into `~/.local/bin`. A working systemd user session, PipeWire/PulseAudio and a browser are required. Other systemd-based Linux distributions may work. Windows and macOS are not supported.
-
-### 2. Set up Spotify Connect playback
-
-Spotify Soloist makes the computer appear as a Spotify Connect device. Skip this step if you already have it running with a WebSocket on `127.0.0.1:9090`.
-
-Get an API key from the [Spotify developer dashboard](https://developer.spotify.com/dashboard/soloist). Download the matching Linux build automatically (x86_64, ARM64 or ARMv7):
-
-```sh
-bash packaging/install-soloist.sh
-mkdir -p "$HOME/.config/systemd/user" "$HOME/.config/soloist"
-install -Dm644 packaging/soloist.service.example "$HOME/.config/systemd/user/soloist.service"
-${EDITOR:-nano} "$HOME/.config/soloist/env"
-```
-
-Add:
-
-```ini
-SOLOIST_NAME="Soloist Display"
-SOLOIST_API_KEY="YOUR_PRIVATE_API_KEY"
-```
-
-Then:
-
-```sh
-chmod 600 "$HOME/.config/soloist/env"
-systemctl --user daemon-reload
-systemctl --user enable --now soloist.service
-```
-
-Choose the device in Spotify Connect.
-
-### 3. Install Soloist Display
-
-Once Soloist is installed, run:
-
-```sh
-bash packaging/install.sh
-```
-
-## Run
-
-```sh
-soloist-display
-soloist-display --settings
-```
-
-If the command isn't on your PATH, use `~/.local/bin/soloist-display`.
-
-The display runs at `http://127.0.0.1:8080`. Soloist uses WebSocket port 9090; the audio bridge uses 9091. Settings are in `~/.config/soloist-display/config.json`.
-
-## Problems
-
-```sh
-systemctl --user status soloist soloist-display
-journalctl --user -u soloist -u soloist-display -n 50
-pactl get-default-sink
-```
-
-Soloist builds expire. Get a current one from [Spotify](https://developer.spotify.com/documentation/soloist/reference/downloads-and-updates).
+The display checks briefly for updates when opened and offers to install one when available.
 
 ## Remove
 
-Arch:
-
 ```sh
-systemctl --user disable --now soloist-display.service
-sudo pacman -Rns soloist-display-git
+soloist-display uninstall --mode display  # keep settings and Soloist
+soloist-display uninstall --mode data     # also remove display settings and data
+soloist-display uninstall --mode all      # also remove Soloist, only when installer-owned
 ```
 
-Other Linux:
+An independently installed Soloist is never removed. Runtime packages installed through the system package manager are left in place because they may be used by other applications.
 
-```sh
-systemctl --user disable --now soloist-display.service 2>/dev/null || true
-rm -f "$HOME/.local/bin/soloist-display" "$HOME/.local/bin/soloist-audio-bridge"
-rm -f "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/soloist-display.service"
-rm -f "${XDG_DATA_HOME:-$HOME/.local/share}/applications/soloist-display.desktop"
-rm -f "${XDG_DATA_HOME:-$HOME/.local/share}/applications/soloist-display-settings.desktop"
-systemctl --user daemon-reload
-```
+## Troubleshooting
 
-This keeps your settings and Soloist installation.
+Run `soloist-display doctor`, then inspect `journalctl --user -u soloist-display -u soloist` if a service fails. Soloist builds expire after 90 days; `soloist-display update` installs the current verified build.
 
-MIT license.
+[Installer architecture and recovery](docs/installer.md) · [Release signing](docs/releasing.md) · MIT

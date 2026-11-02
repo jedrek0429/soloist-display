@@ -280,6 +280,44 @@ pub fn install(
     })
 }
 
+/// Ensure the Soloist CLI can discover the fixed loopback endpoint used by Display.
+/// Never replace an existing endpoint: independent Soloist installations may
+/// have their own configuration, which the installer must not take over.
+pub fn ensure_cli_discovery(paths: &Paths, state: &SoloistState) -> Result<()> {
+    if paths.is_test() || !healthy(state) {
+        return Ok(());
+    }
+    let Some(url) = state.websocket_url.as_deref() else {
+        return Ok(());
+    };
+    let endpoint = url::Url::parse(url)?;
+    let Some(host) = endpoint.host_str() else {
+        return Ok(());
+    };
+    let Some(port) = endpoint.port_or_known_default() else {
+        return Ok(());
+    };
+    // The managed service explicitly uses this directory. For independent
+    // services, only use the standard CLI data directory if no custom -D
+    // directory is configured; do not guess or overwrite custom paths.
+    let data = &paths.soloist_data;
+    fs::create_dir_all(data)?;
+    for (filename, value) in [("ws.addr", host.to_owned()), ("ws.port", port.to_string())] {
+        let path = data.join(filename);
+        match fs::OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(mut file) => {
+                if let Err(error) = writeln!(file, "{value}") {
+                    let _ = fs::remove_file(&path);
+                    return Err(error.into());
+                }
+            }
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(error) => return Err(error.into()),
+        }
+    }
+    Ok(())
+}
+
 pub fn start_existing(paths: &Paths, state: &SoloistState) -> Result<()> {
     if healthy(state) {
         return Ok(());

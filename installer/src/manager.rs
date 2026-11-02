@@ -230,21 +230,26 @@ fn integrate_zshrc(existing: &str, directory: &Path) -> String {
     let lines: Vec<&str> = cleaned.split_inclusive('\n').collect();
     let insertion = lines.iter().position(|line| {
         let trimmed = line.trim_start();
-        !trimmed.starts_with('#') && (
-            trimmed.starts_with("compinit")
-            || (trimmed.starts_with("autoload") && trimmed.contains("compinit"))
-            || trimmed.contains("oh-my-zsh.sh")
-            || trimmed.contains("prezto/init.zsh")
-        )
+        !trimmed.starts_with('#')
+            && (trimmed.starts_with("compinit")
+                || (trimmed.starts_with("autoload") && trimmed.contains("compinit"))
+                || trimmed.contains("oh-my-zsh.sh")
+                || trimmed.contains("prezto/init.zsh"))
     });
     let mut output = String::new();
     if let Some(index) = insertion {
-        for line in &lines[..index] { output.push_str(line); }
+        for line in &lines[..index] {
+            output.push_str(line);
+        }
         output.push_str(&completion_snippet(directory, false));
-        for line in &lines[index..] { output.push_str(line); }
+        for line in &lines[index..] {
+            output.push_str(line);
+        }
     } else {
         output.push_str(&cleaned);
-        if !output.is_empty() && !output.ends_with('\n') { output.push('\n'); }
+        if !output.is_empty() && !output.ends_with('\n') {
+            output.push('\n');
+        }
         output.push_str(&completion_snippet(directory, true));
     }
     output
@@ -280,16 +285,22 @@ fn install_completion(paths: &Paths) -> Result<()> {
 
 fn remove_completion(paths: &Paths) -> Result<()> {
     let file = completion_directory(paths).join("_soloist-display");
-    if file.exists() { fs::remove_file(file)?; }
+    if file.exists() {
+        fs::remove_file(file)?;
+    }
     let rc = paths.home.join(".zshrc");
-    if rc.is_symlink() { return Ok(()); }
+    if rc.is_symlink() {
+        return Ok(());
+    }
     let content = match fs::read_to_string(&rc) {
         Ok(value) => value,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(error.into()),
     };
     let cleaned = strip_owned_zshrc_block(&content, &completion_directory(paths));
-    if cleaned != content { fs::write(&rc, cleaned)?; }
+    if cleaned != content {
+        fs::write(&rc, cleaned)?;
+    }
     Ok(())
 }
 

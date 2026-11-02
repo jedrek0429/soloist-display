@@ -90,7 +90,12 @@ fn run() -> Result<i32> {
         std::env::set_var("NO_COLOR", "1");
     }
     if let Some(Command::Completions { shell }) = &cli.command {
-        generate(*shell, &mut Cli::command(), "soloist-display", &mut std::io::stdout());
+        generate(
+            *shell,
+            &mut Cli::command(),
+            "soloist-display",
+            &mut std::io::stdout(),
+        );
         return Ok(0);
     }
     let paths = Paths::discover()?;

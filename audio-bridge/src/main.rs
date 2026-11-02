@@ -85,10 +85,20 @@ fn read_settings(path: &PathBuf) -> Value {
                     "CdCover",
                     "AlbumCover",
                 ] {
+                    for key in ["transitionStyle", "transitionDuration", "transitionDelay"] {
+                        let name = format!("{key}{suffix}");
+                        if !values.contains_key(&name) {
+                            if let Some(previous) = values.get(key) {
+                                object.insert(name, previous.clone());
+                            }
+                        }
+                    }
+                }
+                // Sleeve presets exist only for appearances with an actual sleeve.
+                // Never emit keys that are absent from DEFAULT_CONFIG: the settings UI
+                // submits the entire object and the PUT endpoint rejects unknown keys.
+                for suffix in ["VinylCover", "CdCover"] {
                     for key in [
-                        "transitionStyle",
-                        "transitionDuration",
-                        "transitionDelay",
                         "sleeveTransitionStyle",
                         "sleeveAlignment",
                         "sleeveDuration",
@@ -624,6 +634,23 @@ mod tests {
         assert_eq!(settings["transitionStyleCdCover"], "slide");
         assert_eq!(settings["transitionDurationCdCover"], 3700);
         assert_eq!(settings["sleeveDurationCdCover"], 1700);
+        // The response must remain PUT-compatible for every legacy preset.
+        let default_keys = defaults.as_object().unwrap();
+        for key in settings.as_object().unwrap().keys() {
+            assert!(default_keys.contains_key(key), "Unexpected setting: {key}");
+        }
+        for suffix in ["Basic", "Cd", "Vinyl", "AlbumCover"] {
+            for prefix in [
+                "sleeveTransitionStyle",
+                "sleeveAlignment",
+                "sleeveDuration",
+                "sleeveDelayIn",
+                "sleeveDelayOut",
+            ] {
+                assert!(settings.get(format!("{prefix}{suffix}")).is_none());
+            }
+        }
+
         assert_eq!(
             settings["discSizeAlbumCover"],
             defaults["discSizeAlbumCover"]

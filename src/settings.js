@@ -98,6 +98,8 @@ let activeSection=0;
 let motionExpanded=false;
 const motionPages=new Set(['Sleeve motion','Disc motion','Backdrop motion','Panel motion']);
 const isCover=style=>style==='vinyl-cover'||style==='cd-cover';
+const motionVisible=title=>title!=='Sleeve motion'||isCover(draft.discAppearance);
+const motionLabel=title=>title==='Disc motion'&&draft.discAppearance==='album-cover'?'Album cover':title.replace(' motion','');
 const holeKey=style=>['vinyl','vinyl-cover'].includes(style)?'centerHoleVinyl':['cd','cd-cover'].includes(style)?'centerHoleCd':'centerHoleBasic';
 const selectedHoleKey=()=>holeKey(draft.discAppearance||'basic');
 const selectedSizeKey=()=>selectedHoleKey().replace('centerHole','discSize');
@@ -120,7 +122,7 @@ function renderNav(){
     button.type='button';
     button.className='nav-button'+(subpage?' nav-subbutton':'');
     button.setAttribute('aria-current',index===activeSection?'page':'false');
-    button.textContent=subpage?section.title.replace(' motion',''):section.title;
+    button.textContent=subpage?motionLabel(section.title):section.title;
     button.addEventListener('click',()=>selectPage(index));
     return button;
   };
@@ -148,7 +150,7 @@ function renderNav(){
     subnav.className='nav-subnav';
     subnav.hidden=!motionExpanded;
     sections.forEach((page,pageIndex)=>{
-      if(motionPages.has(page.title))subnav.append(makePage(page,pageIndex,true));
+      if(motionPages.has(page.title)&&motionVisible(page.title))subnav.append(makePage(page,pageIndex,true));
     });
     group.append(subnav);
     nav.append(group);
@@ -156,6 +158,10 @@ function renderNav(){
 }
 
 function renderSection(){
+  if(!motionVisible(sections[activeSection].title)){
+    activeSection=sections.findIndex(section=>section.title==='Disc motion');
+    renderNav();
+  }
   const hidden=key=>(key==='cdCoverSide'&&draft.discAppearance!=='cd-cover')||
     (['centerHole','centerHoleColor','discRotationSeconds'].includes(key)&&draft.discAppearance==='album-cover')||
     (key==='vinylGrooveDensity'&&!['vinyl','vinyl-cover'].includes(draft.discAppearance))||
@@ -173,7 +179,7 @@ function renderSection(){
     (key==='panelTransitionDuration'&&draft.panelTransitionStyle==='off');
   const section=sections[activeSection];
   document.querySelector('#panel-kicker').textContent='';
-  document.querySelector('#panel-title').textContent=section.title;
+  document.querySelector('#panel-title').textContent=motionPages.has(section.title)?motionLabel(section.title):section.title;
   document.querySelector('#panel-description').textContent='';
   controls.replaceChildren();
 
@@ -210,7 +216,7 @@ function renderSection(){
       line.append(select);
       const output=document.createElement('output');output.htmlFor=key;
       const refresh=()=>{const value=typeof min[0]==='number'?Number(select.value):select.value;draft[key==='centerHoleColor'?selectedHoleColorKey():key]=value;output.textContent=String(value);};
-      select.addEventListener('change',()=>{refresh();if(['discAppearance','timeDisplay','transitionStyle','sleeveTransitionStyle','backdropTransitionStyle','panelTransitionStyle'].includes(key))renderSection();status.textContent='Unsaved changes';});
+      select.addEventListener('change',()=>{refresh();if(['discAppearance','timeDisplay','transitionStyle','sleeveTransitionStyle','backdropTransitionStyle','panelTransitionStyle'].includes(key)){if(key==='discAppearance')renderNav();renderSection();}status.textContent='Unsaved changes';});
       refresh();controls.append(line);continue;
     }else if(type==='range'){
       input.type='range';

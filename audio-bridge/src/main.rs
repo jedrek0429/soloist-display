@@ -136,6 +136,8 @@ async fn put_config(
             | "backdropTransitionDuration"
             | "panelTransitionDuration" => Some((100., 10000.)),
             "sleeveDelay"
+            | "sleeveDelayIn"
+            | "sleeveDelayOut"
             | "transitionDelay"
             | "backdropTransitionDelay"
             | "panelTransitionDelay" => Some((0., 10000.)),

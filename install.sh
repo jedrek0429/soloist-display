@@ -71,7 +71,7 @@ case "$pinned_sha" in
 
 cat >"$public_key" <<'EOF'
 -----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEATdUg4MIYNWweUXusU4IALmgiXVhTErC+i2sVABwt3Zg=
+MCowBQYDK2VwAyEAN2qrYATzPFCel3Nw7NZHzZtba1Gz9kthPRXWtQMFTiw=
 -----END PUBLIC KEY-----
 EOF
 

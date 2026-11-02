@@ -131,9 +131,9 @@
   box-shadow:none;
 }
 :root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image{
-  background:#c8d0d9;
-  background-image:radial-gradient(circle at 38% 30%,#e0e4e9 0%,#c8d0d9 43%,#aeb9c7 82%,#c1cbd4 100%);
-  box-shadow:inset 0 0 9px rgba(32,42,58,.13);
+  /* Dark translucent substrate lets the album-derived backdrop show through. */
+  background:radial-gradient(circle at 35% 28%,rgba(172,191,203,.42),rgba(77,95,116,.27) 46%,rgba(36,52,72,.20) 82%,rgba(119,138,153,.32));
+  box-shadow:inset 0 0 14px rgba(32,42,58,.19),inset 0 0 2px rgba(255,255,255,.15);
 }
 :root[data-disc-appearance='cd'] .disc-image::before,
 :root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image::before{
@@ -142,8 +142,13 @@
   mix-blend-mode:screen;-webkit-mask-image:none;mask-image:none;
 }
 :root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::before{
-  display:block;inset:0;opacity:.35;border-radius:50%;
-  background:conic-gradient(from 18deg,rgba(255,144,149,.18),rgba(245,222,168,.12) 42deg,rgba(128,220,205,.15) 88deg,rgba(137,187,239,.16) 138deg,transparent 196deg,rgba(185,177,234,.13) 264deg,rgba(255,144,149,.18));
+  display:block;inset:0;opacity:.82;border-radius:50%;
+  background:conic-gradient(from 18deg,
+    rgba(249,92,134,.42),rgba(247,202,96,.28) 42deg,
+    rgba(81,222,178,.35) 88deg,rgba(83,157,244,.39) 138deg,
+    rgba(143,106,205,.24) 186deg,rgba(246,185,90,.25) 227deg,
+    rgba(127,185,246,.36) 286deg,rgba(249,92,134,.42)),
+    radial-gradient(ellipse at 27% 16%,rgba(236,247,255,.28),transparent 58%);
   mix-blend-mode:normal;-webkit-mask-image:none;mask-image:none;
 }
 /* Hub rings touch the hole and scale proportionally with its diameter.

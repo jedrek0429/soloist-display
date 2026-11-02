@@ -96,8 +96,24 @@ impl ReleaseClient {
             let signature = fs::read(signature_path)?;
             return self.verify_manifest(bytes, signature);
         }
-        let base =
-            std::env::var("SOLOIST_DISPLAY_RELEASE_BASE").unwrap_or_else(|_| GITHUB_LATEST.into());
+        let base = if let Ok(custom) = std::env::var("SOLOIST_DISPLAY_RELEASE_BASE") {
+            custom
+        } else {
+            let requested =
+                std::env::var("SOLOIST_DISPLAY_VERSION").unwrap_or_else(|_| "latest".into());
+            if requested == "latest" {
+                GITHUB_LATEST.into()
+            } else {
+                let parsed = Version::parse(&requested)
+                    .context("SOLOIST_DISPLAY_VERSION must be X.Y.Z or latest")?;
+                if parsed.to_string() != requested {
+                    bail!("SOLOIST_DISPLAY_VERSION must be canonical X.Y.Z");
+                }
+                format!(
+                    "https://github.com/jedrek0429/soloist-display/releases/download/v{requested}"
+                )
+            }
+        };
         let manifest_url = format!("{}/release-manifest.json", base.trim_end_matches('/'));
         let signature_url = format!("{}/release-manifest.sig", base.trim_end_matches('/'));
         let bytes = self
@@ -106,7 +122,16 @@ impl ReleaseClient {
         let signature = self
             .get_bytes(&signature_url)
             .context("download release signature")?;
-        self.verify_manifest(bytes, signature)
+        let verified = self.verify_manifest(bytes, signature)?;
+        if let Ok(requested) = std::env::var("SOLOIST_DISPLAY_VERSION") {
+            if requested != "latest" && verified.0.version.to_string() != requested {
+                bail!(
+                    "signed release version {} does not match requested {requested}",
+                    verified.0.version
+                );
+            }
+        }
+        Ok(verified)
     }
 
     fn verify_manifest(

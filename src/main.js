@@ -1,4 +1,4 @@
-import {artistFor,coverFor,normalize,positionMs,durationMs,playing as isPlaying} from './soloist.js';
+import {artistFor,albumKeyFor,coverFor,normalize,positionMs,durationMs,playing as isPlaying} from './soloist.js';
 import {DiscDirector} from './motion.js';
 import {Spectrum} from './spectrum.js';
 
@@ -22,6 +22,7 @@ const $=id=>document.getElementById(id);
 const bounded=(value,fallback,min,max)=>Number.isFinite(Number(value))?Math.max(min,Math.min(max,Number(value))):fallback;
 const settings={
   discSize:bounded(config.discSize,116,50,200),
+  changeDiscOn:config.changeDiscOn==='album'?'album':'song',
   discRotationSeconds:bounded(config.discRotationSeconds,12,1,120),
   transitionDuration:bounded(config.transitionDuration,2000,100,10000),
   backdropTransitionStyle:config.backdropTransitionStyle||'fade',
@@ -62,6 +63,7 @@ const director=new DiscDirector({discs:[$('disc-a'),$('disc-b')],backdrops:[$('b
 const spectrum=new Spectrum($('visualizer'), config.visualizerSensitivity ?? 1, config.visualizerSmoothing ?? 0.7, {autoNormalize:config.visualizerAutoNormalize===true,peakHold:config.visualizerPeakHold===true});
 let currentUri=null,position=0,positionTime=performance.now(),duration=0,playing=false;
 let lastTrack=null;
+let currentAlbumKey=null;
 function updateItem(item){
   if(!item)return;
   lastTrack=item;
@@ -69,9 +71,14 @@ function updateItem(item){
   duration=durationMs(item)||duration;
   if(uri===currentUri)return;
   currentUri=uri;
+  const albumKey=albumKeyFor(item);
+  const panelOnly=settings.changeDiscOn==='album'&&albumKey!==null&&albumKey===currentAlbumKey&&director.started;
+  currentAlbumKey=albumKey;
   const name=item?.decorations?.identity?.name||item.name||'Not playing';
   const artist=artistFor(item),cover=coverFor(item);
-  director.change(cover,()=>{$('track').textContent=name;$('artist').textContent=artist});
+  const show=()=>{$('track').textContent=name;$('artist').textContent=artist};
+  if(panelOnly)director.changePanel(show);
+  else director.change(cover,show);
 }
 function handleSoloist(event){
   const {item,position:pos,status}=normalize(event);

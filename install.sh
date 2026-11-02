@@ -9,7 +9,15 @@ PIN_AARCH64='@SOLOIST_DISPLAY_SHA_AARCH64@'
 PIN_ARMV7='@SOLOIST_DISPLAY_SHA_ARMV7@'
 version=${SOLOIST_DISPLAY_VERSION-latest}
 case "$version" in
-  latest) RELEASE_BASE=https://github.com/jedrek0429/soloist-display/releases/latest/download ;;
+  latest)
+    # A release-rendered bootstrap pins both the hash and its immutable asset URL.
+    # Never verify a mutable /latest/download asset against another tag's digest.
+    case "$PIN_RELEASE_BASE" in
+      https://github.com/jedrek0429/soloist-display/releases/download/v*)
+        RELEASE_BASE=$PIN_RELEASE_BASE ;;
+      *) RELEASE_BASE=https://github.com/jedrek0429/soloist-display/releases/latest/download ;;
+    esac
+    ;;
   *[!0-9.]*|'') fail_version=1 ;;
   *) RELEASE_BASE="https://github.com/jedrek0429/soloist-display/releases/download/v$version" ;;
 esac
@@ -114,7 +122,7 @@ elif command -v openssl >/dev/null 2>&1; then
 else
   fail 'sha256sum or OpenSSL is required to verify the installer'
 fi
-[ "$actual_sha" = "$expected_sha" ] || fail 'installer SHA-256 verification failed'
+[ "$actual_sha" = "$expected_sha" ] || fail "installer SHA-256 verification failed ($installer_url; expected $expected_sha, got $actual_sha)"
 chmod 700 "$installer"
 
 say 'Installing'

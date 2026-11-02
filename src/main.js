@@ -32,6 +32,7 @@ const settings={
   metadataOpacity:bounded(config.metadataOpacity,.58,0,1),
   metadataScale:bounded(config.metadataScale,1,.5,2),
   panelFontSize:bounded(config.panelFontSize,1,.6,1.6),
+  panelEnabled:config.panelEnabled!==false,
   panelTransitionStyle:config.panelTransitionStyle||'slide',
   panelTransitionDuration:bounded(config.panelTransitionDuration,2050,100,10000),
   reducedMotion:config.reducedMotion===true,
@@ -52,6 +53,7 @@ root.dataset.timeLayout=config.timeLayout==='together'?'together':'split';
 root.dataset.discAppearance=['basic','cd','vinyl','vinyl-cover','cd-cover','album-cover'].includes(config.discAppearance)?config.discAppearance:'basic';
 root.dataset.cdCoverSide=config.cdCoverSide==='up'?'up':'down';
 root.style.setProperty('--vinyl-groove-spacing', (11-Math.max(1,Math.min(10,Number(config.vinylGrooveDensity)||5)))*1.1+'px');
+root.dataset.panelEnabled=settings.panelEnabled?'on':'off';
 root.dataset.panelPosition=['bottom-right','bottom-left','top-right','top-left'].includes(config.panelPosition)?config.panelPosition:'bottom-right';
 const holeKey='centerHole'+(['vinyl','vinyl-cover'].includes(root.dataset.discAppearance)?'Vinyl':['cd','cd-cover'].includes(root.dataset.discAppearance)?'Cd':'Basic');
 const holeSize=bounded(config[holeKey],['cd','cd-cover'].includes(root.dataset.discAppearance)?16:['vinyl','vinyl-cover'].includes(root.dataset.discAppearance)?.6:1,0,20);
@@ -126,7 +128,7 @@ connect(config.soloistWebSocket||'ws://127.0.0.1:9090',handleSoloist,s=>{
   $('track').textContent='Soloist disconnected';
   $('artist').textContent='Reconnecting automatically…';
 });
-if(config.visualizer!==false){
+if(config.visualizer!==false&&settings.panelEnabled){
   let retry=500;
   function connectAudio(){
     let socket;

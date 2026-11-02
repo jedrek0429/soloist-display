@@ -1,5 +1,5 @@
-use std::io::{self, IsTerminal, Write};
 use std::fs::{self, OpenOptions};
+use std::io::{self, IsTerminal, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::PathBuf;
 use std::sync::{
@@ -14,19 +14,35 @@ static OUTPUT: OnceLock<Mutex<()>> = OnceLock::new();
 static LOG_PATH: OnceLock<Mutex<Option<PathBuf>>> = OnceLock::new();
 
 pub fn set_log_path(path: PathBuf) {
-    *LOG_PATH.get_or_init(|| Mutex::new(None)).lock().unwrap_or_else(|e| e.into_inner()) = Some(path);
+    *LOG_PATH
+        .get_or_init(|| Mutex::new(None))
+        .lock()
+        .unwrap_or_else(|e| e.into_inner()) = Some(path);
 }
 
 pub fn log_event(operation: &str, status: &str, detail: &str) {
-    let Some(path) = LOG_PATH.get().and_then(|p| p.lock().ok().and_then(|g| g.clone())) else { return; };
-    if let Some(parent) = path.parent() { if fs::create_dir_all(parent).is_err() { return; } }
+    let Some(path) = LOG_PATH
+        .get()
+        .and_then(|p| p.lock().ok().and_then(|g| g.clone()))
+    else {
+        return;
+    };
+    if let Some(parent) = path.parent() {
+        if fs::create_dir_all(parent).is_err() {
+            return;
+        }
+    }
     let _guard = output_lock().lock().unwrap_or_else(|e| e.into_inner());
-    if let Ok(mut file) = OpenOptions::new().create(true).append(true).mode(0o600).open(path) {
+    if let Ok(mut file) = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .mode(0o600)
+        .open(path)
+    {
         let entry = serde_json::json!({"timestamp": crate::state::now(), "operation": operation, "status": status, "detail": detail});
         let _ = writeln!(file, "{entry}");
     }
 }
-
 
 fn output_lock() -> &'static Mutex<()> {
     OUTPUT.get_or_init(|| Mutex::new(()))
@@ -152,7 +168,9 @@ mod tests {
     use super::*;
     #[test]
     fn terminal_pty_probe() {
-        let Ok(mode) = std::env::var("SOLOIST_DISPLAY_PTY_PROBE") else { return; };
+        let Ok(mode) = std::env::var("SOLOIST_DISPLAY_PTY_PROBE") else {
+            return;
+        };
         configure(mode == "quiet", false);
         {
             let p = Progress::new(mode == "quiet", "probe");
@@ -200,10 +218,17 @@ else:
 "#;
         for mode in ["normal", "quiet"] {
             let result = std::process::Command::new("python3")
-                .arg("-c").arg(script)
+                .arg("-c")
+                .arg(script)
                 .arg(std::env::current_exe().unwrap())
-                .arg(mode).output().expect("python3 is required for PTY tests");
-            assert!(result.status.success(), "PTY {mode}: {}", String::from_utf8_lossy(&result.stderr));
+                .arg(mode)
+                .output()
+                .expect("python3 is required for PTY tests");
+            assert!(
+                result.status.success(),
+                "PTY {mode}: {}",
+                String::from_utf8_lossy(&result.stderr)
+            );
         }
     }
     #[test]

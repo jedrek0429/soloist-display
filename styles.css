@@ -132,8 +132,8 @@
 }
 :root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image{
   /* Dark translucent substrate lets the album-derived backdrop show through. */
-  background:radial-gradient(circle at 35% 28%,rgba(172,191,203,.42),rgba(77,95,116,.27) 46%,rgba(36,52,72,.20) 82%,rgba(119,138,153,.32));
-  box-shadow:inset 0 0 14px rgba(32,42,58,.19),inset 0 0 2px rgba(255,255,255,.15);
+  background:radial-gradient(circle at 35% 28%,rgba(172,191,203,.26),rgba(77,95,116,.16) 46%,rgba(36,52,72,.10) 82%,rgba(119,138,153,.18));
+  box-shadow:inset 0 0 10px rgba(32,42,58,.11),inset 0 0 2px rgba(255,255,255,.09);
 }
 :root[data-disc-appearance='cd'] .disc-image::before,
 :root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image::before{

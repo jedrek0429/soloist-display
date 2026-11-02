@@ -60,6 +60,8 @@ const holeColor=['white','black','transparent'].includes(config[colorKey])?confi
 root.dataset.holeColor=holeColor;
 root.style.setProperty('--center-hole-radius',holeSize/2+'%');
 root.style.setProperty('--center-hole-diameter',holeSize+'%');
+// closest-side radial stops are relative to disc radius: X% stop = X% disc diameter.
+root.style.setProperty('--cd-hole-stop',holeSize+'%');
 if(config.burnInProtection===true)root.classList.add('burn-in-protection');
 for(const [key,value] of Object.entries({
   '--disc-size':settings.discSize+'dvh',

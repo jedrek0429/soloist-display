@@ -1,0 +1,329 @@
+use crate::platform::Platform;
+use anyhow::{anyhow, bail, Context, Result};
+use base64::{engine::general_purpose::STANDARD, Engine};
+use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+use reqwest::blocking::Client;
+use semver::Version;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::{
+    fs,
+    io::{Read, Write},
+    path::Path,
+    time::Duration,
+};
+
+pub const RELEASE_PUBLIC_KEY_B64: &str =
+    "MCowBQYDK2VwAyEAN2qrYATzPFCel3Nw7NZHzZtba1Gz9kthPRXWtQMFTiw=";
+pub const GITHUB_LATEST: &str =
+    "https://github.com/jedrek0429/soloist-display/releases/latest/download";
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Artifact {
+    pub name: String,
+    pub kind: String,
+    pub target: String,
+    pub url: String,
+    #[serde(default)]
+    pub fallback_url: Option<String>,
+    pub sha256: String,
+    pub size: u64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ReleaseManifest {
+    pub schema: u32,
+    pub version: Version,
+    pub published_at: String,
+    pub artifacts: Vec<Artifact>,
+}
+
+impl ReleaseManifest {
+    pub fn artifact<'a>(&'a self, kind: &str, platform: &Platform) -> Result<&'a Artifact> {
+        self.artifacts
+            .iter()
+            .find(|artifact| artifact.kind == kind && artifact.target == platform.target)
+            .ok_or_else(|| {
+                anyhow!(
+                    "release {} has no {kind} artifact for {}",
+                    self.version,
+                    platform.target
+                )
+            })
+    }
+
+    pub fn soloist<'a>(&'a self, platform: &Platform) -> Result<&'a Artifact> {
+        let archive = platform.soloist_archive();
+        self.artifacts
+            .iter()
+            .find(|artifact| artifact.kind == "soloist" && artifact.target == archive)
+            .ok_or_else(|| {
+                anyhow!(
+                    "release {} has no verified Spotify Soloist artifact for {archive}",
+                    self.version
+                )
+            })
+    }
+}
+
+pub struct ReleaseClient {
+    client: Client,
+    public_key: VerifyingKey,
+}
+
+impl ReleaseClient {
+    pub fn new() -> Result<Self> {
+        let key: [u8; 32] = STANDARD
+            .decode(RELEASE_PUBLIC_KEY_B64)?
+            .try_into()
+            .map_err(|_| anyhow!("invalid embedded release public key"))?;
+        let public_key = VerifyingKey::from_bytes(&key)?;
+        let client = Client::builder()
+            .connect_timeout(Duration::from_secs(10))
+            .timeout(Duration::from_secs(300))
+            .user_agent(format!("soloist-display/{}", env!("CARGO_PKG_VERSION")))
+            .build()?;
+        Ok(Self { client, public_key })
+    }
+
+    pub fn latest(&self) -> Result<(ReleaseManifest, Vec<u8>)> {
+        if let Some(path) = std::env::var_os("SOLOIST_DISPLAY_MANIFEST") {
+            let bytes = fs::read(&path)
+                .with_context(|| format!("read manifest {}", Path::new(&path).display()))?;
+            let signature_path = std::env::var_os("SOLOIST_DISPLAY_MANIFEST_SIGNATURE")
+                .ok_or_else(|| {
+                    anyhow!("SOLOIST_DISPLAY_MANIFEST_SIGNATURE is required with a local manifest")
+                })?;
+            let signature = fs::read(signature_path)?;
+            return self.verify_manifest(bytes, signature);
+        }
+        let base =
+            std::env::var("SOLOIST_DISPLAY_RELEASE_BASE").unwrap_or_else(|_| GITHUB_LATEST.into());
+        let manifest_url = format!("{}/release-manifest.json", base.trim_end_matches('/'));
+        let signature_url = format!("{}/release-manifest.sig", base.trim_end_matches('/'));
+        let bytes = self
+            .get_bytes(&manifest_url)
+            .context("download release manifest")?;
+        let signature = self
+            .get_bytes(&signature_url)
+            .context("download release signature")?;
+        self.verify_manifest(bytes, signature)
+    }
+
+    fn verify_manifest(
+        &self,
+        bytes: Vec<u8>,
+        signature_bytes: Vec<u8>,
+    ) -> Result<(ReleaseManifest, Vec<u8>)> {
+        let encoded = String::from_utf8(signature_bytes)?.trim().to_owned();
+        let signature_raw: [u8; 64] = STANDARD
+            .decode(encoded)?
+            .try_into()
+            .map_err(|_| anyhow!("release signature must be 64 bytes"))?;
+        self.public_key
+            .verify(&bytes, &Signature::from_bytes(&signature_raw))
+            .context("release manifest signature is invalid")?;
+        let manifest: ReleaseManifest =
+            serde_json::from_slice(&bytes).context("parse release manifest")?;
+        if manifest.schema != 1 {
+            bail!("unsupported release manifest schema {}", manifest.schema);
+        }
+        Ok((manifest, bytes))
+    }
+
+    fn get_bytes(&self, url: &str) -> Result<Vec<u8>> {
+        let response = self.client.get(url).send()?.error_for_status()?;
+        Ok(response.bytes()?.to_vec())
+    }
+
+    pub fn download(&self, artifact: &Artifact, destination: &Path) -> Result<()> {
+        if artifact.size == 0 {
+            bail!("artifact {} has invalid zero size", artifact.name);
+        }
+        let mut last_error = None;
+        for url in std::iter::once(Some(artifact.url.as_str()))
+            .chain(std::iter::once(artifact.fallback_url.as_deref()))
+            .flatten()
+        {
+            for attempt in 1..=3 {
+                match self.download_once(url, artifact, destination) {
+                    Ok(()) => return Ok(()),
+                    Err(error) => {
+                        let _ = fs::remove_file(destination);
+                        last_error = Some(error.context(format!(
+                            "download {} from {url} (attempt {attempt}/3)",
+                            artifact.name
+                        )));
+                        if attempt < 3 {
+                            std::thread::sleep(Duration::from_millis(250 * attempt));
+                        }
+                    }
+                }
+            }
+        }
+        Err(last_error.unwrap_or_else(|| anyhow!("artifact {} has no download URL", artifact.name)))
+    }
+
+    fn download_once(&self, url: &str, artifact: &Artifact, destination: &Path) -> Result<()> {
+        let mut response = self.client.get(url).send()?.error_for_status()?;
+        let mut file = fs::OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(destination)?;
+        let mut hasher = Sha256::new();
+        let mut total = 0u64;
+        let mut buffer = [0u8; 64 * 1024];
+        loop {
+            let count = response.read(&mut buffer)?;
+            if count == 0 {
+                break;
+            }
+            total += count as u64;
+            if total > artifact.size {
+                bail!("artifact {} exceeded declared size", artifact.name);
+            }
+            hasher.update(&buffer[..count]);
+            file.write_all(&buffer[..count])?;
+        }
+        file.sync_all()?;
+        if total != artifact.size {
+            bail!(
+                "artifact {} size mismatch: expected {}, received {total}",
+                artifact.name,
+                artifact.size
+            );
+        }
+        let actual = hex::encode(hasher.finalize());
+        if !actual.eq_ignore_ascii_case(&artifact.sha256) {
+            bail!("artifact {} SHA-256 mismatch", artifact.name);
+        }
+        Ok(())
+    }
+}
+
+pub fn sha256_file(path: &Path) -> Result<String> {
+    let mut file = fs::File::open(path)?;
+    let mut hasher = Sha256::new();
+    std::io::copy(&mut file, &mut hasher)?;
+    Ok(hex::encode(hasher.finalize()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ed25519_dalek::{Signer, SigningKey};
+    use std::thread;
+
+    fn test_client() -> ReleaseClient {
+        let key = SigningKey::from_bytes(&[7u8; 32]);
+        ReleaseClient {
+            client: Client::builder().build().unwrap(),
+            public_key: key.verifying_key(),
+        }
+    }
+
+    #[test]
+    fn rejects_invalid_signature() {
+        let client = ReleaseClient::new().unwrap();
+        assert!(client.verify_manifest(br#"{"schema":1}"#.to_vec(), b"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==\n".to_vec()).is_err());
+    }
+
+    #[test]
+    fn embedded_release_key_verifies_rotation_fixture() {
+        let client = ReleaseClient::new().unwrap();
+        let signature: [u8; 64] = STANDARD
+            .decode("zM5z+JXp8DID3XfIEw4M5EGX37Zhte7I2F+OKrkPoEbe2zCWh51m06sVLPfPpr3OTiD77hi2e5pLOmwksIQtBQ==")
+            .unwrap()
+            .try_into()
+            .unwrap();
+        client
+            .public_key
+            .verify(
+                b"soloist-display release key test v1",
+                &Signature::from_bytes(&signature),
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn validates_signed_manifest_with_matching_key() {
+        let key = SigningKey::from_bytes(&[7u8; 32]);
+        let client = test_client();
+        let bytes = br#"{"schema":1,"version":"1.0.0","published_at":"2026-11-02T00:00:00Z","artifacts":[]}"#.to_vec();
+        let signature = STANDARD.encode(key.sign(&bytes).to_bytes());
+        let (manifest, _) = client
+            .verify_manifest(bytes, signature.into_bytes())
+            .unwrap();
+        assert_eq!(manifest.version, Version::new(1, 0, 0));
+    }
+
+    #[test]
+    fn corrupt_primary_is_removed_before_verified_fallback() {
+        let server = tiny_http::Server::http("127.0.0.1:0").unwrap();
+        let address = format!("http://{}", server.server_addr());
+        let worker = thread::spawn(move || {
+            for _ in 0..3 {
+                server
+                    .recv()
+                    .unwrap()
+                    .respond(tiny_http::Response::from_data(b"baad".to_vec()))
+                    .unwrap();
+            }
+            server
+                .recv()
+                .unwrap()
+                .respond(tiny_http::Response::from_data(b"good".to_vec()))
+                .unwrap();
+        });
+        let artifact = Artifact {
+            name: "fixture".into(),
+            kind: "manager".into(),
+            target: "test".into(),
+            url: format!("{address}/primary"),
+            fallback_url: Some(format!("{address}/fallback")),
+            sha256: hex::encode(Sha256::digest(b"good")),
+            size: 4,
+        };
+        let directory = tempfile::tempdir().unwrap();
+        let destination = directory.path().join("artifact");
+        test_client().download(&artifact, &destination).unwrap();
+        assert_eq!(fs::read(destination).unwrap(), b"good");
+        worker.join().unwrap();
+    }
+
+    #[test]
+    fn interrupted_download_and_missing_fallback_fail_closed() {
+        let server = tiny_http::Server::http("127.0.0.1:0").unwrap();
+        let address = format!("http://{}", server.server_addr());
+        let worker = thread::spawn(move || {
+            for _ in 0..3 {
+                server
+                    .recv()
+                    .unwrap()
+                    .respond(tiny_http::Response::from_data(b"short".to_vec()))
+                    .unwrap();
+            }
+            for _ in 0..3 {
+                server
+                    .recv()
+                    .unwrap()
+                    .respond(tiny_http::Response::empty(503))
+                    .unwrap();
+            }
+        });
+        let artifact = Artifact {
+            name: "fixture".into(),
+            kind: "manager".into(),
+            target: "test".into(),
+            url: format!("{address}/primary"),
+            fallback_url: Some(format!("{address}/fallback")),
+            sha256: "0".repeat(64),
+            size: 100,
+        };
+        let directory = tempfile::tempdir().unwrap();
+        let destination = directory.path().join("artifact");
+        assert!(test_client().download(&artifact, &destination).is_err());
+        assert!(!destination.exists());
+        worker.join().unwrap();
+    }
+}

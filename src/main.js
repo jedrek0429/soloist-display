@@ -2,6 +2,12 @@ import {artistFor,coverFor,normalize,positionMs,durationMs,playing as isPlaying}
 import {DiscDirector} from './motion.js';
 import {Spectrum} from './spectrum.js';
 
+const updateVersion=new URLSearchParams(location.search).get('update');
+if(/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(updateVersion||'')&&localStorage.getItem('soloistDisplayUpdateNotice')!==updateVersion){
+  localStorage.setItem('soloistDisplayUpdateNotice',updateVersion);
+  setTimeout(()=>alert(`Soloist Display ${updateVersion} is available. Run “soloist-display update” to install it.`),500);
+}
+
 const config=await fetch('./config.json').then(r=>r.json()).catch(()=>({}));
 // Settings saved in the other launcher are picked up without restarting this display.
 let configSnapshot=JSON.stringify(config);

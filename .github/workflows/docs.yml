@@ -1,0 +1,27 @@
+name: Documentation checks
+on:
+  push:
+    branches: ['**']
+    paths: ['README.md', 'docs/**', '.github/workflows/docs.yml']
+  pull_request:
+    paths: ['README.md', 'docs/**', '.github/workflows/docs.yml']
+concurrency:
+  group: docs-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  links:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Relative assets exist
+        run: |
+          test -f docs/screenshots/now-playing.webp
+          test -f docs/installer.md
+          test -f docs/releasing.md
+      - name: External documentation resolves
+        run: |
+          curl --fail --location --silent --show-error --retry 3 --output /dev/null \
+            https://developer.spotify.com/documentation/soloist
+          curl --fail --location --silent --show-error --retry 3 --output /dev/null \
+            https://developer.spotify.com/dashboard/soloist

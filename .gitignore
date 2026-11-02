@@ -4,3 +4,4 @@ __pycache__/
 .DS_Store
 /audio-bridge/target/
 /audio-bridge/Cargo.lock
+/target/

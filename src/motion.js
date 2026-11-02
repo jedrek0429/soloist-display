@@ -68,6 +68,7 @@ export class DiscDirector{
   }
   async transitionPanel(show){
     const token=++this.panelToken;
+    if(this.settings.panelEnabled===false){show();return;}
     this.panelAnimation?.cancel();
     this.panelAnimation=null;
     this.info.classList.remove('metadata-exiting','metadata-entering','revealing');

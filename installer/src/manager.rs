@@ -214,7 +214,7 @@ fn install_completion(paths: &Paths) -> Result<()> {
     let existing = fs::read_to_string(&rc).unwrap_or_default();
     if !existing.contains(ZSH_START) {
         let snippet = format!(
-            "\\n{ZSH_START}\\nfpath=(\\\"{}\\\" $fpath)\\nautoload -Uz compinit\\ncompinit\\n{ZSH_END}\\n",
+            "\n{ZSH_START}\nfpath=(\"{}\" $fpath)\nautoload -Uz compinit\ncompinit\n{ZSH_END}\n",
             directory.display()
         );
         fs::write(rc, format!("{existing}{snippet}"))?;
@@ -224,7 +224,9 @@ fn install_completion(paths: &Paths) -> Result<()> {
 
 fn remove_completion(paths: &Paths) -> Result<()> {
     let file = paths.data_home.join("zsh/site-functions/_soloist-display");
-    if file.exists() { fs::remove_file(file)?; }
+    if file.exists() {
+        fs::remove_file(file)?;
+    }
     let rc = paths.home.join(".zshrc");
     if let Ok(content) = fs::read_to_string(&rc) {
         if let Some(start) = content.find(ZSH_START) {

@@ -287,7 +287,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Err(broadcast::error::RecvError::Lagged(_)) => continue,
                         Err(_) => break,
                     };
-                    if ws.send(Message::Text(frame)).await.is_err() {
+                    if ws.send(Message::Text(frame.into())).await.is_err() {
                         break;
                     }
                 }

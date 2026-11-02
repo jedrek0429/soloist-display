@@ -1,6 +1,8 @@
 # Soloist Display
 
-Turn a Linux computer into a Spotify Connect player with a simple, full-screen now-playing display. Pick music on your phone. The computer plays it and shows album art, track info and a live audio spectrum.
+Turn your Linux computer or Raspberry Pi into a dedicated Spotify music speaker with a beautiful display.
+
+Choose a song on your phone, select your computer in Spotify Connect, and enjoy your music with animated album artwork, track information, and a live audio spectrum.
 
 The screen is for display, not playback controls. Good for a spare monitor or a dedicated music setup.
 

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#101010">
+<meta name="description" content="A full-screen now-playing display for Spotify Soloist.">
+<title>Soloist Display</title>
+<style>
+:root{color-scheme:dark;font:15px Arial,Helvetica,sans-serif;background:#101010;color:#f2f2f2;--ink:#f2f2f2;--bg:#101010;--line:#555}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:var(--bg);display:grid;place-items:center}
+main{width:min(760px,calc(100% - 32px));padding:28px 0}
+header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:22px}
+h1{font-size:26px;font-weight:600;letter-spacing:-.03em;margin:0}
+.status{font-size:13px;color:#aaa}
+.hero{padding:clamp(70px,16vh,150px) 0}
+h2{font-size:clamp(38px,8vw,76px);line-height:.95;letter-spacing:-.055em;margin:0 0 18px;max-width:650px}
+p{color:#aaa;margin:0;font-size:16px}
+.install{border-top:1px solid var(--line);padding-top:22px}
+.label{display:block;font-size:12px;color:#aaa;margin-bottom:12px;text-transform:uppercase;letter-spacing:.08em}
+.command{display:flex;border:1px solid var(--line)}
+code{padding:16px;overflow:auto;white-space:nowrap;flex:1;color:var(--ink)}
+button,a{font:inherit;color:var(--ink);background:transparent;border:0;text-decoration:none;cursor:pointer}
+button{border-left:1px solid var(--line);padding:0 18px}
+button:hover,button:focus-visible,a:hover,a:focus-visible{background:var(--ink);color:var(--bg);outline:0}
+footer{display:flex;gap:18px;border-top:1px solid var(--line);margin-top:28px;padding-top:18px;font-size:13px}
+[hidden]{display:none}
+@media(max-width:560px){.command{display:block}button{width:100%;border-left:0;border-top:1px solid var(--line);padding:12px}code{display:block}}
+</style>
+</head>
+<body>
+<main>
+<header><h1>Soloist Display</h1><span class="status" id="status">Release pending</span></header>
+<section class="hero"><h2>Now playing.<br>Full screen.</h2><p>Linux · Spotify Soloist</p></section>
+<section class="install" id="install" hidden>
+<span class="label">Install</span>
+<div class="command"><code id="command">curl -fsSL https://jedrek0429.github.io/soloist-display/install.sh | sh</code><button id="copy" type="button">Copy</button></div>
+</section>
+<footer><a href="https://github.com/jedrek0429/soloist-display">GitHub</a><a href="https://developer.spotify.com/documentation/soloist">Soloist</a></footer>
+</main>
+<script>
+const command=document.querySelector('#command').textContent;
+fetch('https://api.github.com/repos/jedrek0429/soloist-display/releases/latest',{headers:{Accept:'application/vnd.github+json'}}).then(response=>{
+  if(!response.ok)throw new Error();
+  document.querySelector('#status').textContent='Available';
+  document.querySelector('#install').hidden=false;
+}).catch(()=>{});
+document.querySelector('#copy').addEventListener('click',async event=>{
+  await navigator.clipboard.writeText(command);
+  event.currentTarget.textContent='Copied';
+});
+</script>
+</body>
+</html>

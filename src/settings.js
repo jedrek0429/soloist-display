@@ -5,7 +5,9 @@ const sections=[
       ['discAppearance','Appearance','select',['basic','cd','vinyl','vinyl-cover','cd-cover']],
       ['discSize','Diameter','range',50,200,1,'dvh'],
       ['centerHole','Center hole','range',0,20,.5,'%'],
-      ['centerHoleColor','Hole colour','select',['white','black','transparent']]
+      ['centerHoleColor','Hole colour','select',['white','black','transparent']],
+      ['cdCoverSide','CD side','select',['up','down']],
+      ['vinylGrooveDensity','Groove density','range',1,10,1]
     ]
   },
   {
@@ -105,7 +107,9 @@ function renderNav(){
 }
 
 function renderSection(){
-  const hidden=key=>(key==='transitionStyle'&&isCover(draft.discAppearance))||
+  const hidden=key=>(key==='cdCoverSide'&&draft.discAppearance!=='cd-cover')||
+    (key==='vinylGrooveDensity'&&!['vinyl','vinyl-cover'].includes(draft.discAppearance))||
+    (key==='transitionStyle'&&isCover(draft.discAppearance))||
     (key==='sleeveTransitionStyle'&&!isCover(draft.discAppearance))||
     (key==='sleeveDuration'&&(!isCover(draft.discAppearance)||draft.sleeveTransitionStyle==='off'))||
     (key==='sleeveAlignment'&&!isCover(draft.discAppearance))||

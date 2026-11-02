@@ -51,7 +51,14 @@ fn read_settings(path: &PathBuf) -> Value {
                 }
                 // Existing global diameters become the initial size for every appearance.
                 if let Some(size) = values.get("discSize").and_then(Value::as_f64) {
-                    for key in ["discSizeBasic", "discSizeCd", "discSizeVinyl", "discSizeVinylCover", "discSizeCdCover", "discSizeAlbumCover"] {
+                    for key in [
+                        "discSizeBasic",
+                        "discSizeCd",
+                        "discSizeVinyl",
+                        "discSizeVinylCover",
+                        "discSizeCdCover",
+                        "discSizeAlbumCover",
+                    ] {
                         if !values.contains_key(key) {
                             object.insert(key.into(), Value::from(size));
                         }
@@ -70,10 +77,24 @@ fn read_settings(path: &PathBuf) -> Value {
                     }
                 }
                 // Legacy global motion settings seed all appearance presets once.
-                for suffix in ["Basic", "Cd", "Vinyl", "VinylCover", "CdCover", "AlbumCover"] {
-                    for key in ["transitionStyle", "transitionDuration", "transitionDelay",
-                        "sleeveTransitionStyle", "sleeveAlignment", "sleeveDuration",
-                        "sleeveDelayIn", "sleeveDelayOut"] {
+                for suffix in [
+                    "Basic",
+                    "Cd",
+                    "Vinyl",
+                    "VinylCover",
+                    "CdCover",
+                    "AlbumCover",
+                ] {
+                    for key in [
+                        "transitionStyle",
+                        "transitionDuration",
+                        "transitionDelay",
+                        "sleeveTransitionStyle",
+                        "sleeveAlignment",
+                        "sleeveDuration",
+                        "sleeveDelayIn",
+                        "sleeveDelayOut",
+                    ] {
                         let name = format!("{key}{suffix}");
                         if !values.contains_key(&name) {
                             if let Some(previous) = values.get(key) {
@@ -92,7 +113,14 @@ fn read_settings(path: &PathBuf) -> Value {
                     }
                 }
                 // Normalize legacy "instant" in the new per-appearance presets too.
-                for suffix in ["Basic", "Cd", "Vinyl", "VinylCover", "CdCover", "AlbumCover"] {
+                for suffix in [
+                    "Basic",
+                    "Cd",
+                    "Vinyl",
+                    "VinylCover",
+                    "CdCover",
+                    "AlbumCover",
+                ] {
                     let key = format!("transitionStyle{suffix}");
                     if object.get(&key).and_then(Value::as_str) == Some("instant") {
                         object.insert(key, Value::String("off".into()));
@@ -159,7 +187,8 @@ async fn put_config(
             "visualizerSmoothing" => Some((0., 1.)),
             "vinylGrooveDensity" => Some((1., 10.)),
             "vinylLabelSize" => Some((10., 70.)),
-            "discSize" | "discSizeBasic" | "discSizeCd" | "discSizeVinyl" | "discSizeVinylCover" | "discSizeCdCover" | "discSizeAlbumCover" => Some((50., 200.)),
+            "discSize" | "discSizeBasic" | "discSizeCd" | "discSizeVinyl"
+            | "discSizeVinylCover" | "discSizeCdCover" | "discSizeAlbumCover" => Some((50., 200.)),
             "centerHoleBasic" | "centerHoleCd" | "centerHoleVinyl" => Some((0., 20.)),
             "discOpacityBasic"
             | "discOpacityCd"
@@ -186,8 +215,12 @@ async fn put_config(
             "backgroundBlur" => Some((0., 150.)),
             "metadataOpacity" => Some((0., 1.)),
             "metadataScale" => Some((0.5, 2.)),
-            _ if key.starts_with("transitionDuration") || key.starts_with("sleeveDuration") => Some((100., 10000.)),
-            _ if key.starts_with("transitionDelay") || key.starts_with("sleeveDelay") => Some((0., 10000.)),
+            _ if key.starts_with("transitionDuration") || key.starts_with("sleeveDuration") => {
+                Some((100., 10000.))
+            }
+            _ if key.starts_with("transitionDelay") || key.starts_with("sleeveDelay") => {
+                Some((0., 10000.))
+            }
             _ => None,
         } {
             if !value.as_f64().is_some_and(|n| n >= lo && n <= hi) {
@@ -221,7 +254,9 @@ async fn put_config(
         if key == "cdCoverSide" && !["up", "down"].contains(&value.as_str().unwrap_or("")) {
             return Err((StatusCode::BAD_REQUEST, "Unsupported CD side".into()));
         }
-        if key.starts_with("sleeveAlignment") && !["left", "center"].contains(&value.as_str().unwrap_or("")) {
+        if key.starts_with("sleeveAlignment")
+            && !["left", "center"].contains(&value.as_str().unwrap_or(""))
+        {
             return Err((
                 StatusCode::BAD_REQUEST,
                 "Unsupported sleeve alignment".into(),
@@ -580,7 +615,9 @@ mod tests {
         assert_eq!(settings["transitionStyleCdCover"], "slide");
         assert_eq!(settings["transitionDurationCdCover"], 3700);
         assert_eq!(settings["sleeveDurationCdCover"], 1700);
-        assert_eq!(settings["discSizeAlbumCover"], defaults["discSizeAlbumCover"]);
+        assert_eq!(
+            settings["discSizeAlbumCover"],
+            defaults["discSizeAlbumCover"]
+        );
     }
-
 }

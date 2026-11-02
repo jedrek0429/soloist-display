@@ -85,11 +85,7 @@ fn read_settings(path: &PathBuf) -> Value {
                     "CdCover",
                     "AlbumCover",
                 ] {
-                    for key in [
-                        "transitionStyle",
-                        "transitionDuration",
-                        "transitionDelay",
-                    ] {
+                    for key in ["transitionStyle", "transitionDuration", "transitionDelay"] {
                         let name = format!("{key}{suffix}");
                         if !values.contains_key(&name) {
                             if let Some(previous) = values.get(key) {
@@ -643,8 +639,11 @@ mod tests {
         }
         for suffix in ["Basic", "Cd", "Vinyl", "AlbumCover"] {
             for prefix in [
-                "sleeveTransitionStyle", "sleeveAlignment", "sleeveDuration",
-                "sleeveDelayIn", "sleeveDelayOut",
+                "sleeveTransitionStyle",
+                "sleeveAlignment",
+                "sleeveDuration",
+                "sleeveDelayIn",
+                "sleeveDelayOut",
             ] {
                 assert!(settings.get(format!("{prefix}{suffix}")).is_none());
             }

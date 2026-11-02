@@ -40,9 +40,9 @@ const root=document.documentElement;
 root.dataset.progressBar=config.progressBar===false?'off':'on';
 root.dataset.timeDisplay=['off','remaining','total'].includes(config.timeDisplay)?config.timeDisplay:'off';
 root.dataset.timeLayout=config.timeLayout==='together'?'together':'split';
-root.dataset.discAppearance=['basic','cd','vinyl'].includes(config.discAppearance)?config.discAppearance:'basic';
+root.dataset.discAppearance=['basic','cd','vinyl','vinyl-cover'].includes(config.discAppearance)?config.discAppearance:'basic';
 root.dataset.panelPosition=['bottom-right','bottom-left','top-right','top-left'].includes(config.panelPosition)?config.panelPosition:'bottom-right';
-const holeKey='centerHole'+root.dataset.discAppearance[0].toUpperCase()+root.dataset.discAppearance.slice(1);
+const holeKey='centerHole'+(root.dataset.discAppearance==='vinyl-cover'?'Vinyl':root.dataset.discAppearance[0].toUpperCase()+root.dataset.discAppearance.slice(1));
 const holeSize=bounded(config[holeKey],root.dataset.discAppearance==='cd'?16:root.dataset.discAppearance==='vinyl'?.6:1,0,20);
 const colorKey=holeKey.replace('centerHole','centerHoleColor');
 const holeColor=['white','black','transparent'].includes(config[colorKey])?config[colorKey]:'transparent';
@@ -62,6 +62,7 @@ const director=new DiscDirector({discs:[$('disc-a'),$('disc-b')],backdrops:[$('b
 const spectrum=new Spectrum($('visualizer'), config.visualizerSensitivity ?? 1, config.visualizerSmoothing ?? 0.7, {autoNormalize:config.visualizerAutoNormalize===true,peakHold:config.visualizerPeakHold===true});
 let currentUri=null,position=0,positionTime=performance.now(),duration=0,playing=false;
 let lastTrack=null;
+let currentCover=null;
 function updateItem(item){
   if(!item)return;
   lastTrack=item;
@@ -71,6 +72,8 @@ function updateItem(item){
   currentUri=uri;
   const name=item?.decorations?.identity?.name||item.name||'Not playing';
   const artist=artistFor(item),cover=coverFor(item);
+  if(root.dataset.discAppearance==='vinyl-cover'&&cover===currentCover&&director.started){$('track').textContent=name;$('artist').textContent=artist;return;}
+  currentCover=cover;
   director.change(cover,()=>{$('track').textContent=name;$('artist').textContent=artist});
 }
 function handleSoloist(event){

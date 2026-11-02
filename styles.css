@@ -89,7 +89,6 @@
 :root[data-disc-appearance='cd-cover'] .disc-image::after{display:block;inset:0;border-radius:50%;background:repeating-radial-gradient(circle at center,transparent 0 11px,rgba(255,255,255,.012) 12px,transparent 13px,transparent 16px);mask:radial-gradient(circle,transparent 0 21%,#000 23% 96%,transparent 99%)}
 :root[data-disc-appearance='cd-cover'] .disc-label{display:block}
 :root[data-disc-appearance='cd-cover'] .rotor{mask:none;-webkit-mask:none}
-:root[data-disc-appearance='cd-cover'][data-hole-color='transparent'] .rotor{mask-image:radial-gradient(circle,transparent 0 var(--center-hole-radius,0%),#000 calc(var(--center-hole-radius,0%) + .15%));-webkit-mask-image:radial-gradient(circle,transparent 0 var(--center-hole-radius,0%),#000 calc(var(--center-hole-radius,0%) + .15%))}
 :root[data-disc-appearance='cd-cover'] .spindle{display:none}
 :root[data-disc-appearance='cd-cover'][data-hole-color='white'] .spindle,:root[data-disc-appearance='cd-cover'][data-hole-color='black'] .spindle{display:block}
 :root[data-disc-appearance='cd-cover'] .disc:not(.active){visibility:hidden}
@@ -213,10 +212,6 @@
 /* CD aperture: use the original small hole on both sides.
    Optical hub rings are decorative and do not change the actual aperture. */
 :root[data-disc-appearance='cd-cover'] .rotor,
-:root[data-disc-appearance='cd-cover'][data-hole-color='transparent'] .rotor{
-  -webkit-mask-image:radial-gradient(circle closest-side at center,transparent 0 var(--center-hole-radius),#000 calc(var(--center-hole-radius) + .08%));
-  mask-image:radial-gradient(circle closest-side at center,transparent 0 var(--center-hole-radius),#000 calc(var(--center-hole-radius) + .08%));
-}
 :root[data-disc-appearance='cd-cover'][data-hole-color='white'] .rotor,
 :root[data-disc-appearance='cd-cover'][data-hole-color='black'] .rotor{
   -webkit-mask-image:none;mask-image:none;

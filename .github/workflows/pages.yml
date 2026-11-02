@@ -2,7 +2,7 @@ name: Publish landing page
 on:
   push:
     branches: [main]
-    paths: ['site/**', 'index.html', 'styles.css', 'src/motion.js', 'src/spectrum.js', 'install.sh', '.github/workflows/pages.yml']
+    paths: ['site/**', 'index.html', 'styles.css', 'src/motion.js', 'src/spectrum.js', 'install.sh', 'install.ps1', '.github/workflows/pages.yml']
   release:
     types: [published]
   workflow_dispatch:
@@ -35,6 +35,11 @@ jobs:
             -o "$RUNNER_TEMP/pages/install.sh"; then
             cp install.sh "$RUNNER_TEMP/pages/install.sh"
           fi
+          if ! curl --fail --location --silent --show-error \
+            https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/install.ps1 \
+            -o "$RUNNER_TEMP/pages/install.ps1"; then
+            cp install.ps1 "$RUNNER_TEMP/pages/install.ps1"
+          fi
           touch "$RUNNER_TEMP/pages/.nojekyll"
       - name: Publish gh-pages branch
         run: |
@@ -53,7 +58,8 @@ jobs:
           mkdir -p src
           cp "$RUNNER_TEMP/pages/src/"*.js src/
           cp "$RUNNER_TEMP/pages/install.sh" install.sh
+          cp "$RUNNER_TEMP/pages/install.ps1" install.ps1
           cp "$RUNNER_TEMP/pages/.nojekyll" .nojekyll
-          git add index.html preview.html kind-of-blue.jpg styles.css src/motion.js src/spectrum.js src/demo.js install.sh .nojekyll
+          git add index.html preview.html kind-of-blue.jpg styles.css src/motion.js src/spectrum.js src/demo.js install.sh install.ps1 .nojekyll
           git commit -m "Publish Soloist Display landing page" || exit 0
           git push origin HEAD:gh-pages

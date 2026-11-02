@@ -13,7 +13,7 @@ use flate2::read::GzDecoder;
 use std::{
     fs,
     io::{self, IsTerminal, Write},
-    path::{Component, Path, PathBuf},
+    path::{Component, Path},
     process::Command,
     time::Duration,
 };
@@ -56,12 +56,12 @@ pub fn discover(paths: &Paths, installed: Option<&SoloistState>) -> SoloistState
         service::external_soloist_executable(),
         Some(paths.home.join(".local/bin").join(executable_name)),
         Some(paths.home.join("bin").join(executable_name)),
-        process::exists(executable_name).then(|| PathBuf::from(executable_name)),
+        process::find(executable_name),
     ];
     let executable = candidates
         .into_iter()
         .flatten()
-        .find(|candidate| candidate == Path::new(executable_name) || candidate.is_file());
+        .find(|candidate| candidate.is_file());
     let running = websocket_healthy(DEFAULT_WS);
     let independent_service_exists = service::independent_soloist_service_exists(paths)
         && !installed.is_some_and(|state| state.service_owned);

@@ -12,9 +12,13 @@ for line in pathlib.Path(sys.argv[2]).read_text().splitlines():
     records[target] = digest
 replacements = {
     "@SOLOIST_DISPLAY_RELEASE_BASE@": sys.argv[3],
-    "@SOLOIST_DISPLAY_SHA_X86_64@": records["x86_64-unknown-linux-musl"],
-    "@SOLOIST_DISPLAY_SHA_AARCH64@": records["aarch64-unknown-linux-musl"],
-    "@SOLOIST_DISPLAY_SHA_ARMV7@": records["armv7-unknown-linux-musleabihf"],
+    "@SOLOIST_DISPLAY_SHA_X86_64@": records.get("x86_64-unknown-linux-musl", "unavailable"),
+    "@SOLOIST_DISPLAY_SHA_AARCH64@": records.get("aarch64-unknown-linux-musl", "unavailable"),
+    "@SOLOIST_DISPLAY_SHA_ARMV7@": records.get("armv7-unknown-linux-musleabihf", "unavailable"),
+    "@SOLOIST_DISPLAY_SHA_MACOS_X86_64@": records.get("x86_64-apple-darwin", "unavailable"),
+    "@SOLOIST_DISPLAY_SHA_MACOS_ARM64@": records.get("aarch64-apple-darwin", "unavailable"),
+    "@SOLOIST_DISPLAY_SHA_WINDOWS_X86_64@": records.get("x86_64-pc-windows-msvc", "unavailable"),
+    "@SOLOIST_DISPLAY_SHA_WINDOWS_ARM64@": records.get("aarch64-pc-windows-msvc", "unavailable"),
 }
 for old, new in replacements.items():
     template = template.replace(old, new)

@@ -7,6 +7,8 @@ PIN_RELEASE_BASE='@SOLOIST_DISPLAY_RELEASE_BASE@'
 PIN_X86_64='@SOLOIST_DISPLAY_SHA_X86_64@'
 PIN_AARCH64='@SOLOIST_DISPLAY_SHA_AARCH64@'
 PIN_ARMV7='@SOLOIST_DISPLAY_SHA_ARMV7@'
+PIN_MACOS_X86_64='@SOLOIST_DISPLAY_SHA_MACOS_X86_64@'
+PIN_MACOS_ARM64='@SOLOIST_DISPLAY_SHA_MACOS_ARM64@'
 version=${SOLOIST_DISPLAY_VERSION-latest}
 case "$version" in
   latest) RELEASE_BASE=https://github.com/jedrek0429/soloist-display/releases/latest/download ;;
@@ -49,14 +51,16 @@ EOF
   --version) printf 'soloist-display-bootstrap %s\n' "$BOOTSTRAP_VERSION"; exit 0 ;;
 esac
 
-[ "$(uname -s 2>/dev/null)" = Linux ] || fail 'Linux is required'
+os=$(uname -s 2>/dev/null || printf unknown)
 bits=$(getconf LONG_BIT 2>/dev/null || printf unknown)
 machine=$(uname -m 2>/dev/null || printf unknown)
-case "$machine:$bits" in
-  x86_64:64|amd64:64) target=x86_64-unknown-linux-musl ;;
-  aarch64:64|arm64:64) target=aarch64-unknown-linux-musl ;;
-  armv7*:32|armv8*:32|armhf:32|aarch64:32) target=armv7-unknown-linux-musleabihf ;;
-  *) fail "unsupported architecture or userland: $machine ($bits-bit)" ;;
+case "$os:$machine:$bits" in
+  Linux:x86_64:64|Linux:amd64:64) target=x86_64-unknown-linux-musl ;;
+  Linux:aarch64:64|Linux:arm64:64) target=aarch64-unknown-linux-musl ;;
+  Linux:armv7*:32|Linux:armv8*:32|Linux:armhf:32|Linux:aarch64:32) target=armv7-unknown-linux-musleabihf ;;
+  Darwin:x86_64:64) target=x86_64-apple-darwin ;;
+  Darwin:arm64:64) target=aarch64-apple-darwin ;;
+  *) fail "unsupported platform, architecture, or userland: $os $machine ($bits-bit)" ;;
 esac
 
 if command -v curl >/dev/null 2>&1; then
@@ -74,10 +78,14 @@ public_key=$tmp_dir/release-public.pem
 installer=$tmp_dir/soloist-display
 
 case "$target" in
-  x86_64-*) pinned_sha=$PIN_X86_64 ;;
-  aarch64-*) pinned_sha=$PIN_AARCH64 ;;
-  armv7-*) pinned_sha=$PIN_ARMV7 ;;
+  x86_64-unknown-linux-musl) pinned_sha=$PIN_X86_64 ;;
+  aarch64-unknown-linux-musl) pinned_sha=$PIN_AARCH64 ;;
+  armv7-unknown-linux-musleabihf) pinned_sha=$PIN_ARMV7 ;;
+  x86_64-apple-darwin) pinned_sha=$PIN_MACOS_X86_64 ;;
+  aarch64-apple-darwin) pinned_sha=$PIN_MACOS_ARM64 ;;
 esac
+
+[ "$pinned_sha" != unavailable ] || fail "no validated Soloist Display release is published for $target"
 
 if [ "$version" != latest ] || [ "$RELEASE_BASE" != "$PIN_RELEASE_BASE" ]; then pinned_sha=untrusted; fi
 case "$pinned_sha" in

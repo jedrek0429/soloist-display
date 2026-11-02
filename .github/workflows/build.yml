@@ -13,6 +13,7 @@ on:
       - 'settings.html'
       - 'styles.css'
       - 'install.sh'
+      - 'install.ps1'
       - 'scripts/**'
       - '.github/workflows/build.yml'
   pull_request:
@@ -27,6 +28,7 @@ on:
       - 'settings.html'
       - 'styles.css'
       - 'install.sh'
+      - 'install.ps1'
       - 'scripts/**'
       - '.github/workflows/build.yml'
 concurrency:
@@ -50,10 +52,21 @@ jobs:
           sudo apt-get install -y shellcheck
           sh -n install.sh
           shellcheck install.sh
+      - name: PowerShell bootstrap syntax
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path install.ps1), [ref]$tokens, [ref]$errors
+          ) | Out-Null
+          if ($errors.Count) { $errors | Format-List; exit 1 }
       - name: Frontend syntax
         run: |
           for file in src/*.js; do node --check --input-type=module < "$file"; done
           python -m json.tool config.json >/dev/null
+      - name: Release tooling tests
+        run: python3 scripts/test-release-tools.py
       - name: CLI smoke test
         run: |
           cargo build --workspace

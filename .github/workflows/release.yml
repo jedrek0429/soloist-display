@@ -9,7 +9,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
+  build-linux:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -32,14 +32,83 @@ jobs:
             install -m755 "target/$target/release/soloist-display" "dist/soloist-display-$target"
             install -m755 "target/$target/release/soloist-audio-bridge" "dist/soloist-audio-bridge-$target"
           done
-      - name: Pin official Soloist builds
+      - name: Save unsigned release inputs
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-linux
+          path: dist/
+          retention-days: 30
+          if-no-files-found: error
+
+  build-native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2025
+            target: x86_64-pc-windows-msvc
+            windows: true
+          - runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            windows: true
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            windows: false
+          - runner: macos-15
+            target: aarch64-apple-darwin
+            windows: false
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+      - name: Build native executables
+        run: cargo build --workspace --release --locked
+      - name: Stage Windows executables
+        if: matrix.windows
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory dist
+          Copy-Item target/release/soloist-display.exe "dist/soloist-display-${{ matrix.target }}.exe"
+          Copy-Item target/release/soloist-audio-bridge.exe "dist/soloist-audio-bridge-${{ matrix.target }}.exe"
+      - name: Stage macOS executables
+        if: ${{ !matrix.windows }}
+        run: |
+          mkdir dist
+          cp target/release/soloist-display "dist/soloist-display-${{ matrix.target }}"
+          cp target/release/soloist-audio-bridge "dist/soloist-audio-bridge-${{ matrix.target }}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-${{ matrix.target }}
+          path: dist/
+          retention-days: 30
+          if-no-files-found: error
+
+  sign:
+    needs: [build-linux, build-native]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Restore unsigned release inputs
+        uses: actions/download-artifact@v8
+        with:
+          name: unsigned-linux
+          path: dist/
+      - name: Restore validated cross-platform release candidates
+        if: vars.ENABLE_CROSS_PLATFORM_RELEASES == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          pattern: unsigned-*-*-*
+          path: dist/
+          merge-multiple: true
+      - name: Pin official Spotify Soloist builds
         run: |
           for arch in x86_64 arm64 arm32; do
             curl --fail --location --retry 3 --connect-timeout 10 --max-time 300 \
               "https://soloist-builds.spotifycdn.com/soloist_release_${arch}.tar.gz" \
               -o "dist/soloist_release_${arch}.tar.gz"
-          done
-          for arch in x86_64 arm64 arm32; do
             tar -xOf "dist/soloist_release_${arch}.tar.gz" soloist > "$RUNNER_TEMP/soloist-$arch"
           done
           file "$RUNNER_TEMP"/soloist-*
@@ -47,24 +116,19 @@ jobs:
           file "$RUNNER_TEMP/soloist-arm64" | grep -q 'ARM aarch64'
           file "$RUNNER_TEMP/soloist-arm32" | grep -q 'ARM.*EABI5'
           readelf -h "$RUNNER_TEMP/soloist-arm32" | grep -q 'hard-float ABI'
-      - name: Save unsigned release inputs
-        uses: actions/upload-artifact@v7
-        with:
-          name: unsigned-release
-          path: dist/
-          retention-days: 30
-          if-no-files-found: error
-
-  sign:
-    needs: build
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-      - name: Restore unsigned release inputs
-        uses: actions/download-artifact@v8
-        with:
-          name: unsigned-release
-          path: dist/
+      - name: Pin official Windows and macOS Soloist builds
+        if: vars.ENABLE_CROSS_PLATFORM_RELEASES == 'true'
+        run: |
+          curl --fail --location --retry 3 --connect-timeout 10 --max-time 300 \
+            https://soloist-builds.spotifycdn.com/soloist_release_windows_x86_64.zip \
+            -o dist/soloist_release_windows_x86_64.zip
+          curl --fail --location --retry 3 --connect-timeout 10 --max-time 300 \
+            https://soloist-builds.spotifycdn.com/soloist_release_osx_arm64.tar.gz \
+            -o dist/soloist_release_osx_arm64.tar.gz
+          unzip -p dist/soloist_release_windows_x86_64.zip soloist.exe > "$RUNNER_TEMP/soloist-windows.exe"
+          tar -xOf dist/soloist_release_osx_arm64.tar.gz soloist > "$RUNNER_TEMP/soloist-macos"
+          file "$RUNNER_TEMP/soloist-windows.exe" | grep -q 'PE32+.*x86-64'
+          file "$RUNNER_TEMP/soloist-macos" | grep -q 'Mach-O 64-bit.*arm64'
       - name: Create and sign manifests
         env:
           RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
@@ -84,9 +148,11 @@ jobs:
           printf '\n' >> dist/bootstrap-manifest.sig
           python3 scripts/render-bootstrap.py install.sh dist/bootstrap-manifest.txt \
             "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}" > dist/install.sh
+          python3 scripts/render-bootstrap.py install.ps1 dist/bootstrap-manifest.txt \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}" > dist/install.ps1
           chmod 755 dist/install.sh
           sh -n dist/install.sh
-          rm dist/soloist_release_*.tar.gz
+          rm -f dist/soloist_release_*.tar.gz dist/soloist_release_*.zip
       - name: Save signed release assets
         uses: actions/upload-artifact@v7
         with:

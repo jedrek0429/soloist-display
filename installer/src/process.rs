@@ -6,25 +6,32 @@ use std::{
 };
 
 pub fn exists(name: &str) -> bool {
+    find(name).is_some()
+}
+
+pub fn find(name: &str) -> Option<std::path::PathBuf> {
     let candidate = Path::new(name);
     if candidate.components().count() > 1 {
-        return candidate.is_file();
+        return candidate.is_file().then(|| candidate.to_path_buf());
     }
-    env::var_os("PATH").is_some_and(|path| {
-        env::split_paths(&path).any(|directory| {
+    env::var_os("PATH").and_then(|path| {
+        env::split_paths(&path).find_map(|directory| {
             let plain = directory.join(name);
             if plain.is_file() {
-                return true;
+                return Some(plain);
             }
             #[cfg(windows)]
-            return env::var_os("PATHEXT").is_some_and(|extensions| {
+            return env::var_os("PATHEXT").and_then(|extensions| {
                 extensions
                     .to_string_lossy()
                     .split(';')
-                    .any(|extension| directory.join(format!("{name}{extension}")).is_file())
+                    .find_map(|extension| {
+                        let path = directory.join(format!("{name}{extension}"));
+                        path.is_file().then_some(path)
+                    })
             });
             #[cfg(not(windows))]
-            false
+            None
         })
     })
 }

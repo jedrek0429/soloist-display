@@ -125,6 +125,7 @@ async fn put_config(
         if let Some((lo, hi)) = match key.as_str() {
             "visualizerSensitivity" => Some((0., 10.)),
             "visualizerSmoothing" => Some((0., 1.)),
+            "vinylGrooveDensity" => Some((1., 10.)),
             "discSize" | "discSizeBasic" | "discSizeCd" | "discSizeVinyl" => Some((50., 200.)),
             "centerHoleBasic" | "centerHoleCd" | "centerHoleVinyl" => Some((0., 20.)),
             "panelFontSize" => Some((0.6, 1.6)),
@@ -166,6 +167,9 @@ async fn put_config(
                 StatusCode::BAD_REQUEST,
                 "Unsupported panel transition".into(),
             ));
+        }
+        if key == "cdCoverSide" && !["up", "down"].contains(&value.as_str().unwrap_or("")) {
+            return Err((StatusCode::BAD_REQUEST, "Unsupported CD side".into()));
         }
         if key == "sleeveAlignment" && !["left", "center"].contains(&value.as_str().unwrap_or("")) {
             return Err((
@@ -496,5 +500,7 @@ mod tests {
         assert_eq!(settings["progressBar"], true);
         assert_eq!(settings["timeDisplay"], "off");
         assert_eq!(settings["discSizeBasic"], 116);
+        assert_eq!(settings["cdCoverSide"], "down");
+        assert_eq!(settings["vinylGrooveDensity"], 5);
     }
 }

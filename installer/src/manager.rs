@@ -186,14 +186,14 @@ fn desktop_files(paths: &Paths) -> Result<Vec<PathBuf>> {
 }
 
 pub const ZSH_COMPLETION: &str = r#"#compdef soloist-display
-_arguments -s \\
-  '(-h --help)'{-h,--help}'[Show help]' \\
-  '(-V --version)'{-V,--version}'[Show version]' \\
-  '--yes[Accept defaults]' \\
-  '--no-color[Disable colour]' \\
-  '--quiet[Minimal output]' \\
-  '--verbose[Detailed output]' \\
-  '1:command:(install launch settings update repair doctor uninstall completions)' \\
+_arguments -s \
+  '(-h --help)'{-h,--help}'[Show help]' \
+  '(-V --version)'{-V,--version}'[Show version]' \
+  '--yes[Accept defaults]' \
+  '--no-color[Disable colour]' \
+  '--quiet[Minimal output]' \
+  '--verbose[Detailed output]' \
+  '1:command:(install launch settings update repair doctor uninstall completions)' \
   '*::argument:->args'
 case $words[2] in
   uninstall) _arguments '--mode[Removal scope]:mode:(display data all)' ;;

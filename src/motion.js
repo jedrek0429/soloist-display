@@ -119,8 +119,9 @@ export class DiscDirector{
     const newSleeve=incoming.querySelector('.record-sleeve');
     const sleeveOn=this.motionEnabled&&this.settings.sleeveTransitionStyle!=='off';
     const sleeveDuration=sleeveOn?this.settings.sleeveDuration:0;
-    const sleeveDelayOut=sleeveOn?this.settings.sleeveDelayOut:0;
+    // In: retract the outgoing record; Out: reveal the incoming record.
     const sleeveDelayIn=sleeveOn?this.settings.sleeveDelayIn:0;
+    const sleeveDelayOut=sleeveOn?this.settings.sleeveDelayOut:0;
     const align=this.settings.sleeveAlignment==='center';
     const offset=align?'25%':'0%';
 
@@ -172,10 +173,10 @@ export class DiscDirector{
 
     const jobs=[];
     if(sleeveOn){
-      jobs.push(this.after(sleeveDelayOut,token,()=>this.animate(oldTrack,[{transform:'translateX(50%)'},{transform:'translateX(0)'}],sleeveDuration/2,token)));
+      jobs.push(this.after(sleeveDelayIn,token,()=>this.animate(oldTrack,[{transform:'translateX(50%)'},{transform:'translateX(0)'}],sleeveDuration/2,token)));
       if(align){
-        jobs.push(this.after(sleeveDelayOut,token,()=>this.animate(oldTrack,[{left:'0%'},{left:offset}],sleeveDuration/2,token)));
-        jobs.push(this.after(sleeveDelayOut,token,()=>this.animate(oldSleeve,[{left:'0%'},{left:offset}],sleeveDuration/2,token)));
+        jobs.push(this.after(sleeveDelayIn,token,()=>this.animate(oldTrack,[{left:'0%'},{left:offset}],sleeveDuration/2,token)));
+        jobs.push(this.after(sleeveDelayIn,token,()=>this.animate(oldSleeve,[{left:'0%'},{left:offset}],sleeveDuration/2,token)));
         newTrack.style.left=offset;newSleeve.style.left=offset;
       }
       jobs.push((async()=>{
@@ -183,7 +184,7 @@ export class DiscDirector{
         // Its own delay begins after that point (or the incoming disc's arrival).
         const discArrival=this.motionEnabled&&['fly','slide'].includes(this.settings.transitionStyle)
           ?this.settings.transitionDelay+this.settings.transitionDuration/2:0;
-        await delay(Math.max(sleeveDelayOut+sleeveDuration/2,discArrival)+sleeveDelayIn);
+        await delay(Math.max(sleeveDelayIn+sleeveDuration/2,discArrival)+sleeveDelayOut);
         if(token!==this.token)return false;
         const opening=[this.animate(newTrack,[{transform:'translateX(0)'},{transform:'translateX(50%)'}],sleeveDuration/2,token)];
         if(align){

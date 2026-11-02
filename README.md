@@ -10,9 +10,7 @@ Choose a song on your phone, select your computer in Spotify Connect, and enjoy 
 
 ## Install
 
-Requires Spotify Premium and a systemd-based Arch Linux, Ubuntu, Debian, or Fedora installation with glibc 2.38 or newer (including Ubuntu 24.04+ and Debian 13+) on x86_64, ARM64, or hard-float ARMv7.
-
-> The command below becomes available when the first signed release is published.
+Requires Spotify Premium and a systemd-based Linux installation with glibc 2.38 or newer (including Ubuntu 24.04+ and Debian 13+) on x86_64, ARM64, or hard-float ARMv7.
 
 ```sh
 curl -fsSL https://jedrek0429.github.io/soloist-display/install.sh | sh

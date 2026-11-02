@@ -1618,20 +1618,20 @@ dependencies = [
 
 [[package]]
 name = "soloist-audio-bridge"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axum",
  "futures-util",
- "tempfile",
  "rustfft",
  "serde_json",
+ "tempfile",
  "tokio",
  "tokio-tungstenite",
 ]
 
 [[package]]
 name = "soloist-display-installer"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",

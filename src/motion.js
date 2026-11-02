@@ -10,7 +10,7 @@ function preload(url){
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 export class DiscDirector{
   constructor({discs,backdrops,info,settings={}}){
-    this.settings={discRotationSeconds:12,transitionDuration:2000,backdropTransitionStyle:'fade',backdropTransitionDuration:2000,transitionStyle:'fly',sleeveTransitionStyle:'in-out',sleeveDuration:2000,sleeveAlignment:'left',panelTransitionStyle:'slide',panelTransitionDuration:2050,reducedMotion:false,...settings};
+    this.settings={discRotationSeconds:12,transitionDuration:2000,backdropTransitionStyle:'fade',backdropTransitionDuration:2000,transitionStyle:'fly',sleeveTransitionStyle:'in-out',sleeveDuration:1000,sleeveDelay:0,transitionDelay:1000,backdropTransitionDelay:1000,panelTransitionDelay:0,sleeveAlignment:'left',panelTransitionStyle:'slide',panelTransitionDuration:2050,reducedMotion:false,...settings};
     this.motionEnabled=!this.settings.reducedMotion;
     this.discs=discs;this.backdrops=backdrops;this.info=info;
     this.current=0;this.token=0;this.started=false;this.angle=0;
@@ -28,6 +28,11 @@ export class DiscDirector{
     requestAnimationFrame(t=>this.spin(t));
   }
   setPlaying(value){this.playing=value}
+  async after(wait,token,work){
+    if(wait>0)await delay(wait);
+    if(token!==this.token)return false;
+    return work();
+  }
   animate(element,keyframes,duration,token){
     if(duration<=0){Object.assign(element.style,keyframes.at(-1));return Promise.resolve(true)}
     return new Promise(resolve=>{
@@ -70,6 +75,9 @@ export class DiscDirector{
     const style=this.motionEnabled?this.settings.panelTransitionStyle:'off';
     const duration=this.motionEnabled?this.settings.panelTransitionDuration:0;
     if(style==='off'||duration<=0){show();return}
+    const wait=this.motionEnabled?this.settings.panelTransitionDelay:0;
+    if(wait>0)await delay(wait);
+    if(token!==this.panelToken)return;
     const half=duration/2;
     const distance='calc(100% + 6vh + 60px)';
     const exit=style==='slide'
@@ -111,6 +119,7 @@ export class DiscDirector{
     const newSleeve=incoming.querySelector('.record-sleeve');
     const sleeveOn=this.motionEnabled&&this.settings.sleeveTransitionStyle!=='off';
     const sleeveDuration=sleeveOn?this.settings.sleeveDuration:0;
+    const sleeveDelay=sleeveOn?this.settings.sleeveDelay:0;
     const align=this.settings.sleeveAlignment==='center';
     const offset=align?'25%':'0%';
 
@@ -161,14 +170,14 @@ export class DiscDirector{
 
     const jobs=[];
     if(sleeveOn){
-      jobs.push(this.animate(oldTrack,[{transform:'translateX(50%)'},{transform:'translateX(0)'}],sleeveDuration/2,token));
+      jobs.push(this.after(sleeveDelay,token,()=>this.animate(oldTrack,[{transform:'translateX(50%)'},{transform:'translateX(0)'}],sleeveDuration/2,token)));
       if(align){
-        jobs.push(this.animate(oldTrack,[{left:'0%'},{left:offset}],sleeveDuration/2,token));
-        jobs.push(this.animate(oldSleeve,[{left:'0%'},{left:offset}],sleeveDuration/2,token));
+        jobs.push(this.after(sleeveDelay,token,()=>this.animate(oldTrack,[{left:'0%'},{left:offset}],sleeveDuration/2,token)));
+        jobs.push(this.after(sleeveDelay,token,()=>this.animate(oldSleeve,[{left:'0%'},{left:offset}],sleeveDuration/2,token)));
         newTrack.style.left=offset;newSleeve.style.left=offset;
       }
       jobs.push((async()=>{
-        await delay(sleeveDuration/2);
+        await delay(sleeveDelay+sleeveDuration/2);
         if(token!==this.token)return false;
         const opening=[this.animate(newTrack,[{transform:'translateX(0)'},{transform:'translateX(50%)'}],sleeveDuration/2,token)];
         if(align){
@@ -180,23 +189,23 @@ export class DiscDirector{
     }
     if(style==='fade'){
       incoming.style.opacity='0';
-      jobs.push(this.animate(incoming,[{opacity:0},{opacity:1}],duration,token));
+      jobs.push(this.after(this.settings.transitionDelay,token,()=>this.animate(incoming,[{opacity:0},{opacity:1}],duration,token)));
     }
     if(style==='slide'){
       incoming.style.transform='translate(65%,-50%)';
-      jobs.push(this.animate(outgoing,[{transform:'translate(-50%,-50%)'},{transform:'translate(-165%,-50%)'}],duration,token));
-      jobs.push(this.animate(incoming,[{transform:'translate(65%,-50%)'},{transform:'translate(-50%,-50%)'}],duration,token));
+      jobs.push(this.after(this.settings.transitionDelay,token,()=>this.animate(outgoing,[{transform:'translate(-50%,-50%)'},{transform:'translate(-165%,-50%)'}],duration,token)));
+      jobs.push(this.after(this.settings.transitionDelay,token,()=>this.animate(incoming,[{transform:'translate(65%,-50%)'},{transform:'translate(-50%,-50%)'}],duration,token)));
     }
     if(style==='fly'){
       incoming.style.transform='translate(55%,-115%) scale(.72) rotateX(65deg)';
-      jobs.push(this.animate(outgoing,[{transform:'translate(-50%,-50%) scale(1) rotateX(0deg)'},{transform:'translate(-145%,-98%) scale(.72) rotateX(65deg)'}],duration/2,token));
+      jobs.push(this.after(this.settings.transitionDelay,token,()=>this.animate(outgoing,[{transform:'translate(-50%,-50%) scale(1) rotateX(0deg)'},{transform:'translate(-145%,-98%) scale(.72) rotateX(65deg)'}],duration/2,token));
       jobs.push((async()=>{
-        await delay(duration/2);
+        await delay(this.settings.transitionDelay+duration/2);
         if(token!==this.token)return false;
         return this.animate(incoming,[{transform:'translate(55%,-115%) scale(.72) rotateX(65deg)'},{transform:'translate(-50%,-50%) scale(1) rotateX(0deg)'}],duration/2,token);
       })());
     }
-    if(bgDuration)jobs.push(this.fadeBackdrop(previousBg,nextBg,bgDuration,token));
+    if(bgDuration)jobs.push(this.after(this.settings.backdropTransitionDelay,token,()=>this.fadeBackdrop(previousBg,nextBg,bgDuration,token)));
     else{nextBg.style.opacity='1';previousBg.style.opacity='0'}
     await Promise.all(jobs);
     if(token===this.token)commit();
@@ -258,21 +267,21 @@ export class DiscDirector{
     // Ensure the initial frame is committed before starting the animations.
     void incoming.offsetWidth;
     const jobs=[];
-    if(discStyle==='fade')jobs.push(this.animate(incoming,[{opacity:0},{opacity:1}],duration,token));
+    if(discStyle==='fade')jobs.push(this.after(this.settings.transitionDelay,token,()=>this.animate(incoming,[{opacity:0},{opacity:1}],duration,token)));
     if(discStyle==='slide'){
-      jobs.push(this.animate(outgoing,[{transform:'translate(-50%,-50%)'},{transform:'translate(-165%,-50%)'}],duration,token));
-      jobs.push(this.animate(incoming,[{transform:'translate(65%,-50%)'},{transform:'translate(-50%,-50%)'}],duration,token));
+      jobs.push(this.after(this.settings.transitionDelay,token,()=>this.animate(outgoing,[{transform:'translate(-50%,-50%)'},{transform:'translate(-165%,-50%)'}],duration,token)));
+      jobs.push(this.after(this.settings.transitionDelay,token,()=>this.animate(incoming,[{transform:'translate(65%,-50%)'},{transform:'translate(-50%,-50%)'}],duration,token)));
     }
     if(discStyle==='fly'){
-      jobs.push(this.animate(outgoing,[{transform:'translate(-50%,-50%) scale(1) rotateX(0deg)'},{transform:'translate(-145%,-98%) scale(.72) rotateX(65deg)'}],duration*.5,token));
+      jobs.push(this.after(this.settings.transitionDelay,token,()=>this.animate(outgoing,[{transform:'translate(-50%,-50%) scale(1) rotateX(0deg)'},{transform:'translate(-145%,-98%) scale(.72) rotateX(65deg)'}],duration*.5,token)));
       jobs.push((async()=>{
-        await delay(duration*.5);
+        await delay(this.settings.transitionDelay+duration*.5);
         if(token!==this.token)return false;
         return this.animate(incoming,[{transform:'translate(55%,-115%) scale(.72) rotateX(65deg)'},{transform:'translate(-50%,-50%) scale(1) rotateX(0deg)'}],duration*.5,token);
       })());
     }
     if(backdropStyle==='fade'){
-      jobs.push(this.fadeBackdrop(previousBg,nextBg,backdropDuration,token));
+      jobs.push(this.after(this.settings.backdropTransitionDelay,token,()=>this.fadeBackdrop(previousBg,nextBg,backdropDuration,token)));
     }else{
       nextBg.style.opacity='1';
       previousBg.style.opacity='0';

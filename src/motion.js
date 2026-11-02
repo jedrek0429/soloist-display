@@ -24,7 +24,7 @@ export class DiscDirector{
     const target=(this.changing&&!sleeve)?0:this.playing?Math.PI*2/this.settings.discRotationSeconds:0;
     this.velocity+=(target-this.velocity)*(1-Math.exp(-dt*(this.changing?12:5)));
     this.angle=(this.angle+this.velocity*dt)%(2*Math.PI);
-    for(const disc of this.discs)disc.querySelector('.rotor').style.transform=`rotate(${disc.dataset.angleOffset?this.angle-Number(disc.dataset.angleOffset):this.angle}rad)`;
+    for(const disc of this.discs){if(!disc.classList.contains('active'))continue;disc.querySelector('.rotor').style.transform=`rotate(${disc.dataset.angleOffset?this.angle-Number(disc.dataset.angleOffset):this.angle}rad)`;}
     requestAnimationFrame(t=>this.spin(t));
   }
   setPlaying(value){this.playing=value}
@@ -40,7 +40,7 @@ export class DiscDirector{
       this.animations.add(animation);
       const finish=()=>{
         this.animations.delete(animation);
-        if(token===this.token){try{animation.commitStyles?.()}catch{}animation.cancel();resolve(true)}
+        if(token===this.token){Object.assign(element.style,keyframes.at(-1));animation.cancel();resolve(true)}
         else{animation.cancel();resolve(false)}
       };
       // A timer rather than animation.finished avoids compositor stalls on CRT browsers.
@@ -127,7 +127,6 @@ export class DiscDirector{
 
     for(const disc of this.discs){
       disc.style.transform='';disc.style.opacity='';
-      disc.classList.remove('active');
       disc.querySelector('.record-track').style.left='0';
       disc.querySelector('.record-sleeve').style.left='0';
     }

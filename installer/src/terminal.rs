@@ -190,11 +190,11 @@ p.wait(timeout=2)
 os.close(master)
 assert p.returncode == 0, raw
 text = raw.decode("utf-8", "replace")
-assert "Probe complete." in text, text
 if sys.argv[2] == "quiet":
     assert "Checking release" not in text, text
     assert "Probe complete." not in text, text
 else:
+    assert "Probe complete." in text, text
     assert "\\r\\x1b[2K" in text, repr(text)
     assert text.index("Checking release") < text.index("Probe complete."), text
     assert re.search(r"\\r\\x1b\\[2K(?:\\r?\\n)?Probe complete\\.", text), repr(text)

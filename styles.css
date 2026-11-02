@@ -244,3 +244,41 @@
   -webkit-mask-image:radial-gradient(circle,transparent 0 var(--center-hole-radius),#000 calc(var(--center-hole-radius) + .15%) 96%,transparent 100%);
   mask-image:radial-gradient(circle,transparent 0 var(--center-hole-radius),#000 calc(var(--center-hole-radius) + .15%) 96%,transparent 100%);
 }
+
+/* Canonical CD hole: X% means X% of the full disc diameter.
+   For closest-side gradients, X% of the radius yields the same physical
+   diameter as an element with width:X% of the disc. No face-specific masks. */
+:root[data-disc-appearance='cd'] .rotor,
+:root[data-disc-appearance='cd-cover'] .rotor{
+  -webkit-mask-image:radial-gradient(circle closest-side at center,transparent 0 var(--cd-hole-stop),#000 calc(var(--cd-hole-stop) + .08%));
+  mask-image:radial-gradient(circle closest-side at center,transparent 0 var(--cd-hole-stop),#000 calc(var(--cd-hole-stop) + .08%));
+}
+:root[data-disc-appearance='cd'][data-hole-color='white'] .rotor,
+:root[data-disc-appearance='cd'][data-hole-color='black'] .rotor,
+:root[data-disc-appearance='cd-cover'][data-hole-color='white'] .rotor,
+:root[data-disc-appearance='cd-cover'][data-hole-color='black'] .rotor{
+  -webkit-mask-image:none;mask-image:none;
+}
+:root[data-disc-appearance='cd'] .disc-image::before,
+:root[data-disc-appearance='cd'] .disc-image::after,
+:root[data-disc-appearance='cd-cover'] .disc-image::before,
+:root[data-disc-appearance='cd-cover'] .disc-image::after{
+  -webkit-mask-image:none;mask-image:none;
+}
+:root[data-disc-appearance='cd'][data-hole-color='white'] .spindle,
+:root[data-disc-appearance='cd'][data-hole-color='black'] .spindle,
+:root[data-disc-appearance='cd-cover'][data-hole-color='white'] .spindle,
+:root[data-disc-appearance='cd-cover'][data-hole-color='black'] .spindle{
+  width:var(--center-hole-diameter);height:var(--center-hole-diameter);z-index:10;
+}
+/* Decorative hub rings start beyond the physical hole, not at fixed radii. */
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::after{
+  background:
+    radial-gradient(circle closest-side at center,
+      transparent 0 calc(var(--cd-hole-stop) + .5%),
+      rgba(48,61,76,.25) calc(var(--cd-hole-stop) + .9%) calc(var(--cd-hole-stop) + 1.6%),
+      rgba(240,246,252,.65) calc(var(--cd-hole-stop) + 2%) calc(var(--cd-hole-stop) + 2.9%),
+      rgba(79,93,112,.22) calc(var(--cd-hole-stop) + 3.1%) calc(var(--cd-hole-stop) + 3.8%),
+      transparent calc(var(--cd-hole-stop) + 4.2%)),
+    conic-gradient(from 67deg,transparent 0 12%,rgba(255,255,255,.3) 18%,transparent 26% 62%,rgba(255,255,255,.2) 70%,transparent 78%);
+}

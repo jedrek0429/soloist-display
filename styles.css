@@ -209,3 +209,36 @@
   -webkit-mask-image:none;
   mask-image:none;
 }
+
+/* One physical centre diameter for the printed and reflective CD faces.
+   A radial-gradient percentage measures the radius from centre to edge:
+   use the full hole DIAMETER percentage to match the spindle's CSS width. */
+:root[data-disc-appearance='cd-cover'] .rotor,
+:root[data-disc-appearance='cd-cover'][data-hole-color='transparent'] .rotor{
+  -webkit-mask-image:radial-gradient(circle closest-side at center,
+    transparent 0 var(--center-hole-diameter),
+    #000 calc(var(--center-hole-diameter) + .08%));
+  mask-image:radial-gradient(circle closest-side at center,
+    transparent 0 var(--center-hole-diameter),
+    #000 calc(var(--center-hole-diameter) + .08%));
+}
+:root[data-disc-appearance='cd-cover'][data-hole-color='white'] .rotor,
+:root[data-disc-appearance='cd-cover'][data-hole-color='black'] .rotor{
+  -webkit-mask-image:none;
+  mask-image:none;
+}
+:root[data-disc-appearance='cd-cover'] .disc-image::before,
+:root[data-disc-appearance='cd-cover'] .disc-image::after{
+  /* No separate optical aperture or dark hub: only the rotor/spindle defines it. */
+  -webkit-mask-image:none;
+  mask-image:none;
+}
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image{
+  /* A uniform silver substrate ensures the reflective face has no oversized dark centre. */
+  background:linear-gradient(125deg,#c2cbd4,#e0e5e9 40%,#aebbc9 76%,#ccd4dd);
+}
+:root[data-disc-appearance='cd-cover'][data-hole-color='white'] .spindle,
+:root[data-disc-appearance='cd-cover'][data-hole-color='black'] .spindle{
+  width:var(--center-hole-diameter);
+  height:var(--center-hole-diameter);
+}

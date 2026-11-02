@@ -1,44 +1,71 @@
 name: Distribution smoke tests
 on:
+  pull_request:
+    paths: ['installer/**', 'install.sh', 'Cargo.toml', 'Cargo.lock', '.github/workflows/**']
+  push:
+    branches: [main]
+    paths: ['installer/**', 'install.sh', 'Cargo.toml', 'Cargo.lock', '.github/workflows/**']
+  schedule:
+    - cron: '17 4 * * 1'
   workflow_dispatch:
 
 concurrency:
-  group: distro-smoke-${{ github.ref }}
+  group: distro-smoke-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+      - uses: goto-bus-stop/setup-zig@v2
+      - uses: taiki-e/install-action@cargo-zigbuild
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo zigbuild --release --locked -p soloist-display-installer --target x86_64-unknown-linux-musl
+      - uses: actions/upload-artifact@v4
+        with:
+          name: manager-x86_64
+          path: target/x86_64-unknown-linux-musl/release/soloist-display
+          if-no-files-found: error
   distro:
-    name: Install/uninstall (${{ matrix.distro }})
+    name: CLI (${{ matrix.image }})
+    needs: build
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        distro: [debian:stable, fedora:latest]
+        include:
+          - image: archlinux:latest
+            install: pacman -Syu --noconfirm ca-certificates
+            expected: Arch
+          - image: ubuntu:24.04
+            install: apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates
+            expected: Ubuntu
+          - image: debian:stable
+            install: apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates
+            expected: Debian
+          - image: fedora:latest
+            install: dnf install -y ca-certificates
+            expected: Fedora
     container:
-      image: ${{ matrix.distro }}
+      image: ${{ matrix.image }}
     steps:
-      - name: Install dependencies
+      - name: Install trust store
+        run: ${{ matrix.install }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: manager-x86_64
+          path: /tmp/soloist-display-bin
+      - name: Exercise production manager
         run: |
-          if command -v apt-get >/dev/null; then
-            apt-get update
-            DEBIAN_FRONTEND=noninteractive apt-get install -y git curl xdg-utils build-essential pkg-config libpulse0 pulseaudio-utils pipewire wireplumber cargo rustc systemd file
-          else
-            dnf install -y git curl xdg-utils gcc make pkgconf-pkg-config pulseaudio-libs pulseaudio-utils pipewire wireplumber cargo rust file systemd
-          fi
-      - uses: actions/checkout@v4
-      - name: Build audio bridge
-        run: cargo build --release --manifest-path audio-bridge/Cargo.toml
-      - name: Validate installer prerequisites and user session handling
-        run: |
-          bash -n packaging/install.sh
-          if bash packaging/install.sh >/tmp/install.log 2>&1; then
-            echo "Unexpected successful installation without systemd user session"
-            exit 1
-          fi
-          grep -q 'systemd user session' /tmp/install.log
-      - name: Validate executable and desktop assets
-        run: |
-          test -x audio-bridge/target/release/soloist-audio-bridge
-          sh packaging/soloist-display-launcher --help | grep -q -- '--settings'
-          test -f packaging/soloist-display.service
-          test -f packaging/soloist-display.desktop
+          chmod +x /tmp/soloist-display-bin/soloist-display
+          /tmp/soloist-display-bin/soloist-display --version
+          /tmp/soloist-display-bin/soloist-display --help
+          if /tmp/soloist-display-bin/soloist-display doctor >/tmp/doctor.log 2>&1; then exit 1; fi
+          grep -q 'Installation metadata' /tmp/doctor.log
+          HOME=/tmp/home SOLOIST_DISPLAY_TEST_ROOT=/tmp/test-root \
+            /tmp/soloist-display-bin/soloist-display install --yes >/tmp/install.log 2>&1 || true
+          grep -q 'System   ${{ matrix.expected }} / X86_64' /tmp/install.log

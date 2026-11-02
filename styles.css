@@ -405,3 +405,19 @@
     transparent calc(var(--cd-hole-stop) * 1.205));
   -webkit-mask-image:none;mask-image:none;
 }
+
+/* CD aperture invariant: every face uses one disc-sized closest-side mask.
+   These face-specific rules intentionally override legacy optical masks of
+   higher specificity; the actual hole is cut only by .rotor. */
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image::before,
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image::after,
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::before,
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::after{
+  -webkit-mask-image:none;
+  mask-image:none;
+}
+/* A cover contains a real-sized square disc track; the sleeve's extended
+   container must not define the disc's centre-hole percentage. */
+:root[data-disc-appearance='cd-cover'] .record-track{
+  height:100%;
+}

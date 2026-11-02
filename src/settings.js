@@ -3,6 +3,7 @@ const sections=[
     title:'Disc',
     fields:[
       ['discAppearance','Appearance','select',['basic','cd','vinyl','vinyl-cover','cd-cover','album-cover']],
+      ['discOpacity','Disc opacity','range',0,1,.05],
       ['discSize','Diameter','range',50,200,1,'dvh'],
       ['centerHole','Center hole','range',0,20,.5,'%'],
       ['centerHoleColor','Hole colour','select',['white','black','transparent']],
@@ -102,6 +103,7 @@ const isCover=style=>style==='vinyl-cover'||style==='cd-cover';
 const motionVisible=title=>title!=='Sleeve motion'||isCover(draft.discAppearance);
 const motionLabel=title=>title==='Disc motion'&&draft.discAppearance==='album-cover'?'Album cover':title.replace(' motion','');
 const holeKey=style=>['vinyl','vinyl-cover'].includes(style)?'centerHoleVinyl':['cd','cd-cover'].includes(style)?'centerHoleCd':'centerHoleBasic';
+const selectedOpacityKey=()=>({basic:'discOpacityBasic',cd:'discOpacityCd',vinyl:'discOpacityVinyl','vinyl-cover':'discOpacityVinylCover','cd-cover':draft.cdCoverSide==='up'?'discOpacityCdCoverUp':'discOpacityCdCoverDown','album-cover':'discOpacityAlbumCover'})[draft.discAppearance||'basic'];
 const selectedHoleKey=()=>holeKey(draft.discAppearance||'basic');
 const selectedSizeKey=()=>selectedHoleKey().replace('centerHole','discSize');
 const selectedHoleColorKey=()=>selectedHoleKey().replace('centerHole','centerHoleColor');
@@ -219,14 +221,14 @@ function renderSection(){
       line.append(select);
       const output=document.createElement('output');output.htmlFor=key;
       const refresh=()=>{const value=typeof min[0]==='number'?Number(select.value):select.value;draft[key==='centerHoleColor'?selectedHoleColorKey():key]=value;output.textContent=String(value);};
-      select.addEventListener('change',()=>{refresh();if(['discAppearance','timeDisplay','transitionStyle','sleeveTransitionStyle','backdropTransitionStyle','panelTransitionStyle'].includes(key)){if(key==='discAppearance')renderNav();renderSection();}status.textContent='Unsaved changes';});
+      select.addEventListener('change',()=>{refresh();if(['discAppearance','cdCoverSide','timeDisplay','transitionStyle','sleeveTransitionStyle','backdropTransitionStyle','panelTransitionStyle'].includes(key)){if(key==='discAppearance')renderNav();renderSection();}status.textContent='Unsaved changes';});
       refresh();controls.append(line);continue;
     }else if(type==='range'){
       input.type='range';
       input.min=min;
       input.max=max;
       input.step=step;
-      input.value=(key==='centerHole'?draft[selectedHoleKey()]:key==='discSize'?draft[selectedSizeKey()]:draft[key])??min;
+      input.value=(key==='centerHole'?draft[selectedHoleKey()]:key==='discSize'?draft[selectedSizeKey()]:key==='discOpacity'?draft[selectedOpacityKey()]:draft[key])??min;
       line.append(input);
     }else{
       input.type='text';
@@ -239,7 +241,7 @@ function renderSection(){
     output.htmlFor=key;
     const refresh=()=>{
       const value=type==='toggle'?input.checked:type==='range'?Number(input.value):input.value;
-      draft[key==='centerHole'?selectedHoleKey():key==='discSize'?selectedSizeKey():key]=value;
+      draft[key==='centerHole'?selectedHoleKey():key==='discSize'?selectedSizeKey():key==='discOpacity'?selectedOpacityKey():key]=value;
       output.textContent=type==='toggle'?(value?'On':'Off'):type==='text'?'Local':format(value,suffix);
     };
     input.addEventListener('input',()=>{
@@ -247,7 +249,7 @@ function renderSection(){
       if(key==='panelEnabled')renderSection();
       status.textContent='Unsaved changes';
     });
-    if(key!=='centerHole')refresh();else output.textContent=format(Number(input.value),suffix);
+    if(!['centerHole','discOpacity'].includes(key))refresh();else output.textContent=format(Number(input.value),suffix);
     if(type!=='toggle')line.append(output);
     controls.append(line);
   }

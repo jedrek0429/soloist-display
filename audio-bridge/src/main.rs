@@ -178,7 +178,7 @@ async fn put_config(
             return Err((StatusCode::BAD_REQUEST, "Unsupported hole colour".into()));
         }
         if key == "discAppearance"
-            && !["basic", "cd", "vinyl"].contains(&value.as_str().unwrap_or(""))
+            && !["basic", "cd", "vinyl", "vinyl-cover"].contains(&value.as_str().unwrap_or(""))
         {
             return Err((
                 StatusCode::BAD_REQUEST,

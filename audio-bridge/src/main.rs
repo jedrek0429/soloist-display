@@ -134,7 +134,8 @@ async fn put_config(
             | "discOpacityVinylCover"
             | "discOpacityCdCoverUp"
             | "discOpacityCdCoverDown"
-            | "discOpacityAlbumCover" | "cdRainbow" => Some((0., 1.)),
+            | "discOpacityAlbumCover"
+            | "cdRainbow" => Some((0., 1.)),
             "panelFontSize" => Some((0.6, 1.6)),
             "discRotationSeconds" => Some((1., 120.)),
             "transitionDuration"

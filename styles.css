@@ -352,18 +352,15 @@
   -webkit-mask-image:none;mask-image:none;
 }
 
-/* Final canonical CD geometry. Both appearances use a square track of the
-   same size as their visible disc; the sleeve layout must never be the
-   percentage reference for an aperture. */
+/* Canonical CD geometry. X% center hole is X% of the disc diameter.
+   All artwork, substrate and hub decorations live on one square rotor. */
 :root[data-disc-appearance='cd'] .record-track,
-:root[data-disc-appearance='cd-cover'] .record-track{
-  aspect-ratio:1 / 1;
-}
+:root[data-disc-appearance='cd-cover'] .record-track{aspect-ratio:1/1}
 :root[data-disc-appearance='cd'] .rotor,
 :root[data-disc-appearance='cd-cover'] .rotor{
   width:100%;height:100%;
-  -webkit-mask-image:radial-gradient(circle closest-side at 50% 50%,transparent 0 var(--cd-hole-stop),#000 calc(var(--cd-hole-stop) + .08%));
-  mask-image:radial-gradient(circle closest-side at 50% 50%,transparent 0 var(--cd-hole-stop),#000 calc(var(--cd-hole-stop) + .08%));
+  -webkit-mask-image:radial-gradient(circle closest-side at center,transparent 0 var(--cd-hole-stop),#000 calc(var(--cd-hole-stop) + .08%));
+  mask-image:radial-gradient(circle closest-side at center,transparent 0 var(--cd-hole-stop),#000 calc(var(--cd-hole-stop) + .08%));
 }
 :root[data-disc-appearance='cd'][data-hole-color='white'] .rotor,
 :root[data-disc-appearance='cd'][data-hole-color='black'] .rotor,
@@ -371,10 +368,15 @@
 :root[data-disc-appearance='cd-cover'][data-hole-color='black'] .rotor{
   -webkit-mask-image:none;mask-image:none;
 }
-/* A single printed face: plain CD and CD & Cover (up) render identically. */
+/* An earlier cd-cover rule forces background-image:none!important: explicitly
+   override it on the reflective side or the silver substrate never appears. */
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image{
+  background-color:#c8ced6;
+  background-image:radial-gradient(circle at 38% 30%,#e0e4e9 0%,#c8d0d9 43%,#aeb9c7 82%,#c1cbd4 100%)!important;
+  box-shadow:inset 0 0 9px rgba(32,42,58,.13);
+}
 :root[data-disc-appearance='cd'] .disc-image,
 :root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image{
-  background:#282828 center/cover no-repeat;
   box-shadow:none;
 }
 :root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image{
@@ -383,22 +385,28 @@
 :root[data-disc-appearance='cd'] .disc-image::before,
 :root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image::before{
   display:block;inset:0;width:auto;height:auto;transform:none;border:0;
-  border-radius:50%;opacity:.34;mix-blend-mode:screen;
+  border-radius:50%;opacity:.28;mix-blend-mode:screen;
+  background:conic-gradient(from 16deg,rgba(153,192,245,.23),rgba(238,190,236,.1) 48deg,transparent 78deg,rgba(187,242,222,.2) 115deg,transparent 160deg,rgba(245,227,175,.15) 208deg,transparent 250deg,rgba(167,183,246,.2) 310deg,rgba(153,192,245,.23));
   -webkit-mask-image:none;mask-image:none;
 }
-/* Neither label face nor the reflective face has a second, fake centre hole.
-   The rings are concentric with the shared rotor mask and are deliberately
-   faint so they read as a hub, not a larger aperture. */
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::before{
+  display:block;inset:0;width:auto;height:auto;transform:none;border:0;
+  border-radius:50%;opacity:.35;mix-blend-mode:normal;
+  background:conic-gradient(from 18deg,rgba(255,144,149,.18),rgba(245,222,168,.12) 42deg,rgba(128,220,205,.15) 88deg,rgba(137,187,239,.16) 138deg,transparent 196deg,rgba(185,177,234,.13) 264deg,rgba(255,144,149,.18));
+  -webkit-mask-image:none;mask-image:none;
+}
+/* Thin hub rings touch the aperture. Their radii scale with the hole and
+   their low contrast prevents the hub from reading as a second, larger hole. */
 :root[data-disc-appearance='cd'] .disc-image::after,
 :root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image::after,
 :root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::after{
   display:block;inset:0;width:auto;height:auto;transform:none;border:0;box-shadow:none;
-  border-radius:50%;opacity:.17;mix-blend-mode:normal;
+  border-radius:50%;opacity:.45;mix-blend-mode:normal;
   background:radial-gradient(circle closest-side at center,
-    transparent 0 calc(var(--cd-hole-stop) * 1.02),
-    rgba(245,248,250,.28) calc(var(--cd-hole-stop) * 1.06) calc(var(--cd-hole-stop) * 1.13),
-    rgba(55,67,78,.11) calc(var(--cd-hole-stop) * 1.16) calc(var(--cd-hole-stop) * 1.22),
-    rgba(236,241,247,.18) calc(var(--cd-hole-stop) * 1.25) calc(var(--cd-hole-stop) * 1.33),
-    transparent calc(var(--cd-hole-stop) * 1.37));
+    rgba(227,232,238,.25) 0 var(--cd-hole-stop),
+    rgba(243,246,249,.55) calc(var(--cd-hole-stop) + .04%) calc(var(--cd-hole-stop) * 1.055),
+    rgba(99,111,127,.22) calc(var(--cd-hole-stop) * 1.075) calc(var(--cd-hole-stop) * 1.105),
+    rgba(236,240,245,.3) calc(var(--cd-hole-stop) * 1.125) calc(var(--cd-hole-stop) * 1.18),
+    transparent calc(var(--cd-hole-stop) * 1.205));
   -webkit-mask-image:none;mask-image:none;
 }

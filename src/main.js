@@ -35,15 +35,16 @@ const settings={
   panelTransitionStyle:config.panelTransitionStyle||'slide',
   panelTransitionDuration:bounded(config.panelTransitionDuration,2050,100,10000),
   reducedMotion:config.reducedMotion===true,
-  transitionStyle:config.transitionStyle||'fly'
+  transitionStyle:config.transitionStyle||'fly',
+  sleeveTransitionStyle:config.sleeveTransitionStyle||'in-out'
 };
 const root=document.documentElement;
 root.dataset.progressBar=config.progressBar===false?'off':'on';
 root.dataset.timeDisplay=['off','remaining','total'].includes(config.timeDisplay)?config.timeDisplay:'off';
 root.dataset.timeLayout=config.timeLayout==='together'?'together':'split';
-root.dataset.discAppearance=['basic','cd','vinyl'].includes(config.discAppearance)?config.discAppearance:'basic';
+root.dataset.discAppearance=['basic','cd','vinyl','vinyl-cover'].includes(config.discAppearance)?config.discAppearance:'basic';
 root.dataset.panelPosition=['bottom-right','bottom-left','top-right','top-left'].includes(config.panelPosition)?config.panelPosition:'bottom-right';
-const holeKey='centerHole'+root.dataset.discAppearance[0].toUpperCase()+root.dataset.discAppearance.slice(1);
+const holeKey='centerHole'+(root.dataset.discAppearance==='vinyl-cover'?'Vinyl':root.dataset.discAppearance[0].toUpperCase()+root.dataset.discAppearance.slice(1));
 const holeSize=bounded(config[holeKey],root.dataset.discAppearance==='cd'?16:root.dataset.discAppearance==='vinyl'?.6:1,0,20);
 const colorKey=holeKey.replace('centerHole','centerHoleColor');
 const holeColor=['white','black','transparent'].includes(config[colorKey])?config[colorKey]:'transparent';
@@ -72,7 +73,7 @@ function updateItem(item){
   if(uri===currentUri)return;
   currentUri=uri;
   const albumKey=albumKeyFor(item);
-  const panelOnly=settings.changeDiscOn==='album'&&albumKey!==null&&albumKey===currentAlbumKey&&director.started;
+  const panelOnly=(settings.changeDiscOn==='album'||root.dataset.discAppearance==='vinyl-cover')&&albumKey!==null&&albumKey===currentAlbumKey&&director.started;
   currentAlbumKey=albumKey;
   const name=item?.decorations?.identity?.name||item.name||'Not playing';
   const artist=artistFor(item),cover=coverFor(item);

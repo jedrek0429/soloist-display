@@ -60,3 +60,20 @@
   -webkit-mask-image:radial-gradient(circle,transparent 12%,#000 16% 95%,transparent 99%);
   mask-image:radial-gradient(circle,transparent 12%,#000 16% 95%,transparent 99%);
 }
+
+
+:root[data-disc-appearance='vinyl-cover'] .disc{width:calc(var(--disc-size,116dvh)*1.5);height:var(--disc-size,116dvh);border-radius:0;overflow:visible}
+:root[data-disc-appearance='vinyl-cover'] .record-track{position:absolute;inset:0 auto 0 0;width:66.666667%;z-index:1;transform:translateX(50%);will-change:transform}
+:root[data-disc-appearance='vinyl-cover'] .record-sleeve{position:absolute;inset:0 auto 0 0;width:66.666667%;z-index:2;background:#252525 center/cover no-repeat;box-shadow:4px 5px 22px rgba(0,0,0,.35)}
+:root[data-disc-appearance='vinyl-cover'] .record-sleeve::after{content:'';position:absolute;inset:0;border:1px solid rgba(255,255,255,.11);box-shadow:inset -5px 0 9px rgba(0,0,0,.15);pointer-events:none}
+:root[data-disc-appearance='vinyl-cover'] .rotor{width:100%;height:100%}
+:root[data-disc-appearance='vinyl-cover'] .disc-image{background-image:none!important;background-color:#111;box-shadow:inset 0 0 24px rgba(0,0,0,.9)}
+:root[data-disc-appearance='vinyl-cover'] .disc-image::before{display:block;inset:0;border-radius:50%;background:linear-gradient(115deg,transparent 18%,rgba(255,255,255,.005) 43%,rgba(255,255,255,.008) 53%,transparent 77%),repeating-radial-gradient(circle at center,rgba(255,255,255,.025) 0px,rgba(255,255,255,.025) 1px,rgba(0,0,0,.10) 2px,rgba(255,255,255,.015) 3px,transparent 4px,transparent 6px),radial-gradient(circle,#202020 0%,#101010 66%,#080808 100%);mask:radial-gradient(circle,transparent 0 17.8%,#000 18.2% 98.7%,transparent 100%)}
+:root[data-disc-appearance='vinyl-cover'] .disc-image::after{display:block;inset:0;border-radius:50%;background:repeating-radial-gradient(circle at center,transparent 0 11px,rgba(255,255,255,.012) 12px,transparent 13px,transparent 16px);mask:radial-gradient(circle,transparent 0 21%,#000 23% 96%,transparent 99%)}
+:root[data-disc-appearance='vinyl-cover'] .disc-label{display:block}
+:root[data-disc-appearance='vinyl-cover'] .rotor{mask:none;-webkit-mask:none}
+:root[data-disc-appearance='vinyl-cover'][data-hole-color='transparent'] .rotor{mask-image:radial-gradient(circle,transparent 0 var(--center-hole-radius,0%),#000 calc(var(--center-hole-radius,0%) + .15%));-webkit-mask-image:radial-gradient(circle,transparent 0 var(--center-hole-radius,0%),#000 calc(var(--center-hole-radius,0%) + .15%))}
+:root[data-disc-appearance='vinyl-cover'] .spindle{display:none}
+:root[data-disc-appearance='vinyl-cover'][data-hole-color='white'] .spindle,:root[data-disc-appearance='vinyl-cover'][data-hole-color='black'] .spindle{display:block}
+:root[data-disc-appearance='vinyl-cover'] .disc:not(.active){visibility:hidden}
+@media(max-aspect-ratio:1/1){:root[data-disc-appearance='vinyl-cover'] .disc{height:min(var(--disc-size,116dvh),72vw);width:calc(min(var(--disc-size,116dvh),72vw)*1.5)}}

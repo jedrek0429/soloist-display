@@ -10,7 +10,7 @@ function preload(url){
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 export class DiscDirector{
   constructor({discs,backdrops,info,settings={}}){
-    this.settings={discRotationSeconds:12,transitionDuration:2000,backdropTransitionStyle:'fade',backdropTransitionDuration:2000,transitionStyle:'fly',panelTransitionStyle:'slide',panelTransitionDuration:2050,reducedMotion:false,...settings};
+    this.settings={discRotationSeconds:12,transitionDuration:2000,backdropTransitionStyle:'fade',backdropTransitionDuration:2000,transitionStyle:'fly',sleeveTransitionStyle:'in-out',panelTransitionStyle:'slide',panelTransitionDuration:2050,reducedMotion:false,...settings};
     this.motionEnabled=!this.settings.reducedMotion;
     this.discs=discs;this.backdrops=backdrops;this.info=info;
     this.current=0;this.token=0;this.started=false;this.angle=0;
@@ -20,7 +20,8 @@ export class DiscDirector{
   }
   spin(now){
     const dt=Math.min(.08,(now-this.last)/1000);this.last=now;
-    const target=this.changing?0:this.playing?Math.PI*2/this.settings.discRotationSeconds:0;
+    const sleeve=document.documentElement.dataset.discAppearance==='vinyl-cover';
+    const target=(this.changing&&!sleeve)?0:this.playing?Math.PI*2/this.settings.discRotationSeconds:0;
     this.velocity+=(target-this.velocity)*(1-Math.exp(-dt*(this.changing?12:5)));
     this.angle=(this.angle+this.velocity*dt)%(2*Math.PI);
     for(const disc of this.discs)disc.querySelector('.rotor').style.transform=`rotate(${disc.dataset.angleOffset?this.angle-Number(disc.dataset.angleOffset):this.angle}rad)`;
@@ -99,6 +100,61 @@ export class DiscDirector{
     // Leave disc, backdrop, rotation and pending disc transitions untouched.
     void this.transitionPanel(onShow);
   }
+  async changeSleeve(url,onShow,token){
+    const outgoing=this.discs[this.current];
+    const incoming=this.discs[1-this.current];
+    const previousBg=this.backdrops[this.current];
+    const nextBg=this.backdrops[1-this.current];
+    const oldTrack=outgoing.querySelector('.record-track');
+    const newTrack=incoming.querySelector('.record-track');
+    incoming.querySelector('.disc-label').style.backgroundImage=imageStyle(url);
+    incoming.querySelector('.record-sleeve').style.backgroundImage=imageStyle(url);
+    nextBg.style.backgroundImage=imageStyle(url);
+    newTrack.style.transform='translateX(0)';
+    incoming.dataset.angleOffset=String(this.angle);
+    if(!this.started){
+      this.started=true;
+      outgoing.classList.remove('active');
+      incoming.classList.add('active');
+      newTrack.style.transform='translateX(50%)';
+      this.current=1-this.current;
+      nextBg.classList.add('active');
+      nextBg.style.opacity='1';
+      onShow();
+      return;
+    }
+    const duration=this.motionEnabled&&this.settings.sleeveTransitionStyle!=='off'?this.settings.transitionDuration:0;
+    const half=duration/2;
+    this.changing=true;
+    void this.transitionPanel(onShow);
+    if(half){
+      await this.animate(oldTrack,[{transform:'translateX(50%)'},{transform:'translateX(0)'}],half,token);
+      if(token!==this.token)return;
+    }
+    oldTrack.style.transform='translateX(0)';
+    outgoing.classList.remove('active');
+    incoming.classList.add('active');
+    previousBg.style.zIndex='1';
+    nextBg.style.zIndex='2';
+    nextBg.classList.add('active');
+    const bgDuration=this.motionEnabled&&this.settings.backdropTransitionStyle==='fade'?this.settings.backdropTransitionDuration:0;
+    const bgJob=bgDuration?this.fadeBackdrop(previousBg,nextBg,bgDuration,token):Promise.resolve(true);
+    if(!bgDuration){nextBg.style.opacity='1';previousBg.style.opacity='0'}
+    if(half){
+      await this.animate(newTrack,[{transform:'translateX(0)'},{transform:'translateX(50%)'}],half,token);
+      if(token!==this.token)return;
+    }
+    newTrack.style.transform='translateX(50%)';
+    await bgJob;
+    if(token!==this.token)return;
+    previousBg.classList.remove('active');
+    previousBg.style.opacity='0';
+    nextBg.style.opacity='1';
+    nextBg.style.zIndex='';
+    previousBg.style.zIndex='';
+    this.current=1-this.current;
+    this.changing=false;
+  }
   async change(url,onShow){
     this.pendingShow=null;
     const token=++this.token;
@@ -108,6 +164,10 @@ export class DiscDirector{
     this.changing=false;
     await preload(url);
     if(token!==this.token)return;
+    if(document.documentElement.dataset.discAppearance==='vinyl-cover'){
+      await this.changeSleeve(url,onShow,token);
+      return;
+    }
     const outgoingIndex=this.current;
     const incomingIndex=this.started?1-outgoingIndex:outgoingIndex;
     const outgoing=this.discs[outgoingIndex],incoming=this.discs[incomingIndex];

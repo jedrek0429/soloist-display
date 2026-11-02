@@ -180,7 +180,10 @@ async fn put_config(
         if key == "sleeveTransitionStyle"
             && !["in-out", "off"].contains(&value.as_str().unwrap_or(""))
         {
-            return Err((StatusCode::BAD_REQUEST, "Unsupported sleeve transition".into()));
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Unsupported sleeve transition".into(),
+            ));
         }
         if key == "discAppearance"
             && !["basic", "cd", "vinyl", "vinyl-cover"].contains(&value.as_str().unwrap_or(""))

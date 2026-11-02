@@ -157,13 +157,13 @@
 :root[data-disc-appearance='cd-cover'] .disc-image::after{
   display:block;inset:0;width:auto;height:auto;left:0;top:0;transform:none;
   border:0;border-radius:50%;box-shadow:none;
-  opacity:.45;mix-blend-mode:normal;
+  opacity:.5;mix-blend-mode:normal;
   background:radial-gradient(circle closest-side at center,
     transparent 0 var(--cd-hole-stop),
-    rgba(243,246,249,.55) calc(var(--cd-hole-stop) + .04%) calc(var(--cd-hole-stop) * 1.055),
-    rgba(99,111,127,.22) calc(var(--cd-hole-stop) * 1.075) calc(var(--cd-hole-stop) * 1.105),
-    rgba(236,240,245,.3) calc(var(--cd-hole-stop) * 1.125) calc(var(--cd-hole-stop) * 1.18),
-    transparent calc(var(--cd-hole-stop) * 1.205));
+    rgba(243,246,249,.62) calc(var(--cd-hole-stop) + .05%) calc(var(--cd-hole-stop) * 1.09),
+    rgba(99,111,127,.26) calc(var(--cd-hole-stop) * 1.11) calc(var(--cd-hole-stop) * 1.17),
+    rgba(236,240,245,.36) calc(var(--cd-hole-stop) * 1.19) calc(var(--cd-hole-stop) * 1.28),
+    transparent calc(var(--cd-hole-stop) * 1.33));
   -webkit-mask-image:none;mask-image:none;
 }
 

@@ -54,7 +54,7 @@ root.dataset.cdCoverSide=config.cdCoverSide==='up'?'up':'down';
 root.style.setProperty('--vinyl-groove-spacing', (11-Math.max(1,Math.min(10,Number(config.vinylGrooveDensity)||5)))*1.1+'px');
 root.dataset.panelPosition=['bottom-right','bottom-left','top-right','top-left'].includes(config.panelPosition)?config.panelPosition:'bottom-right';
 const holeKey='centerHole'+(root.dataset.discAppearance==='vinyl-cover'?'Vinyl':root.dataset.discAppearance==='cd-cover'?'Cd':root.dataset.discAppearance[0].toUpperCase()+root.dataset.discAppearance.slice(1));
-const holeSize=bounded(config[holeKey],root.dataset.discAppearance==='cd'?11:root.dataset.discAppearance==='vinyl'?.6:1,0,20);
+const holeSize=bounded(config[holeKey],['cd','cd-cover'].includes(root.dataset.discAppearance)?16:['vinyl','vinyl-cover'].includes(root.dataset.discAppearance)?.6:1,0,20);
 const colorKey=holeKey.replace('centerHole','centerHoleColor');
 const holeColor=['white','black','transparent'].includes(config[colorKey])?config[colorKey]:'transparent';
 root.dataset.holeColor=holeColor;

@@ -23,11 +23,9 @@ jobs:
         run: |
           mkdir "$RUNNER_TEMP/pages"
           cp site/index.html "$RUNNER_TEMP/pages/index.html"
-          if ! curl --fail --location --silent --show-error \
-            https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/install.sh \
-            -o "$RUNNER_TEMP/pages/install.sh"; then
-            cp install.sh "$RUNNER_TEMP/pages/install.sh"
-          fi
+          curl --fail --location --silent --show-error \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/install.sh" \
+            -o "$RUNNER_TEMP/pages/install.sh"
           touch "$RUNNER_TEMP/pages/.nojekyll"
       - name: Publish gh-pages branch
         run: |

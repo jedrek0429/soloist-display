@@ -28,7 +28,7 @@ jobs:
           # Resolve the release only when publishing; the landing page needs no API calls.
           RELEASE_TAG="$(gh release view --json tagName --jq '.tagName' 2>/dev/null || true)"
           if [ -n "$RELEASE_TAG" ]; then
-            RELEASE_TAG="$RELEASE_TAG" python3 -c 'import html, os, pathlib, urllib.parse; p=pathlib.Path(os.environ["RUNNER_TEMP"])/"pages/index.html"; tag=os.environ["RELEASE_TAG"]; url="https://github.com/jedrek0429/soloist-display/releases/tag/"+urllib.parse.quote(tag, safe=""); p.write_text(p.read_text().replace("<!-- release-version -->", "<a class=\"version\" href=\""+url+"\">"+html.escape(tag)+"</a>"))'
+            RELEASE_TAG="$RELEASE_TAG" python3 -c 'import html, os, pathlib, urllib.parse; p=pathlib.Path(os.environ["RUNNER_TEMP"])/"pages/index.html"; tag=os.environ["RELEASE_TAG"]; url="https://github.com/jedrek0429/soloist-display/releases/tag/"+urllib.parse.quote(tag, safe=""); markup="<a class="+chr(34)+"version"+chr(34)+" href="+chr(34)+url+chr(34)+">"+html.escape(tag)+"</a>"; p.write_text(p.read_text().replace("<!-- release-version -->", markup))'
           fi
           cp styles.css "$RUNNER_TEMP/pages/styles.css"
           cp src/motion.js src/spectrum.js "$RUNNER_TEMP/pages/src/"

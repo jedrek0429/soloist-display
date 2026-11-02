@@ -300,3 +300,15 @@
       transparent 26% 63%,rgba(255,255,255,.14) 70%,transparent 78%);
   -webkit-mask-image:none;mask-image:none;
 }
+
+/* Album cover: a static square artwork, with the existing fly/slide/fade/off
+   transitions applied to the artwork container rather than a rotating disc. */
+:root[data-disc-appearance='album-cover'] .disc{border-radius:0;overflow:hidden}
+:root[data-disc-appearance='album-cover'] .record-track,
+:root[data-disc-appearance='album-cover'] .rotor{position:absolute;inset:0;width:100%;height:100%;transform:none!important;-webkit-mask-image:none!important;mask-image:none!important}
+:root[data-disc-appearance='album-cover'] .disc-image{border-radius:0}
+:root[data-disc-appearance='album-cover'] .disc-image::before,
+:root[data-disc-appearance='album-cover'] .disc-image::after,
+:root[data-disc-appearance='album-cover'] .disc-label,
+:root[data-disc-appearance='album-cover'] .spindle,
+:root[data-disc-appearance='album-cover'] .record-sleeve{display:none!important}

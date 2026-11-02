@@ -22,9 +22,20 @@ h1{font-size:26px;font-weight:600;letter-spacing:-.03em;margin:0}
 .section-nav{display:flex;flex-direction:column;align-items:stretch;gap:3px}
 .nav-button{text-align:left;padding:12px;border:0;border-left:2px solid transparent;background:transparent;color:var(--ink)}
 .nav-button[aria-current=page]{border-left-color:var(--ink);font-weight:bold}
+.nav-button:hover,.nav-button[aria-current=page]:hover{background:var(--ink);color:var(--bg)}
+.nav-button[aria-current=page]:hover{border-left-color:var(--ink)}
+.nav-subbutton:hover{color:var(--bg)}
+.nav-group{display:flex;flex-direction:column;min-width:0}
+.nav-group-toggle{display:flex;align-items:center;justify-content:space-between;width:100%}
+.nav-group-toggle:after{content:'⌄';font-size:16px;transform:rotate(-90deg);transition:transform .15s}
+.nav-group-toggle[aria-expanded=true]:after{transform:rotate(0)}
+.nav-subnav{display:flex;flex-direction:column;padding-left:14px}
+.nav-subnav[hidden]{display:none}
+.nav-subbutton{font-size:14px;padding:9px 12px;color:#bfbfbf}
+.nav-subbutton[aria-current=page]{color:var(--ink)}
 .panel{min-width:0}
 .panel-header{display:none}
-.field[hidden]{display:none}.field{display:grid;grid-template-columns:minmax(130px,1fr) minmax(170px,1.3fr) 65px;align-items:center;gap:15px;min-height:57px;border-bottom:1px solid var(--line)}
+.field[hidden]{display:none}.field{display:grid;grid-template-columns:minmax(130px,1fr) minmax(170px,1.3fr) 65px;align-items:center;gap:15px;min-height:57px;border-bottom:0}
 .field-label{font-size:14px}
 .field input[type=range]{width:100%;accent-color:var(--ink)}
 .field input[type=text],.field select{min-width:0;width:100%;padding:8px}
@@ -42,7 +53,7 @@ h1{font-size:26px;font-weight:600;letter-spacing:-.03em;margin:0}
 .actions button{padding:10px 15px}
 #save{background:var(--ink);color:var(--bg)}
 #save:hover{background:var(--bg);color:var(--ink)}
-@media(max-width:650px){.shell{padding:20px 16px}.workspace{display:block;padding-top:14px}.section-nav{flex-direction:row;overflow-x:auto;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:12px}.nav-button{white-space:nowrap;border-left:0;border-bottom:2px solid transparent}.nav-button[aria-current=page]{border-bottom-color:var(--ink)}.field{grid-template-columns:1fr auto;gap:8px 12px;padding:12px 0}.field input[type=range],.field input[type=text],.field select{grid-column:1/-1;grid-row:2}.field output{grid-column:2;grid-row:1}.footer{align-items:stretch;flex-direction:column}.actions button{flex:1}}
+@media(max-width:650px){.shell{padding:20px 16px}.workspace{display:block;padding-top:14px}.section-nav{flex-direction:row;align-items:flex-start;overflow-x:auto;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:12px}.nav-group{flex:none}.nav-subnav{padding-left:0}.nav-subbutton{font-size:13px;padding:8px 12px}.nav-button{white-space:nowrap;border-left:0;border-bottom:2px solid transparent}.nav-button[aria-current=page]{border-bottom-color:var(--ink)}.field{grid-template-columns:1fr auto;gap:8px 12px;padding:12px 0}.field input[type=range],.field input[type=text],.field select{grid-column:1/-1;grid-row:2}.field output{grid-column:2;grid-row:1}.footer{align-items:stretch;flex-direction:column}.actions button{flex:1}}
 </style>
 </head>
 <body>

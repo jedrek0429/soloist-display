@@ -21,8 +21,8 @@ setInterval(async()=>{
 const $=id=>document.getElementById(id);
 const bounded=(value,fallback,min,max)=>Number.isFinite(Number(value))?Math.max(min,Math.min(max,Number(value))):fallback;
 const settings={
-  discSize:bounded(config.discSize,116,50,200),
-  changeDiscOn:config.changeDiscOn==='album'?'album':'song',
+  discSize:bounded(config['discSize'+(['vinyl','vinyl-cover'].includes(config.discAppearance)?'Vinyl':['cd','cd-cover'].includes(config.discAppearance)?'Cd':'Basic')],bounded(config.discSize,116,50,200),50,200),
+  changeDiscOn:config.changeDiscOn==='song'?'song':'album',
   discRotationSeconds:bounded(config.discRotationSeconds,12,1,120),
   transitionDuration:bounded(config.transitionDuration,2000,100,10000),
   backdropTransitionStyle:config.backdropTransitionStyle||'fade',
@@ -32,25 +32,41 @@ const settings={
   metadataOpacity:bounded(config.metadataOpacity,.58,0,1),
   metadataScale:bounded(config.metadataScale,1,.5,2),
   panelFontSize:bounded(config.panelFontSize,1,.6,1.6),
+  panelEnabled:config.panelEnabled!==false,
   panelTransitionStyle:config.panelTransitionStyle||'slide',
   panelTransitionDuration:bounded(config.panelTransitionDuration,2050,100,10000),
   reducedMotion:config.reducedMotion===true,
   transitionStyle:config.transitionStyle||'fly',
-  sleeveTransitionStyle:config.sleeveTransitionStyle||'in-out'
+  sleeveTransitionStyle:config.sleeveTransitionStyle||'in-out',
+  sleeveDuration:bounded(config.sleeveDuration,1000,100,10000),
+  sleeveAlignment:config.sleeveAlignment==='left'?'left':'center',
+  sleeveDelayIn:bounded(config.sleeveDelayIn,0,0,10000),
+  sleeveDelayOut:bounded(config.sleeveDelayOut,950,0,10000),
+  transitionDelay:bounded(config.transitionDelay,1000,0,10000),
+  backdropTransitionDelay:bounded(config.backdropTransitionDelay,1000,0,10000),
+  panelTransitionDelay:bounded(config.panelTransitionDelay,0,0,10000)
 };
 const root=document.documentElement;
 root.dataset.progressBar=config.progressBar===false?'off':'on';
 root.dataset.timeDisplay=['off','remaining','total'].includes(config.timeDisplay)?config.timeDisplay:'off';
 root.dataset.timeLayout=config.timeLayout==='together'?'together':'split';
-root.dataset.discAppearance=['basic','cd','vinyl','vinyl-cover'].includes(config.discAppearance)?config.discAppearance:'basic';
+root.dataset.discAppearance=['basic','cd','vinyl','vinyl-cover','cd-cover','album-cover'].includes(config.discAppearance)?config.discAppearance:'basic';
+root.dataset.cdCoverSide=config.cdCoverSide==='up'?'up':'down';
+root.style.setProperty('--cd-rainbow',bounded(config.cdRainbow,.65,0,1));
+root.style.setProperty('--vinyl-groove-spacing', (11-Math.max(1,Math.min(10,Number(config.vinylGrooveDensity)||5)))*1.1+'px');
+root.dataset.panelEnabled=settings.panelEnabled?'on':'off';
 root.dataset.panelPosition=['bottom-right','bottom-left','top-right','top-left'].includes(config.panelPosition)?config.panelPosition:'bottom-right';
-const holeKey='centerHole'+(root.dataset.discAppearance==='vinyl-cover'?'Vinyl':root.dataset.discAppearance[0].toUpperCase()+root.dataset.discAppearance.slice(1));
-const holeSize=bounded(config[holeKey],root.dataset.discAppearance==='cd'?16:root.dataset.discAppearance==='vinyl'?.6:1,0,20);
+const opacityKey=({basic:'discOpacityBasic',cd:'discOpacityCd',vinyl:'discOpacityVinyl','vinyl-cover':'discOpacityVinylCover','cd-cover':root.dataset.cdCoverSide==='up'?'discOpacityCdCoverUp':'discOpacityCdCoverDown','album-cover':'discOpacityAlbumCover'})[root.dataset.discAppearance];
+root.style.setProperty('--disc-opacity',bounded(config[opacityKey],opacityKey==='discOpacityCdCoverDown'?.3:1,0,1));
+const holeKey='centerHole'+(['vinyl','vinyl-cover'].includes(root.dataset.discAppearance)?'Vinyl':['cd','cd-cover'].includes(root.dataset.discAppearance)?'Cd':'Basic');
+const holeSize=bounded(config[holeKey],['cd','cd-cover'].includes(root.dataset.discAppearance)?14:['vinyl','vinyl-cover'].includes(root.dataset.discAppearance)?.6:1,0,20);
 const colorKey=holeKey.replace('centerHole','centerHoleColor');
 const holeColor=['white','black','transparent'].includes(config[colorKey])?config[colorKey]:'transparent';
 root.dataset.holeColor=holeColor;
 root.style.setProperty('--center-hole-radius',holeSize/2+'%');
 root.style.setProperty('--center-hole-diameter',holeSize+'%');
+// closest-side radial stops are relative to disc radius: X% stop = X% disc diameter.
+root.style.setProperty('--cd-hole-stop',holeSize+'%');
 if(config.burnInProtection===true)root.classList.add('burn-in-protection');
 for(const [key,value] of Object.entries({
   '--disc-size':settings.discSize+'dvh',
@@ -71,9 +87,10 @@ function updateItem(item){
   const uri=item.uri||item.id||[item?.decorations?.identity?.name,coverFor(item)].join('|');
   duration=durationMs(item)||duration;
   if(uri===currentUri)return;
+  position=0;positionTime=performance.now();
   currentUri=uri;
   const albumKey=albumKeyFor(item);
-  const panelOnly=(settings.changeDiscOn==='album'||root.dataset.discAppearance==='vinyl-cover')&&albumKey!==null&&albumKey===currentAlbumKey&&director.started;
+  const panelOnly=settings.changeDiscOn==='album'&&albumKey!==null&&albumKey===currentAlbumKey&&director.started;
   currentAlbumKey=albumKey;
   const name=item?.decorations?.identity?.name||item.name||'Not playing';
   const artist=artistFor(item),cover=coverFor(item);
@@ -81,12 +98,18 @@ function updateItem(item){
   if(panelOnly)director.changePanel(show);
   else director.change(cover,show);
 }
+function syncPosition(ms){
+  const now=performance.now();
+  const estimated=position+(playing?now-positionTime:0);
+  // Ignore jitter; seek or genuine drift should still correct the clock.
+  if(!positionTime||Math.abs(ms-estimated)>750){position=ms;positionTime=now}
+}
 function handleSoloist(event){
   const {item,position:pos,status}=normalize(event);
   if(item)updateItem(item);
   if(status!==null){playing=isPlaying(status);director.setPlaying(playing)}
-  if(pos!==null){const ms=positionMs(pos);if(Number.isFinite(ms)){position=ms;positionTime=performance.now()}}
-  if(event.type==='position_sync'||event.type==='position_changed'){const ms=positionMs(event.position??event);if(Number.isFinite(ms)){position=ms;positionTime=performance.now()}}
+  if(pos!==null){const ms=positionMs(pos);if(Number.isFinite(ms))syncPosition(ms)}
+  if(event.type==='position_sync'||event.type==='position_changed'){const ms=positionMs(event.position??event);if(Number.isFinite(ms))syncPosition(ms)}
   if(event.type==='playback_changed'&&event.status!==undefined){playing=isPlaying(event.status);director.setPlaying(playing)}
 }
 function connect(url,onData,onOpen,onDisconnect){
@@ -108,7 +131,7 @@ connect(config.soloistWebSocket||'ws://127.0.0.1:9090',handleSoloist,s=>{
   $('track').textContent='Soloist disconnected';
   $('artist').textContent='Reconnecting automatically…';
 });
-if(config.visualizer!==false){
+if(config.visualizer!==false&&settings.panelEnabled){
   let retry=500;
   function connectAudio(){
     let socket;

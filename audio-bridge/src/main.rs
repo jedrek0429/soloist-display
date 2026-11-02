@@ -49,6 +49,14 @@ fn read_settings(path: &PathBuf) -> Value {
                         object.insert(key.clone(), value.clone());
                     }
                 }
+                // Existing global diameters become the initial size for every appearance.
+                if let Some(size) = values.get("discSize").and_then(Value::as_f64) {
+                    for key in ["discSizeBasic", "discSizeCd", "discSizeVinyl"] {
+                        if !values.contains_key(key) {
+                            object.insert(key.into(), Value::from(size));
+                        }
+                    }
+                }
                 for key in [
                     "transitionStyle",
                     "backdropTransitionStyle",
@@ -117,13 +125,30 @@ async fn put_config(
         if let Some((lo, hi)) = match key.as_str() {
             "visualizerSensitivity" => Some((0., 10.)),
             "visualizerSmoothing" => Some((0., 1.)),
-            "discSize" => Some((50., 200.)),
+            "vinylGrooveDensity" => Some((1., 10.)),
+            "discSize" | "discSizeBasic" | "discSizeCd" | "discSizeVinyl" => Some((50., 200.)),
             "centerHoleBasic" | "centerHoleCd" | "centerHoleVinyl" => Some((0., 20.)),
+            "discOpacityBasic"
+            | "discOpacityCd"
+            | "discOpacityVinyl"
+            | "discOpacityVinylCover"
+            | "discOpacityCdCoverUp"
+            | "discOpacityCdCoverDown"
+            | "discOpacityAlbumCover"
+            | "cdRainbow" => Some((0., 1.)),
             "panelFontSize" => Some((0.6, 1.6)),
             "discRotationSeconds" => Some((1., 120.)),
-            "transitionDuration" | "backdropTransitionDuration" | "panelTransitionDuration" => {
-                Some((100., 10000.))
-            }
+            "transitionDuration"
+            | "sleeveDuration"
+            | "coverTransitionDuration"
+            | "backdropTransitionDuration"
+            | "panelTransitionDuration" => Some((100., 10000.)),
+            "sleeveDelay"
+            | "sleeveDelayIn"
+            | "sleeveDelayOut"
+            | "transitionDelay"
+            | "backdropTransitionDelay"
+            | "panelTransitionDelay" => Some((0., 10000.)),
             "backgroundDim" => Some((0., 1.)),
             "backgroundBlur" => Some((0., 150.)),
             "metadataOpacity" => Some((0., 1.)),
@@ -158,6 +183,15 @@ async fn put_config(
                 "Unsupported panel transition".into(),
             ));
         }
+        if key == "cdCoverSide" && !["up", "down"].contains(&value.as_str().unwrap_or("")) {
+            return Err((StatusCode::BAD_REQUEST, "Unsupported CD side".into()));
+        }
+        if key == "sleeveAlignment" && !["left", "center"].contains(&value.as_str().unwrap_or("")) {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Unsupported sleeve alignment".into(),
+            ));
+        }
         if key == "timeDisplay"
             && !["off", "remaining", "total"].contains(&value.as_str().unwrap_or(""))
         {
@@ -186,7 +220,15 @@ async fn put_config(
             ));
         }
         if key == "discAppearance"
-            && !["basic", "cd", "vinyl", "vinyl-cover"].contains(&value.as_str().unwrap_or(""))
+            && ![
+                "basic",
+                "cd",
+                "vinyl",
+                "vinyl-cover",
+                "cd-cover",
+                "album-cover",
+            ]
+            .contains(&value.as_str().unwrap_or(""))
         {
             return Err((
                 StatusCode::BAD_REQUEST,
@@ -457,6 +499,20 @@ mod tests {
     }
 
     #[test]
+    fn migrates_global_diameter_to_each_appearance() {
+        let path = env::temp_dir().join(format!(
+            "soloist-display-diameter-{}.json",
+            std::process::id()
+        ));
+        std::fs::write(&path, r#"{ "discSize": 142, "discSizeCd": 88 }"#).unwrap();
+        let settings = read_settings(&path);
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(settings["discSizeBasic"].as_f64(), Some(142.0));
+        assert_eq!(settings["discSizeCd"].as_f64(), Some(88.0));
+        assert_eq!(settings["discSizeVinyl"].as_f64(), Some(142.0));
+    }
+
+    #[test]
     fn preserves_defaults_for_missing_fields() {
         let path = env::temp_dir().join(format!(
             "soloist-display-defaults-{}.json",
@@ -468,5 +524,8 @@ mod tests {
         assert_eq!(settings["backgroundDim"], 0.2);
         assert_eq!(settings["progressBar"], true);
         assert_eq!(settings["timeDisplay"], "off");
+        assert_eq!(settings["discSizeBasic"], 116);
+        assert_eq!(settings["cdCoverSide"], "down");
+        assert_eq!(settings["vinylGrooveDensity"], 5);
     }
 }

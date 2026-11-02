@@ -7,7 +7,7 @@ description = "Local PipeWire audio capture and real-time six-band FFT bridge"
 
 [dependencies]
 tokio = { version = "1", default-features = false, features = ["macros", "rt-multi-thread", "net", "process", "sync", "time", "io-util"] }
-tokio-tungstenite = "0.30"
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
 futures-util = "0.3"
 rustfft = "6"
 axum = { version = "0.7", default-features = false, features = ["http1", "json", "tokio"] }

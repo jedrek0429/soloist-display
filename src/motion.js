@@ -10,7 +10,7 @@ function preload(url){
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 export class DiscDirector{
   constructor({discs,backdrops,info,settings={}}){
-    this.settings={discRotationSeconds:12,transitionDuration:2000,backdropTransitionStyle:'fade',backdropTransitionDuration:2000,transitionStyle:'fly',sleeveTransitionStyle:'in-out',coverTransitionStyle:'fade',coverTransitionDuration:2000,panelTransitionStyle:'slide',panelTransitionDuration:2050,reducedMotion:false,...settings};
+    this.settings={discRotationSeconds:12,transitionDuration:2000,backdropTransitionStyle:'fade',backdropTransitionDuration:2000,transitionStyle:'fly',sleeveTransitionStyle:'in-out',sleeveDuration:2000,sleeveAlignment:'left',panelTransitionStyle:'slide',panelTransitionDuration:2050,reducedMotion:false,...settings};
     this.motionEnabled=!this.settings.reducedMotion;
     this.discs=discs;this.backdrops=backdrops;this.info=info;
     this.current=0;this.token=0;this.started=false;this.angle=0;
@@ -101,77 +101,104 @@ export class DiscDirector{
     void this.transitionPanel(onShow);
   }
   async changeSleeve(url,onShow,token){
-    const outgoing=this.discs[this.current];
-    const incoming=this.discs[1-this.current];
-    const previousBg=this.backdrops[this.current];
-    const nextBg=this.backdrops[1-this.current];
-    const oldCover=outgoing.querySelector('.record-sleeve');
-    const oldCoverImage=oldCover.style.backgroundImage;
+    const outgoingIndex=this.current;
+    const incomingIndex=this.started?1-outgoingIndex:outgoingIndex;
+    const outgoing=this.discs[outgoingIndex],incoming=this.discs[incomingIndex];
+    const previousBg=this.backdrops[outgoingIndex],nextBg=this.backdrops[incomingIndex];
     const oldTrack=outgoing.querySelector('.record-track');
     const newTrack=incoming.querySelector('.record-track');
+    const oldSleeve=outgoing.querySelector('.record-sleeve');
+    const newSleeve=incoming.querySelector('.record-sleeve');
+    const sleeveOn=this.motionEnabled&&this.settings.sleeveTransitionStyle!=='off';
+    const sleeveDuration=sleeveOn?this.settings.sleeveDuration:0;
+    const align=this.settings.sleeveAlignment==='center';
+    const offset=align?'25%':'0%';
+
+    for(const disc of this.discs){
+      disc.style.transform='';disc.style.opacity='';
+      disc.classList.remove('active');
+      disc.querySelector('.record-track').style.left='0';
+      disc.querySelector('.record-sleeve').style.left='0';
+    }
+    for(const bg of this.backdrops){
+      bg.style.transition='none';bg.style.opacity=bg===previousBg?'1':'0';bg.style.zIndex='';
+    }
     incoming.querySelector('.disc-label').style.backgroundImage=imageStyle(url);
-    incoming.querySelector('.record-sleeve').style.backgroundImage=imageStyle(url);
+    newSleeve.style.backgroundImage=imageStyle(url);
     nextBg.style.backgroundImage=imageStyle(url);
-    newTrack.style.transform='translateX(0)';
-    // Keep the old sleeve visible while the new cover animates in.
-    const sleeve=incoming.querySelector('.record-sleeve');
-    const overlay=document.createElement('div');
-    overlay.className='cover-overlay';
-    overlay.style.backgroundImage=oldCoverImage;
-    sleeve.append(overlay);
     incoming.dataset.angleOffset=String(this.angle);
-    if(!this.started){
-      this.started=true;
+    newTrack.style.transform=sleeveOn?'translateX(0)':'translateX(50%)';
+    oldTrack.style.transform='translateX(50%)';
+
+    const commit=()=>{
+      if(token!==this.token)return;
+      this.current=incomingIndex;
       outgoing.classList.remove('active');
       incoming.classList.add('active');
+      incoming.style.transform='';incoming.style.opacity='';
+      outgoing.style.transform='';outgoing.style.opacity='';
       newTrack.style.transform='translateX(50%)';
-      this.current=1-this.current;
+      newTrack.style.left='0';newSleeve.style.left='0';
+      previousBg.classList.remove('active');
       nextBg.classList.add('active');
-      nextBg.style.opacity='1';
-      overlay.remove();
-      onShow();
-      return;
+      previousBg.style.opacity='0';nextBg.style.opacity='1';
+      previousBg.style.transition='none';nextBg.style.transition='none';
+      previousBg.style.zIndex='';nextBg.style.zIndex='';
+      this.changing=false;
+    };
+    if(!this.started){
+      this.started=true;commit();onShow();return;
     }
-    const duration=this.motionEnabled&&this.settings.sleeveTransitionStyle!=='off'?this.settings.transitionDuration:0;
-    const half=duration/2;
-    this.changing=true;
     void this.transitionPanel(onShow);
-    if(half){
-      await this.animate(oldTrack,[{transform:'translateX(50%)'},{transform:'translateX(0)'}],half,token);
-      if(token!==this.token){overlay.remove();return}
-    }
-    oldTrack.style.transform='translateX(0)';
-    outgoing.classList.remove('active');
-    incoming.classList.add('active');
-    previousBg.style.zIndex='1';
-    nextBg.style.zIndex='2';
-    nextBg.classList.add('active');
-    const coverStyle=this.motionEnabled?this.settings.coverTransitionStyle:'off';
-    const coverDuration=this.motionEnabled?this.settings.coverTransitionDuration:0;
-    let coverFrames;
-    if(coverStyle==='fade')coverFrames=[{opacity:1},{opacity:0}];
-    if(coverStyle==='slide')coverFrames=[{transform:'translateX(0)'},{transform:'translateX(-105%)'}];
-    if(coverStyle==='fly')coverFrames=[{transform:'translate(0,0) scale(1)',opacity:1},{transform:'translate(-30%,-110%) scale(.7)',opacity:0}];
-    const coverJob=coverFrames?this.animate(overlay,coverFrames,coverDuration,token):Promise.resolve(true);
-    if(!coverFrames)overlay.remove();
+    const duration=this.motionEnabled?this.settings.transitionDuration:0;
+    const style=this.motionEnabled?this.settings.transitionStyle:'off';
     const bgDuration=this.motionEnabled&&this.settings.backdropTransitionStyle==='fade'?this.settings.backdropTransitionDuration:0;
-    const bgJob=bgDuration?this.fadeBackdrop(previousBg,nextBg,bgDuration,token):Promise.resolve(true);
-    if(!bgDuration){nextBg.style.opacity='1';previousBg.style.opacity='0'}
-    if(half){
-      await this.animate(newTrack,[{transform:'translateX(0)'},{transform:'translateX(50%)'}],half,token);
-      if(token!==this.token){overlay.remove();return}
+    this.changing=style==='slide'||style==='fly';
+    outgoing.classList.add('active');incoming.classList.add('active');
+    previousBg.classList.add('active');nextBg.classList.add('active');
+    previousBg.style.zIndex='1';nextBg.style.zIndex='2';
+
+    const jobs=[];
+    if(sleeveOn){
+      jobs.push(this.animate(oldTrack,[{transform:'translateX(50%)'},{transform:'translateX(0)'}],sleeveDuration/2,token));
+      if(align){
+        jobs.push(this.animate(oldTrack,[{left:'0%'},{left:offset}],sleeveDuration/2,token));
+        jobs.push(this.animate(oldSleeve,[{left:'0%'},{left:offset}],sleeveDuration/2,token));
+        newTrack.style.left=offset;newSleeve.style.left=offset;
+      }
+      jobs.push((async()=>{
+        await delay(sleeveDuration/2);
+        if(token!==this.token)return false;
+        const opening=[this.animate(newTrack,[{transform:'translateX(0)'},{transform:'translateX(50%)'}],sleeveDuration/2,token)];
+        if(align){
+          opening.push(this.animate(newTrack,[{left:offset},{left:'0%'}],sleeveDuration/2,token));
+          opening.push(this.animate(newSleeve,[{left:offset},{left:'0%'}],sleeveDuration/2,token));
+        }
+        return Promise.all(opening);
+      })());
     }
-    newTrack.style.transform='translateX(50%)';
-    await Promise.all([bgJob,coverJob]);
-    overlay.remove();
-    if(token!==this.token)return;
-    previousBg.classList.remove('active');
-    previousBg.style.opacity='0';
-    nextBg.style.opacity='1';
-    nextBg.style.zIndex='';
-    previousBg.style.zIndex='';
-    this.current=1-this.current;
-    this.changing=false;
+    if(style==='fade'){
+      incoming.style.opacity='0';
+      jobs.push(this.animate(incoming,[{opacity:0},{opacity:1}],duration,token));
+    }
+    if(style==='slide'){
+      incoming.style.transform='translate(65%,-50%)';
+      jobs.push(this.animate(outgoing,[{transform:'translate(-50%,-50%)'},{transform:'translate(-165%,-50%)'}],duration,token));
+      jobs.push(this.animate(incoming,[{transform:'translate(65%,-50%)'},{transform:'translate(-50%,-50%)'}],duration,token));
+    }
+    if(style==='fly'){
+      incoming.style.transform='translate(55%,-115%) scale(.72) rotateX(65deg)';
+      jobs.push(this.animate(outgoing,[{transform:'translate(-50%,-50%) scale(1) rotateX(0deg)'},{transform:'translate(-145%,-98%) scale(.72) rotateX(65deg)'}],duration/2,token));
+      jobs.push((async()=>{
+        await delay(duration/2);
+        if(token!==this.token)return false;
+        return this.animate(incoming,[{transform:'translate(55%,-115%) scale(.72) rotateX(65deg)'},{transform:'translate(-50%,-50%) scale(1) rotateX(0deg)'}],duration/2,token);
+      })());
+    }
+    if(bgDuration)jobs.push(this.fadeBackdrop(previousBg,nextBg,bgDuration,token));
+    else{nextBg.style.opacity='1';previousBg.style.opacity='0'}
+    await Promise.all(jobs);
+    if(token===this.token)commit();
   }
   async change(url,onShow){
     this.pendingShow=null;

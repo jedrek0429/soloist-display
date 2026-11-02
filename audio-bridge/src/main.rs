@@ -121,9 +121,10 @@ async fn put_config(
             "centerHoleBasic" | "centerHoleCd" | "centerHoleVinyl" => Some((0., 20.)),
             "panelFontSize" => Some((0.6, 1.6)),
             "discRotationSeconds" => Some((1., 120.)),
-            "transitionDuration" | "coverTransitionDuration" | "backdropTransitionDuration" | "panelTransitionDuration" => {
-                Some((100., 10000.))
-            }
+            "transitionDuration"
+            | "coverTransitionDuration"
+            | "backdropTransitionDuration"
+            | "panelTransitionDuration" => Some((100., 10000.)),
             "backgroundDim" => Some((0., 1.)),
             "backgroundBlur" => Some((0., 150.)),
             "metadataOpacity" => Some((0., 1.)),
@@ -161,7 +162,10 @@ async fn put_config(
         if key == "coverTransitionStyle"
             && !["fly", "slide", "fade", "off"].contains(&value.as_str().unwrap_or(""))
         {
-            return Err((StatusCode::BAD_REQUEST, "Unsupported cover transition".into()));
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Unsupported cover transition".into(),
+            ));
         }
         if key == "timeDisplay"
             && !["off", "remaining", "total"].contains(&value.as_str().unwrap_or(""))
@@ -191,7 +195,8 @@ async fn put_config(
             ));
         }
         if key == "discAppearance"
-            && !["basic", "cd", "vinyl", "vinyl-cover", "cd-cover"].contains(&value.as_str().unwrap_or(""))
+            && !["basic", "cd", "vinyl", "vinyl-cover", "cd-cover"]
+                .contains(&value.as_str().unwrap_or(""))
         {
             return Err((
                 StatusCode::BAD_REQUEST,

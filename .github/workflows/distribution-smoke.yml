@@ -55,7 +55,7 @@ jobs:
     steps:
       - name: Install trust store
         run: ${{ matrix.install }}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: manager-x86_64
           path: /tmp/soloist-display-bin

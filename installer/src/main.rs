@@ -11,7 +11,8 @@ mod soloist;
 mod state;
 
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::{generate, Shell};
 use lock::InstallLock;
 use manager::RemoveMode;
 use paths::Paths;
@@ -52,7 +53,7 @@ struct Cli {
 #[derive(Subcommand, Debug)]
 enum Command {
     /// Generate shell completion script (e.g. `soloist-display completions zsh`).
-    Completions { shell: String },
+    Completions { shell: Shell },
     /// Install Soloist Display and, when absent, Spotify Soloist.
     Install {
         #[arg(long, hide = true, env = "SOLOIST_NAME")]
@@ -89,10 +90,7 @@ fn run() -> Result<i32> {
         std::env::set_var("NO_COLOR", "1");
     }
     if let Some(Command::Completions { shell }) = &cli.command {
-        if shell != "zsh" {
-            anyhow::bail!("supported shell: zsh");
-        }
-        print!("{}", manager::ZSH_COMPLETION);
+        generate(*shell, &mut Cli::command(), "soloist-display", &mut std::io::stdout());
         return Ok(0);
     }
     let paths = Paths::discover()?;

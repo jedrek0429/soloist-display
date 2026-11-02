@@ -10,7 +10,7 @@ function preload(url){
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 export class DiscDirector{
   constructor({discs,backdrops,info,settings={}}){
-    this.settings={discRotationSeconds:12,transitionDuration:2000,backdropTransitionStyle:'fade',backdropTransitionDuration:2000,transitionStyle:'fly',panelTransitionStyle:'slide',panelTransitionDuration:2050,reducedMotion:false,...settings};
+    this.settings={discRotationSeconds:12,transitionDuration:2000,backdropTransitionStyle:'fade',backdropTransitionDuration:2000,transitionStyle:'fly',sleeveTransitionStyle:'in-out',panelTransitionStyle:'slide',panelTransitionDuration:2050,reducedMotion:false,...settings};
     this.motionEnabled=!this.settings.reducedMotion;
     this.discs=discs;this.backdrops=backdrops;this.info=info;
     this.current=0;this.token=0;this.started=false;this.angle=0;
@@ -119,7 +119,7 @@ export class DiscDirector{
       onShow();
       return;
     }
-    const duration=this.motionEnabled?this.settings.transitionDuration:0;
+    const duration=this.motionEnabled&&this.settings.sleeveTransitionStyle!=='off'?this.settings.transitionDuration:0;
     const half=duration/2;
     this.changing=true;
     void this.transitionPanel(onShow);

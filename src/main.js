@@ -49,7 +49,7 @@ const root=document.documentElement;
 root.dataset.progressBar=config.progressBar===false?'off':'on';
 root.dataset.timeDisplay=['off','remaining','total'].includes(config.timeDisplay)?config.timeDisplay:'off';
 root.dataset.timeLayout=config.timeLayout==='together'?'together':'split';
-root.dataset.discAppearance=['basic','cd','vinyl','vinyl-cover','cd-cover'].includes(config.discAppearance)?config.discAppearance:'basic';
+root.dataset.discAppearance=['basic','cd','vinyl','vinyl-cover','cd-cover','album-cover'].includes(config.discAppearance)?config.discAppearance:'basic';
 root.dataset.cdCoverSide=config.cdCoverSide==='up'?'up':'down';
 root.style.setProperty('--vinyl-groove-spacing', (11-Math.max(1,Math.min(10,Number(config.vinylGrooveDensity)||5)))*1.1+'px');
 root.dataset.panelPosition=['bottom-right','bottom-left','top-right','top-left'].includes(config.panelPosition)?config.panelPosition:'bottom-right';

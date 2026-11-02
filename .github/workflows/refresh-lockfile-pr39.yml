@@ -1,0 +1,29 @@
+name: Refresh PR 39 Cargo lockfile
+on:
+  push:
+    branches: [chore/reduce-cargo-features]
+    paths:
+      - 'audio-bridge/Cargo.toml'
+      - 'installer/Cargo.toml'
+      - '.github/workflows/refresh-lockfile-pr39.yml'
+permissions:
+  contents: write
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Re-resolve lockfile without upgrading unrelated packages
+        run: cargo metadata --format-version 1 > /dev/null
+      - name: Commit updated lockfile
+        run: |
+          if ! git diff --quiet -- Cargo.lock; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add Cargo.lock
+            git commit -m "Update Cargo.lock for reduced dependency features"
+            git push
+          fi

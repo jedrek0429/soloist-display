@@ -125,12 +125,14 @@ export class DiscDirector{
     const sleeveDelayIn=sleeveOn?this.settings.sleeveDelayIn:0;
     const sleeveDelayOut=sleeveOn?this.settings.sleeveDelayOut:0;
     const align=this.settings.sleeveAlignment==='center';
+    // Individual translate is independent of the track's sliding transform.
+    // Unlike animating left, it does not trigger layout during the parent fly.
     const offset=align?'25%':'0%';
 
     for(const disc of this.discs){
       disc.style.transform='';disc.style.opacity='';
-      disc.querySelector('.record-track').style.left='0';
-      disc.querySelector('.record-sleeve').style.left='0';
+      disc.querySelector('.record-track').style.translate='0% 0';
+      disc.querySelector('.record-sleeve').style.translate='0% 0';
     }
     for(const bg of this.backdrops){
       bg.style.transition='none';bg.style.opacity=bg===previousBg?'1':'0';bg.style.zIndex='';
@@ -152,7 +154,7 @@ export class DiscDirector{
       outgoing.style.transform='';outgoing.style.opacity='';
       // Keep the completed track exactly at the animated position.
       newTrack.style.transform='translateX(50%)';
-      newTrack.style.left='0';newSleeve.style.left='0';
+      newTrack.style.translate='0% 0';newSleeve.style.translate='0% 0';
       previousBg.classList.remove('active');
       nextBg.classList.add('active');
       previousBg.style.opacity='0';nextBg.style.opacity='1';
@@ -176,9 +178,9 @@ export class DiscDirector{
     if(sleeveOn){
       jobs.push(this.after(sleeveDelayIn,token,()=>this.animate(oldTrack,[{transform:'translateX(50%)'},{transform:'translateX(0)'}],sleeveDuration/2,token)));
       if(align){
-        jobs.push(this.after(sleeveDelayIn,token,()=>this.animate(oldTrack,[{left:'0%'},{left:offset}],sleeveDuration/2,token)));
-        jobs.push(this.after(sleeveDelayIn,token,()=>this.animate(oldSleeve,[{left:'0%'},{left:offset}],sleeveDuration/2,token)));
-        newTrack.style.left=offset;newSleeve.style.left=offset;
+        jobs.push(this.after(sleeveDelayIn,token,()=>this.animate(oldTrack,[{translate:'0% 0'},{translate:offset+' 0'}],sleeveDuration/2,token)));
+        jobs.push(this.after(sleeveDelayIn,token,()=>this.animate(oldSleeve,[{translate:'0% 0'},{translate:offset+' 0'}],sleeveDuration/2,token)));
+        newTrack.style.translate=offset+' 0';newSleeve.style.translate=offset+' 0';
       }
       jobs.push((async()=>{
         // The incoming record must not emerge before the outgoing one is tucked away.
@@ -189,8 +191,8 @@ export class DiscDirector{
         if(token!==this.token)return false;
         const opening=[this.animate(newTrack,[{transform:'translateX(0)'},{transform:'translateX(50%)'}],sleeveDuration/2,token)];
         if(align){
-          opening.push(this.animate(newTrack,[{left:offset},{left:'0%'}],sleeveDuration/2,token));
-          opening.push(this.animate(newSleeve,[{left:offset},{left:'0%'}],sleeveDuration/2,token));
+          opening.push(this.animate(newTrack,[{translate:offset+' 0'},{translate:'0% 0'}],sleeveDuration/2,token));
+          opening.push(this.animate(newSleeve,[{translate:offset+' 0'},{translate:'0% 0'}],sleeveDuration/2,token));
         }
         return Promise.all(opening);
       })());

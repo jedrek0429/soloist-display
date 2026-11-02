@@ -1,4 +1,7 @@
 use std::io::{self, IsTerminal, Write};
+use std::fs::{self, OpenOptions};
+use std::os::unix::fs::OpenOptionsExt;
+use std::path::PathBuf;
 use std::sync::{
     atomic::{AtomicBool, AtomicUsize, Ordering},
     Arc, Mutex, OnceLock,
@@ -8,6 +11,22 @@ use std::{thread, time::Duration};
 static QUIET: AtomicBool = AtomicBool::new(false);
 static VERBOSE: AtomicBool = AtomicBool::new(false);
 static OUTPUT: OnceLock<Mutex<()>> = OnceLock::new();
+static LOG_PATH: OnceLock<Mutex<Option<PathBuf>>> = OnceLock::new();
+
+pub fn set_log_path(path: PathBuf) {
+    *LOG_PATH.get_or_init(|| Mutex::new(None)).lock().unwrap_or_else(|e| e.into_inner()) = Some(path);
+}
+
+pub fn log_event(operation: &str, status: &str, detail: &str) {
+    let Some(path) = LOG_PATH.get().and_then(|p| p.lock().ok().and_then(|g| g.clone())) else { return; };
+    if let Some(parent) = path.parent() { if fs::create_dir_all(parent).is_err() { return; } }
+    let _guard = output_lock().lock().unwrap_or_else(|e| e.into_inner());
+    if let Ok(mut file) = OpenOptions::new().create(true).append(true).mode(0o600).open(path) {
+        let entry = serde_json::json!({"timestamp": crate::state::now(), "operation": operation, "status": status, "detail": detail});
+        let _ = writeln!(file, "{entry}");
+    }
+}
+
 
 fn output_lock() -> &'static Mutex<()> {
     OUTPUT.get_or_init(|| Mutex::new(()))
@@ -31,6 +50,7 @@ pub fn success(message: String) {
     }
 }
 pub fn log_command(description: &str, stdout: &[u8], stderr: &[u8]) {
+    log_event(description, if stderr.is_empty() { "command" } else { "command-output" }, &String::from_utf8_lossy(stderr).chars().take(8192).collect::<String>());
     if !verbose() {
         return;
     }
@@ -131,6 +151,17 @@ impl Drop for Progress {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn terminal_pty_probe() {
+        let Ok(mode) = std::env::var("SOLOIST_DISPLAY_PTY_PROBE") else { return; };
+        configure(mode == "quiet", false);
+        {
+            let p = Progress::new(mode == "quiet", "probe");
+            p.step(1, "Checking release");
+            std::thread::sleep(Duration::from_millis(350));
+        }
+        success("Probe complete.".to_string());
+    }
     #[test]
     fn progresses_monotonically() {
         let p = Progress::new(true, "test");

@@ -109,7 +109,7 @@ function renderSection(){
     (key==='coverTransitionStyle'&&!isCover(draft.discAppearance))||
     (key==='coverTransitionDuration'&&(!isCover(draft.discAppearance)||draft.coverTransitionStyle==='off'))||
     (key==='timeLayout'&&draft.timeDisplay==='off')||
-    (key==='transitionDuration'&&(draft.discAppearance==='vinyl-cover'?(draft.sleeveTransitionStyle??'in-out')==='off':draft.transitionStyle==='off'))||
+    (key==='transitionDuration'&&(isCover(draft.discAppearance)?(draft.sleeveTransitionStyle??'in-out')==='off':draft.transitionStyle==='off'))||
     (key==='backdropTransitionDuration'&&draft.backdropTransitionStyle==='off')||
     (key==='panelTransitionDuration'&&draft.panelTransitionStyle==='off');
   const section=sections[activeSection];

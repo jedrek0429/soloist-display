@@ -159,13 +159,8 @@ async fn put_config(
                 "Unsupported panel transition".into(),
             ));
         }
-        if key == "coverTransitionStyle"
-            && !["fly", "slide", "fade", "off"].contains(&value.as_str().unwrap_or(""))
-        {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                "Unsupported cover transition".into(),
-            ));
+        if key == "sleeveAlignment" && !["left", "center"].contains(&value.as_str().unwrap_or("")) {
+            return Err((StatusCode::BAD_REQUEST, "Unsupported sleeve alignment".into()));
         }
         if key == "timeDisplay"
             && !["off", "remaining", "total"].contains(&value.as_str().unwrap_or(""))

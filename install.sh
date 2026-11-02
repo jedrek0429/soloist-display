@@ -7,12 +7,26 @@ PIN_RELEASE_BASE='@SOLOIST_DISPLAY_RELEASE_BASE@'
 PIN_X86_64='@SOLOIST_DISPLAY_SHA_X86_64@'
 PIN_AARCH64='@SOLOIST_DISPLAY_SHA_AARCH64@'
 PIN_ARMV7='@SOLOIST_DISPLAY_SHA_ARMV7@'
-RELEASE_BASE=${SOLOIST_DISPLAY_RELEASE_BASE:-$PIN_RELEASE_BASE}
-[ "$RELEASE_BASE" != '@SOLOIST_DISPLAY_RELEASE_BASE@' ] || RELEASE_BASE=https://github.com/jedrek0429/soloist-display/releases/latest/download
+version=${SOLOIST_DISPLAY_VERSION:-latest}
+case "$version" in
+  latest) RELEASE_BASE=https://github.com/jedrek0429/soloist-display/releases/latest/download ;;
+  *[!0-9.]*|'') fail_version=1 ;;
+  *) RELEASE_BASE="https://github.com/jedrek0429/soloist-display/releases/download/v$version" ;;
+esac
+[ "${fail_version:-0}" -eq 0 ] || { printf '%s\n' 'Invalid SOLOIST_DISPLAY_VERSION (expected X.Y.Z or latest)' >&2; exit 1; }
+# Legacy release-base override is reserved for local development and tests.
+if [ -n "${SOLOIST_DISPLAY_RELEASE_BASE:-}" ]; then RELEASE_BASE=$SOLOIST_DISPLAY_RELEASE_BASE; fi
 tmp_dir=
 
-say() { [ "${quiet:-0}" -eq 1 ] || printf '%s\n' "$*" >&2; }
-fail() { printf 'soloist-display installer: %s\n' "$*" >&2; exit 1; }
+color=
+if [ -t 2 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-}" != dumb ]; then
+  color=$(printf '\033[36m')
+  reset=$(printf '\033[0m')
+  green=$(printf '\033[32m')
+  red=$(printf '\033[31m')
+else reset=; green=; red=; fi
+say() { [ "${quiet:-0}" -eq 1 ] || printf '  %s%s%s\n' "$color" "$*" "$reset" >&2; }
+fail() { printf '  %serror%s  %s\n' "$red" "$reset" "$*" >&2; exit 1; }
 cleanup() { [ -z "$tmp_dir" ] || rm -rf "$tmp_dir"; }
 trap 'cleanup' EXIT HUP INT TERM
 
@@ -27,7 +41,7 @@ Downloads and verifies the Soloist Display installer, then runs it.
   --no-color    disable coloured output
   --quiet       show only errors
   --verbose     show additional diagnostics
-  --help        show this help
+  --help        show this help\n  SOLOIST_DISPLAY_VERSION=X.Y.Z  select signed release (default: latest)
   --version     show bootstrap version
 EOF
     exit 0
@@ -65,8 +79,8 @@ case "$target" in
   armv7-*) pinned_sha=$PIN_ARMV7 ;;
 esac
 
-case "$pinned_sha" in
-@*)
+case "$pinned_sha:$version" in
+*:latest)\n  pinned_sha=untrusted\n  ;;&
   command -v openssl >/dev/null 2>&1 || fail 'OpenSSL is required to authenticate installer metadata'
 
 cat >"$public_key" <<'EOF'
@@ -75,7 +89,7 @@ MCowBQYDK2VwAyEATdUg4MIYNWweUXusU4IALmgiXVhTErC+i2sVABwt3Zg=
 -----END PUBLIC KEY-----
 EOF
 
-say "Downloading authenticated installer metadata..."
+say 'Verifying release'
 fetch "$RELEASE_BASE/bootstrap-manifest.txt" "$manifest" || fail 'could not download installer metadata'
 fetch "$RELEASE_BASE/bootstrap-manifest.sig" "$signature_b64" || fail 'could not download installer signature'
 openssl base64 -d -A -in "$signature_b64" -out "$signature" 2>/dev/null || fail 'invalid installer signature encoding'
@@ -90,7 +104,7 @@ installer_url=${record#* }
   expected_sha=$pinned_sha
   ;;
 esac
-say "Downloading installer for $target..."
+say "Downloading $version · $machine"
 fetch "$installer_url" "$installer" || fail 'could not download the installer executable'
 if command -v sha256sum >/dev/null 2>&1; then
   actual_sha=$(sha256sum "$installer" | awk '{print $1}')
@@ -102,7 +116,7 @@ fi
 [ "$actual_sha" = "$expected_sha" ] || fail 'installer SHA-256 verification failed'
 chmod 700 "$installer"
 
-say 'Starting Soloist Display setup...'
+say 'Installing'
 if [ -r /dev/tty ] && [ -w /dev/tty ]; then
   "$installer" install "$@" </dev/tty
 else

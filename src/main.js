@@ -22,7 +22,7 @@ const $=id=>document.getElementById(id);
 const bounded=(value,fallback,min,max)=>Number.isFinite(Number(value))?Math.max(min,Math.min(max,Number(value))):fallback;
 const settings={
   discSize:bounded(config['discSize'+(['vinyl','vinyl-cover'].includes(config.discAppearance)?'Vinyl':['cd','cd-cover'].includes(config.discAppearance)?'Cd':'Basic')],bounded(config.discSize,116,50,200),50,200),
-  changeDiscOn:config.changeDiscOn==='album'?'album':'song',
+  changeDiscOn:config.changeDiscOn==='song'?'song':'album',
   discRotationSeconds:bounded(config.discRotationSeconds,12,1,120),
   transitionDuration:bounded(config.transitionDuration,2000,100,10000),
   backdropTransitionStyle:config.backdropTransitionStyle||'fade',
@@ -39,9 +39,9 @@ const settings={
   transitionStyle:config.transitionStyle||'fly',
   sleeveTransitionStyle:config.sleeveTransitionStyle||'in-out',
   sleeveDuration:bounded(config.sleeveDuration,1000,100,10000),
-  sleeveAlignment:config.sleeveAlignment==='center'?'center':'left',
+  sleeveAlignment:config.sleeveAlignment==='left'?'left':'center',
   sleeveDelayIn:bounded(config.sleeveDelayIn,0,0,10000),
-  sleeveDelayOut:bounded(config.sleeveDelayOut,50,0,10000),
+  sleeveDelayOut:bounded(config.sleeveDelayOut,950,0,10000),
   transitionDelay:bounded(config.transitionDelay,1000,0,10000),
   backdropTransitionDelay:bounded(config.backdropTransitionDelay,1000,0,10000),
   panelTransitionDelay:bounded(config.panelTransitionDelay,0,0,10000)

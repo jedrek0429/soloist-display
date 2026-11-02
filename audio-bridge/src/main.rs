@@ -91,6 +91,13 @@ fn read_settings(path: &PathBuf) -> Value {
                         object.insert(key.into(), Value::String("off".into()));
                     }
                 }
+                // Normalize legacy "instant" in the new per-appearance presets too.
+                for suffix in ["Basic", "Cd", "Vinyl", "VinylCover", "CdCover", "AlbumCover"] {
+                    let key = format!("transitionStyle{suffix}");
+                    if object.get(&key).and_then(Value::as_str) == Some("instant") {
+                        object.insert(key, Value::String("off".into()));
+                    }
+                }
                 if old_dot {
                     object.insert("discAppearance".into(), Value::String("basic".into()));
                     if let Some(size) = values.get("centerHoleDot").and_then(Value::as_f64) {
@@ -556,4 +563,24 @@ mod tests {
         assert_eq!(settings["cdCoverSide"], "down");
         assert_eq!(settings["vinylGrooveDensity"], 5);
     }
+    #[test]
+    fn defaults_and_legacy_presets_are_appearance_specific() {
+        let defaults: Value = serde_json::from_str(DEFAULT_CONFIG).unwrap();
+        assert_eq!(defaults["discAppearance"], "vinyl-cover");
+        assert_eq!(defaults["discOpacityCdCoverDown"], 0.7);
+        assert_eq!(defaults["cdRainbow"], 0.5);
+        assert_eq!(defaults["vinylLabelSize"], 34);
+
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("config.json");
+        std::fs::write(&path, r#"{"discAppearance":"cd-cover","discSizeCd":91,"transitionStyle":"slide","transitionDuration":3700,"sleeveDuration":1700}"#).unwrap();
+        let settings = read_settings(&path);
+        assert_eq!(settings["discAppearance"], "cd-cover");
+        assert_eq!(settings["discSizeCdCover"], 91);
+        assert_eq!(settings["transitionStyleCdCover"], "slide");
+        assert_eq!(settings["transitionDurationCdCover"], 3700);
+        assert_eq!(settings["sleeveDurationCdCover"], 1700);
+        assert_eq!(settings["discSizeAlbumCover"], defaults["discSizeAlbumCover"]);
+    }
+
 }

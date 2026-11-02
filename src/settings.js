@@ -181,11 +181,11 @@ function renderSection(){
     (sections[activeSection].title==='Sleeve motion'&&!isCover(draft.discAppearance))||
     
     (key==='sleeveDuration'&&selectedValue('sleeveTransitionStyle')==='off')||
-    (['sleeveDelayIn','sleeveDelayOut'].includes(key)&&draft.sleeveTransitionStyle==='off')||
+    (['sleeveDelayIn','sleeveDelayOut'].includes(key)&&selectedValue('sleeveTransitionStyle')==='off')||
     (key==='sleeveAlignment'&&!isCover(draft.discAppearance))||
     (key==='timeLayout'&&draft.timeDisplay==='off')||
     (key==='transitionDuration'&&selectedValue('transitionStyle')==='off')||
-    (key==='transitionDelay'&&draft.transitionStyle==='off')||
+    (key==='transitionDelay'&&selectedValue('transitionStyle')==='off')||
     (key==='backdropTransitionDelay'&&draft.backdropTransitionStyle==='off')||
     (['panelDelayIn','panelDelayOut'].includes(key)&&draft.panelTransitionStyle==='off')||
     (key==='backdropTransitionDuration'&&draft.backdropTransitionStyle==='off')||

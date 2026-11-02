@@ -98,7 +98,7 @@ let activeSection=0;
 let motionExpanded=false;
 const motionPages=new Set(['Sleeve motion','Disc motion','Backdrop motion','Panel motion']);
 const isCover=style=>style==='vinyl-cover'||style==='cd-cover';
-const holeKey=style=>style==='vinyl-cover'?'centerHoleVinyl':style==='cd-cover'?'centerHoleCd':'centerHole'+style[0].toUpperCase()+style.slice(1);
+const holeKey=style=>['vinyl','vinyl-cover'].includes(style)?'centerHoleVinyl':['cd','cd-cover'].includes(style)?'centerHoleCd':'centerHoleBasic';
 const selectedHoleKey=()=>holeKey(draft.discAppearance||'basic');
 const selectedSizeKey=()=>selectedHoleKey().replace('centerHole','discSize');
 const selectedHoleColorKey=()=>selectedHoleKey().replace('centerHole','centerHoleColor');
@@ -180,7 +180,7 @@ function renderSection(){
   for(const [key,label,type,min,max,step,suffix] of section.fields){
     const line=document.createElement('div');
     line.className='field';
-    if(hidden(key))line.hidden=true;
+    if(hidden(key))continue;
     const caption=document.createElement('label');
     caption.className='field-label';
     caption.htmlFor=key;
@@ -252,6 +252,9 @@ async function load(){
   const response=await fetch('/config.json',{cache:'no-store'});
   if(!response.ok)throw Error('Cannot load settings');
   draft=await response.json();
+  delete draft['centerHoleColorAlbum-cover'];
+  delete draft['discSizeAlbum-cover'];
+  delete draft['centerHoleAlbum-cover'];
   draft.changeDiscOn=draft.changeDiscOn==='album'?'album':'song';
   delete draft.backdropLinked;
   for(const key of ['transitionStyle','backdropTransitionStyle','panelTransitionStyle'])if(draft[key]==='instant')draft[key]='off';
@@ -267,6 +270,9 @@ document.querySelector('#save').addEventListener('click',async()=>{
     });
     if(!response.ok)throw Error(await response.text());
     draft=await response.json();
+    delete draft['centerHoleColorAlbum-cover'];
+    delete draft['discSizeAlbum-cover'];
+    delete draft['centerHoleAlbum-cover'];
     draft.changeDiscOn=draft.changeDiscOn==='album'?'album':'song';
     delete draft.backdropLinked;
     for(const key of ['transitionStyle','backdropTransitionStyle','panelTransitionStyle'])if(draft[key]==='instant')draft[key]='off';

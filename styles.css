@@ -291,11 +291,11 @@
   border-radius:50%;opacity:.22;
   background:
     radial-gradient(circle closest-side at center,
-      transparent 0 calc(var(--cd-hole-stop) + .45%),
-      rgba(233,239,245,.26) calc(var(--cd-hole-stop) + .85%) calc(var(--cd-hole-stop) + 1.45%),
-      rgba(70,83,98,.14) calc(var(--cd-hole-stop) + 1.7%) calc(var(--cd-hole-stop) + 2.2%),
-      rgba(236,242,247,.18) calc(var(--cd-hole-stop) + 2.5%) calc(var(--cd-hole-stop) + 3.1%),
-      transparent calc(var(--cd-hole-stop) + 3.55%)),
+      transparent 0 calc(var(--cd-hole-stop) * 1.025),
+      rgba(233,239,245,.26) calc(var(--cd-hole-stop) * 1.06) calc(var(--cd-hole-stop) * 1.12),
+      rgba(70,83,98,.14) calc(var(--cd-hole-stop) * 1.15) calc(var(--cd-hole-stop) * 1.20),
+      rgba(236,242,247,.18) calc(var(--cd-hole-stop) * 1.23) calc(var(--cd-hole-stop) * 1.31),
+      transparent calc(var(--cd-hole-stop) * 1.35)),
     conic-gradient(from 67deg,transparent 0 14%,rgba(255,255,255,.18) 19%,
       transparent 26% 63%,rgba(255,255,255,.14) 70%,transparent 78%);
   -webkit-mask-image:none;mask-image:none;
@@ -334,8 +334,8 @@
     repeating-radial-gradient(circle,transparent 0 2px,rgba(245,249,255,.055) 2.5px,transparent 3px,transparent 5px),
     conic-gradient(from 16deg,rgba(153,192,245,.24),rgba(238,190,236,.12) 48deg,transparent 78deg,rgba(187,242,222,.23) 115deg,transparent 160deg,rgba(245,227,175,.2) 208deg,transparent 250deg,rgba(167,183,246,.22) 310deg,rgba(153,192,245,.24));
 }
-/* Same translucent rings, dynamically positioned immediately outside the
-   physical hole regardless of the mode or CD face. */
+/* Concentric hub rings scale with the physical aperture: both ring radii and
+   widths remain proportional to Center hole across CD modes and faces. */
 :root[data-disc-appearance='cd'] .disc-image::after,
 :root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image::after,
 :root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::after{

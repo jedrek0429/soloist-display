@@ -9,6 +9,8 @@
   "discSizeCd": 116,
   "discSizeVinyl": 116,
   "discRotationSeconds": 12,
+  "cdCoverSide": "down",
+  "vinylGrooveDensity": 5,
   "backgroundDim": 0.52,
   "backgroundBlur": 50,
   "metadataOpacity": 0.58,

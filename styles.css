@@ -351,3 +351,54 @@
     conic-gradient(from 67deg,transparent 0 14%,rgba(255,255,255,.18) 19%,transparent 26% 63%,rgba(255,255,255,.14) 70%,transparent 78%);
   -webkit-mask-image:none;mask-image:none;
 }
+
+/* Final canonical CD geometry. Both appearances use a square track of the
+   same size as their visible disc; the sleeve layout must never be the
+   percentage reference for an aperture. */
+:root[data-disc-appearance='cd'] .record-track,
+:root[data-disc-appearance='cd-cover'] .record-track{
+  aspect-ratio:1 / 1;
+}
+:root[data-disc-appearance='cd'] .rotor,
+:root[data-disc-appearance='cd-cover'] .rotor{
+  width:100%;height:100%;
+  -webkit-mask-image:radial-gradient(circle closest-side at 50% 50%,transparent 0 var(--cd-hole-stop),#000 calc(var(--cd-hole-stop) + .08%));
+  mask-image:radial-gradient(circle closest-side at 50% 50%,transparent 0 var(--cd-hole-stop),#000 calc(var(--cd-hole-stop) + .08%));
+}
+:root[data-disc-appearance='cd'][data-hole-color='white'] .rotor,
+:root[data-disc-appearance='cd'][data-hole-color='black'] .rotor,
+:root[data-disc-appearance='cd-cover'][data-hole-color='white'] .rotor,
+:root[data-disc-appearance='cd-cover'][data-hole-color='black'] .rotor{
+  -webkit-mask-image:none;mask-image:none;
+}
+/* A single printed face: plain CD and CD & Cover (up) render identically. */
+:root[data-disc-appearance='cd'] .disc-image,
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image{
+  background:#282828 center/cover no-repeat;
+  box-shadow:none;
+}
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image{
+  background-image:var(--cd-cover-art,none)!important;
+}
+:root[data-disc-appearance='cd'] .disc-image::before,
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image::before{
+  display:block;inset:0;width:auto;height:auto;transform:none;border:0;
+  border-radius:50%;opacity:.34;mix-blend-mode:screen;
+  -webkit-mask-image:none;mask-image:none;
+}
+/* Neither label face nor the reflective face has a second, fake centre hole.
+   The rings are concentric with the shared rotor mask and are deliberately
+   faint so they read as a hub, not a larger aperture. */
+:root[data-disc-appearance='cd'] .disc-image::after,
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='up'] .disc-image::after,
+:root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::after{
+  display:block;inset:0;width:auto;height:auto;transform:none;border:0;box-shadow:none;
+  border-radius:50%;opacity:.17;mix-blend-mode:normal;
+  background:radial-gradient(circle closest-side at center,
+    transparent 0 calc(var(--cd-hole-stop) * 1.02),
+    rgba(245,248,250,.28) calc(var(--cd-hole-stop) * 1.06) calc(var(--cd-hole-stop) * 1.13),
+    rgba(55,67,78,.11) calc(var(--cd-hole-stop) * 1.16) calc(var(--cd-hole-stop) * 1.22),
+    rgba(236,241,247,.18) calc(var(--cd-hole-stop) * 1.25) calc(var(--cd-hole-stop) * 1.33),
+    transparent calc(var(--cd-hole-stop) * 1.37));
+  -webkit-mask-image:none;mask-image:none;
+}

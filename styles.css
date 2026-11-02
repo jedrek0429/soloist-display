@@ -144,7 +144,7 @@
   mix-blend-mode:screen;-webkit-mask-image:none;mask-image:none;
 }
 :root[data-disc-appearance='cd-cover'][data-cd-cover-side='down'] .disc-image::before{
-  display:block;inset:0;opacity:.82;border-radius:50%;
+  display:block;inset:0;opacity:var(--cd-rainbow,.65);border-radius:50%;
   background:conic-gradient(from 18deg,
     rgba(249,92,134,.42),rgba(247,202,96,.28) 42deg,
     rgba(81,222,178,.35) 88deg,rgba(83,157,244,.39) 138deg,

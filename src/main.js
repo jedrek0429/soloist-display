@@ -52,6 +52,7 @@ root.dataset.timeDisplay=['off','remaining','total'].includes(config.timeDisplay
 root.dataset.timeLayout=config.timeLayout==='together'?'together':'split';
 root.dataset.discAppearance=['basic','cd','vinyl','vinyl-cover','cd-cover','album-cover'].includes(config.discAppearance)?config.discAppearance:'basic';
 root.dataset.cdCoverSide=config.cdCoverSide==='up'?'up':'down';
+root.style.setProperty('--cd-rainbow',bounded(config.cdRainbow,.65,0,1));
 root.style.setProperty('--vinyl-groove-spacing', (11-Math.max(1,Math.min(10,Number(config.vinylGrooveDensity)||5)))*1.1+'px');
 root.dataset.panelEnabled=settings.panelEnabled?'on':'off';
 root.dataset.panelPosition=['bottom-right','bottom-left','top-right','top-left'].includes(config.panelPosition)?config.panelPosition:'bottom-right';

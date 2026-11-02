@@ -35,6 +35,6 @@
   "timeDisplay": "off",
   "timeLayout": "split",
   "sleeveTransitionStyle": "in-out",
-  "coverTransitionStyle": "fade",
-  "coverTransitionDuration": 2000
+  "sleeveDuration": 2000,
+  "sleeveAlignment": "left"
 }

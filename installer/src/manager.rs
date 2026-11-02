@@ -347,7 +347,7 @@ fn install_step(quiet: bool, step: usize, label: &str) {
     let filled = step * width / 4;
     let bar = format!("{}{}", "━".repeat(filled), "─".repeat(width - filled));
     if color {
-        eprintln!("  \\x1b[36m{bar}\\x1b[0m  {step}/4  {label}");
+        eprintln!("  \x1b[36m{bar}\x1b[0m  {step}/4  {label}");
     } else {
         eprintln!("  [{bar}]  {step}/4  {label}");
     }

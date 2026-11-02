@@ -202,12 +202,32 @@ fn completion_snippet(directory: &Path, activate: bool) -> String {
     snippet
 }
 
-fn integrate_zshrc(existing: &str, directory: &Path) -> String {
-    if existing.contains(ZSH_START) {
-        return existing.to_owned();
+fn strip_owned_zshrc_block(existing: &str, directory: &Path) -> String {
+    // Preserve unrelated content and refuse to delete edited installer blocks.
+    for activate in [false, true] {
+        let snippet = completion_snippet(directory, activate);
+        if existing.contains(&snippet) {
+            return existing.replacen(&snippet, "", 1);
+        }
     }
-    // fpath must be set before compinit or the shell framework that invokes it.
-    let lines: Vec<&str> = existing.split_inclusive('\n').collect();
+    // Legacy version appended this exact block at EOF.
+    let old = format!(
+        "\n{ZSH_START}\nfpath=(\"{}\" $fpath)\nautoload -Uz compinit\ncompinit\n{ZSH_END}\n",
+        directory.display()
+    );
+    if existing.ends_with(&old) {
+        return existing[..existing.len() - old.len()].to_owned();
+    }
+    existing.to_owned()
+}
+
+fn integrate_zshrc(existing: &str, directory: &Path) -> String {
+    let cleaned = strip_owned_zshrc_block(existing, directory);
+    // A modified block belongs to the user; never overwrite it.
+    if cleaned.contains(ZSH_START) {
+        return cleaned;
+    }
+    let lines: Vec<&str> = cleaned.split_inclusive('\n').collect();
     let insertion = lines.iter().position(|line| {
         let trimmed = line.trim_start();
         !trimmed.starts_with('#') && (
@@ -223,7 +243,7 @@ fn integrate_zshrc(existing: &str, directory: &Path) -> String {
         output.push_str(&completion_snippet(directory, false));
         for line in &lines[index..] { output.push_str(line); }
     } else {
-        output.push_str(existing);
+        output.push_str(&cleaned);
         if !output.is_empty() && !output.ends_with('\n') { output.push('\n'); }
         output.push_str(&completion_snippet(directory, true));
     }
@@ -268,14 +288,8 @@ fn remove_completion(paths: &Paths) -> Result<()> {
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(error.into()),
     };
-    // Remove only a complete, unchanged installer-owned block.
-    for activate in [false, true] {
-        let snippet = completion_snippet(&completion_directory(paths), activate);
-        if content.contains(&snippet) {
-            fs::write(&rc, content.replacen(&snippet, "", 1))?;
-            break;
-        }
-    }
+    let cleaned = strip_owned_zshrc_block(&content, &completion_directory(paths));
+    if cleaned != content { fs::write(&rc, cleaned)?; }
     Ok(())
 }
 
@@ -312,6 +326,29 @@ mod completion_tests {
         let once = integrate_zshrc("export FOO=bar\n", path);
         assert_eq!(once.matches("\ncompinit\n").count(), 1);
         assert_eq!(once, integrate_zshrc(&once, path));
+    }
+
+    #[test]
+    fn upgrades_legacy_snippet_without_repeating_compinit() {
+        let path = Path::new("/home/test/.local/share/zsh/site-functions");
+        let original = format!("autoload -Uz compinit\ncompinit\n\n{ZSH_START}\nfpath=(\"{}\" $fpath)\nautoload -Uz compinit\ncompinit\n{ZSH_END}\n", path.display());
+        let updated = integrate_zshrc(&original, path);
+        assert_eq!(updated.matches("\ncompinit\n").count(), 1);
+        assert_eq!(updated.matches(ZSH_START).count(), 1);
+        assert_eq!(updated, integrate_zshrc(&updated, path));
+    }
+
+    #[test]
+    fn uninstaller_preserves_edits_to_owned_section() {
+        let path = Path::new("/tmp/zsh");
+        let owned = completion_snippet(path, false);
+        let content = format!("export FOO=1\n{owned}export BAR=2\n");
+        assert_eq!(
+            strip_owned_zshrc_block(&content, path),
+            "export FOO=1\nexport BAR=2\n"
+        );
+        let edited = content.replace("fpath=", "# custom\nfpath=");
+        assert_eq!(strip_owned_zshrc_block(&edited, path), edited);
     }
 
     #[test]

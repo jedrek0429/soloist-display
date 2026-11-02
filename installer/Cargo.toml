@@ -30,6 +30,6 @@ tungstenite = "0.24"
 url = "2"
 
 [dev-dependencies]
-serial_test = "3"
+serial_test = "4"
 tempfile = "3"
 tiny_http = "0.12"

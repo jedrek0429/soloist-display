@@ -10,7 +10,7 @@ function preload(url){
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 export class DiscDirector{
   constructor({discs,backdrops,info,settings={}}){
-    this.settings={discRotationSeconds:12,transitionDuration:2000,backdropTransitionStyle:'fade',backdropTransitionDuration:2000,transitionStyle:'fly',sleeveTransitionStyle:'in-out',sleeveDuration:1000,sleeveDelay:0,transitionDelay:1000,backdropTransitionDelay:1000,panelTransitionDelay:0,sleeveAlignment:'left',panelTransitionStyle:'slide',panelTransitionDuration:2050,reducedMotion:false,...settings};
+    this.settings={discRotationSeconds:12,transitionDuration:2000,backdropTransitionStyle:'fade',backdropTransitionDuration:2000,transitionStyle:'fly',sleeveTransitionStyle:'in-out',sleeveDuration:1000,sleeveDelayIn:0,sleeveDelayOut:2000,transitionDelay:1000,backdropTransitionDelay:1000,panelTransitionDelay:0,sleeveAlignment:'left',panelTransitionStyle:'slide',panelTransitionDuration:2050,reducedMotion:false,...settings};
     this.motionEnabled=!this.settings.reducedMotion;
     this.discs=discs;this.backdrops=backdrops;this.info=info;
     this.current=0;this.token=0;this.started=false;this.angle=0;
@@ -119,7 +119,8 @@ export class DiscDirector{
     const newSleeve=incoming.querySelector('.record-sleeve');
     const sleeveOn=this.motionEnabled&&this.settings.sleeveTransitionStyle!=='off';
     const sleeveDuration=sleeveOn?this.settings.sleeveDuration:0;
-    const sleeveDelay=sleeveOn?this.settings.sleeveDelay:0;
+    const sleeveDelayOut=sleeveOn?this.settings.sleeveDelayOut:0;
+    const sleeveDelayIn=sleeveOn?this.settings.sleeveDelayIn:0;
     const align=this.settings.sleeveAlignment==='center';
     const offset=align?'25%':'0%';
 
@@ -138,7 +139,7 @@ export class DiscDirector{
     nextBg.style.backgroundImage=imageStyle(url);
     incoming.dataset.angleOffset=String(this.angle);
     newTrack.style.transform=sleeveOn?'translateX(0)':'translateX(50%)';
-    oldTrack.style.transform='translateX(50%)';
+    if(!this.started)oldTrack.style.transform='translateX(50%)';
 
     const commit=()=>{
       if(token!==this.token)return;
@@ -147,6 +148,7 @@ export class DiscDirector{
       incoming.classList.add('active');
       incoming.style.transform='';incoming.style.opacity='';
       outgoing.style.transform='';outgoing.style.opacity='';
+      // Keep the completed track exactly at the animated position.
       newTrack.style.transform='translateX(50%)';
       newTrack.style.left='0';newSleeve.style.left='0';
       previousBg.classList.remove('active');
@@ -170,14 +172,14 @@ export class DiscDirector{
 
     const jobs=[];
     if(sleeveOn){
-      jobs.push(this.after(sleeveDelay,token,()=>this.animate(oldTrack,[{transform:'translateX(50%)'},{transform:'translateX(0)'}],sleeveDuration/2,token)));
+      jobs.push(this.after(sleeveDelayOut,token,()=>this.animate(oldTrack,[{transform:'translateX(50%)'},{transform:'translateX(0)'}],sleeveDuration/2,token)));
       if(align){
-        jobs.push(this.after(sleeveDelay,token,()=>this.animate(oldTrack,[{left:'0%'},{left:offset}],sleeveDuration/2,token)));
-        jobs.push(this.after(sleeveDelay,token,()=>this.animate(oldSleeve,[{left:'0%'},{left:offset}],sleeveDuration/2,token)));
+        jobs.push(this.after(sleeveDelayOut,token,()=>this.animate(oldTrack,[{left:'0%'},{left:offset}],sleeveDuration/2,token)));
+        jobs.push(this.after(sleeveDelayOut,token,()=>this.animate(oldSleeve,[{left:'0%'},{left:offset}],sleeveDuration/2,token)));
         newTrack.style.left=offset;newSleeve.style.left=offset;
       }
       jobs.push((async()=>{
-        await delay(sleeveDelay+sleeveDuration/2);
+        await delay(sleeveDelayIn+sleeveDuration/2);
         if(token!==this.token)return false;
         const opening=[this.animate(newTrack,[{transform:'translateX(0)'},{transform:'translateX(50%)'}],sleeveDuration/2,token)];
         if(align){

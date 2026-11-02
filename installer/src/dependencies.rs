@@ -1,5 +1,5 @@
 use crate::platform::{Distro, Platform};
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, bail, Result};
 use std::process::Command;
 
 pub fn required(platform: &Platform) -> Vec<&'static str> {

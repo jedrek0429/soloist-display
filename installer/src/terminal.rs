@@ -181,54 +181,33 @@ mod tests {
     }
     #[test]
     fn terminal_pty_integration() {
-        // A real pseudoterminal catches output races hidden by pipe-based tests.
-        let script = r#"
-import os, pty, re, select, subprocess, sys, time
-master, slave = pty.openpty()
-env = os.environ.copy()
-env.pop("CI", None)
-env["TERM"] = "xterm"
-env["SOLOIST_DISPLAY_PTY_PROBE"] = sys.argv[2]
-p = subprocess.Popen([sys.argv[1], "--exact", "terminal::tests::terminal_pty_probe", "--nocapture"],
-                     stdin=slave, stdout=slave, stderr=slave, env=env)
-os.close(slave)
-raw = b""
-deadline = time.monotonic() + 10
-while time.monotonic() < deadline:
-    readable, _, _ = select.select([master], [], [], .1)
-    if readable:
-        try:
-            chunk = os.read(master, 8192)
-            if not chunk: break
-            raw += chunk
-        except OSError: break
-    if p.poll() is not None and not readable: break
-p.wait(timeout=2)
-os.close(master)
-assert p.returncode == 0, raw
-text = raw.decode("utf-8", "replace")
-if sys.argv[2] == "quiet":
-    assert "Checking release" not in text, text
-    assert "Probe complete." not in text, text
-else:
-    assert "Probe complete." in text, text
-    assert "\r\x1b[2K" in text, repr(text)
-    assert text.index("Checking release") < text.index("Probe complete."), text
-    assert re.search(r"\r\x1b\[2K(?:\r?\n)?Probe complete\.", text), repr(text)
-"#;
+        let binary = std::env::current_exe().unwrap();
+        let escaped = binary.display().to_string().replace('\'', "'\\''");
+        let command = format!(
+            "'{escaped}' --exact terminal::tests::terminal_pty_probe --nocapture"
+        );
         for mode in ["normal", "quiet"] {
-            let result = std::process::Command::new("python3")
-                .arg("-c")
-                .arg(script)
-                .arg(std::env::current_exe().unwrap())
-                .arg(mode)
+            let result = std::process::Command::new("script")
+                .args(["-q", "-e", "-c", &command, "/dev/null"])
+                .env_remove("CI")
+                .env("TERM", "xterm")
+                .env("SOLOIST_DISPLAY_PTY_PROBE", mode)
                 .output()
-                .expect("python3 is required for PTY tests");
-            assert!(
-                result.status.success(),
-                "PTY {mode}: {}",
-                String::from_utf8_lossy(&result.stderr)
-            );
+                .expect("util-linux script is required for PTY tests");
+            let output = String::from_utf8_lossy(&result.stdout);
+            assert!(result.status.success(), "PTY {mode}: {output}");
+            if mode == "quiet" {
+                assert!(!output.contains("Checking release"), "{output}");
+                assert!(!output.contains("Probe complete."), "{output}");
+            } else {
+                assert!(output.contains("Checking release"), "{output}");
+                assert!(output.contains("Probe complete."), "{output}");
+                assert!(output.contains("\r\x1b[2K"), "{output:?}");
+                assert!(
+                    output.find("Checking release") < output.find("Probe complete."),
+                    "{output}"
+                );
+            }
         }
     }
     #[test]

@@ -832,6 +832,9 @@ pub fn update(
     drop(progress);
     if !quiet {
         println!("Updated Soloist Display to {}.", manifest.version);
+        if state.suppress_updates {
+            println!("Update notifications are off. Re-enable: soloist-display notifications on");
+        }
     }
     Ok(())
 }

@@ -451,7 +451,9 @@ fn copy_session_tree(
             copy_session_tree(&from, &to, depth + 1, count, total)?;
         } else if kind.is_file() {
             let size = entry.metadata()?.len();
-            *total = total.checked_add(size).ok_or_else(|| anyhow!("Soloist session exceeds size limit"))?;
+            *total = total
+                .checked_add(size)
+                .ok_or_else(|| anyhow!("Soloist session exceeds size limit"))?;
             if *total > MAX_SESSION_BYTES {
                 bail!("existing Soloist session exceeds 512 MiB; use external mode");
             }
@@ -471,8 +473,12 @@ pub fn copy_existing_session(paths: &Paths, source: &Path) -> Result<PathBuf> {
     if source.starts_with(&paths.managed_soloist) || destination.exists() {
         bail!("managed Soloist session directory is not available for migration");
     }
-    let metadata = fs::symlink_metadata(source)
-        .with_context(|| format!("read existing Soloist session directory {}", source.display()))?;
+    let metadata = fs::symlink_metadata(source).with_context(|| {
+        format!(
+            "read existing Soloist session directory {}",
+            source.display()
+        )
+    })?;
     if !metadata.is_dir() || metadata.file_type().is_symlink() {
         bail!("existing Soloist session path is not a regular directory");
     }
@@ -499,8 +505,8 @@ pub fn install(
     if !paths.state.join("soloist-runtime.json").exists() {
         runtime.save(paths)?;
     }
-    let data_owned = runtime.data_dir.starts_with(&paths.managed_soloist)
-        || !runtime.data_dir.exists();
+    let data_owned =
+        runtime.data_dir.starts_with(&paths.managed_soloist) || !runtime.data_dir.exists();
     let version_dir = paths.managed_soloist.join(version);
     fs::create_dir_all(&version_dir)?;
     fs::create_dir_all(&paths.cache)?;
@@ -640,10 +646,16 @@ mod tests {
         fs::write(original.join("credentials"), b"existing login").unwrap();
         fs::write(original.join("soloist.pid"), b"old pid").unwrap();
         let managed = copy_existing_session(&paths, &original).unwrap();
-        assert_eq!(fs::read(managed.join("credentials")).unwrap(), b"existing login");
+        assert_eq!(
+            fs::read(managed.join("credentials")).unwrap(),
+            b"existing login"
+        );
         assert!(!managed.join("soloist.pid").exists());
         fs::write(managed.join("credentials"), b"new login").unwrap();
-        assert_eq!(fs::read(original.join("credentials")).unwrap(), b"existing login");
+        assert_eq!(
+            fs::read(original.join("credentials")).unwrap(),
+            b"existing login"
+        );
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
 

@@ -363,7 +363,9 @@ pub fn configure(paths: &Paths, name: Option<String>, api_key: Option<String>) -
 pub fn managed_installation_complete(paths: &Paths) -> Result<bool> {
     let (name, key) = read_credentials(&paths.soloist_env)?;
     Ok(paths.soloist_service.is_file()
-        && name.as_deref().is_some_and(|value| !value.trim().is_empty())
+        && name
+            .as_deref()
+            .is_some_and(|value| !value.trim().is_empty())
         && key.as_deref().is_some_and(|value| !value.trim().is_empty())
         && service::active(paths, "soloist.service"))
 }

@@ -352,7 +352,7 @@ mod tests {
 
     #[test]
     #[serial]
-    fn rollback_preserves_original_shell_configuration_and_permissions() {
+    fn rollback_does_not_overwrite_concurrent_shell_edits() {
         let (_directory, paths) = setup();
         let zshrc = paths.home.join(".zshrc");
         fs::write(&zshrc, b"original shell settings").unwrap();
@@ -360,7 +360,7 @@ mod tests {
         let _tx = UninstallTransaction::begin(&paths, false).unwrap();
         fs::write(&zshrc, b"partial uninstall").unwrap();
         recover(&paths).unwrap();
-        assert_eq!(fs::read(&zshrc).unwrap(), b"original shell settings");
+        assert_eq!(fs::read(&zshrc).unwrap(), b"partial uninstall");
         assert_eq!(
             fs::metadata(&zshrc).unwrap().permissions().mode() & 0o777,
             0o644

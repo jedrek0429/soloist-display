@@ -271,6 +271,13 @@ fn main() -> Result<()> {
             valid_tag(tag)?;
             println!("{tag}");
         },
+        [cmd, old, new] if cmd == "validate-bump" => {
+            let current = Version::parse(old).context("invalid current version")?;
+            let requested = Version::parse(new).context("invalid new version")?;
+            if requested <= current {
+                bail!("version {requested} must be newer than {current}");
+            }
+        },
         [cmd, dist, tag, version] if cmd == "build-manifest" =>
             build_manifest(Path::new(dist), tag, version)?,
         [cmd, template, manifest, base] if cmd == "render-bootstrap" =>
@@ -284,7 +291,7 @@ fn main() -> Result<()> {
                 bail!("tag {tag} does not match workspace version {actual}");
             }
         },
-        _ => bail!("usage: release-tools validate-tag TAG | verify-workspace-version TAG | build-manifest DIST TAG VERSION | render-bootstrap TEMPLATE MANIFEST BASE | check-settings ROOT"),
+        _ => bail!("usage: release-tools validate-tag TAG | validate-bump OLD NEW | verify-workspace-version TAG | build-manifest DIST TAG VERSION | render-bootstrap TEMPLATE MANIFEST BASE | check-settings ROOT"),
     };
     Ok(())
 }
@@ -297,6 +304,16 @@ mod tests {
         for tag in ["v1.0.0", "v1.0.0-alpha.1", "v1.0.0-beta.2", "v1.0.0-rc.1"] {
             assert!(valid_tag(tag).is_ok(), "{tag}");
         }
+    }
+    #[test]
+    fn compares_prerelease_versions() {
+        let stable = Version::parse("1.0.0").unwrap();
+        let alpha = Version::parse("1.0.0-alpha.2").unwrap();
+        let beta = Version::parse("1.0.0-beta.1").unwrap();
+        let rc = Version::parse("1.0.0-rc.1").unwrap();
+        assert!(alpha < beta);
+        assert!(beta < rc);
+        assert!(rc < stable);
     }
     #[test]
     fn rejects_invalid_tags() {

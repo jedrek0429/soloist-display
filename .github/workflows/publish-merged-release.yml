@@ -1,0 +1,97 @@
+name: Publish merged release
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: publish-merged-release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    if: >-
+      ${ github.event.pull_request.merged == true &&
+         github.event.pull_request.head.repo.full_name == github.repository &&
+         startsWith(github.event.pull_request.head.ref, 'release/v') }
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${ github.event.pull_request.merge_commit_sha }
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Verify and tag merged version
+        env:
+          GH_TOKEN: ${ github.token }
+          BRANCH: ${ github.event.pull_request.head.ref }
+          PR_TITLE: ${ github.event.pull_request.title }
+          MERGE_SHA: ${ github.event.pull_request.merge_commit_sha }
+        run: |
+          set -euo pipefail
+          tag="${BRANCH#release/}"
+          version="${tag#v}"
+          test "$PR_TITLE" = "chore: bump $tag"
+          test "$(git rev-parse HEAD)" = "$MERGE_SHA"
+          git fetch origin main --quiet
+          git merge-base --is-ancestor "$MERGE_SHA" origin/main
+          cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- validate-tag "$tag"
+          cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- verify-workspace-version "$tag"
+          cargo metadata --format-version 1 --no-deps --locked > /dev/null
+
+          changed="$(git diff --name-only "${MERGE_SHA}^" "$MERGE_SHA")"
+          if [[ "$changed" != "$(printf 'Cargo.lock\nCargo.toml')" ]]; then
+            echo "Release PR must change only Cargo.toml and Cargo.lock" >&2
+            exit 1
+          fi
+          git show "${MERGE_SHA}^:Cargo.toml" |
+            sed -E "s/^(version = \")[^\"]+(\"$)/\1${version}\2/" > "$RUNNER_TEMP/expected-Cargo.toml"
+          cmp -s Cargo.toml "$RUNNER_TEMP/expected-Cargo.toml" || {
+            echo "Cargo.toml contains changes other than the version" >&2
+            exit 1
+          }
+          git show "${MERGE_SHA}^:Cargo.lock" |
+            awk -v version="$version" '
+              /^\[\[package\]\]$/ { workspace = 0 }
+              /^name = "soloist-(audio-bridge|display-installer)"$/ { workspace = 1 }
+              workspace && /^version = / {
+                print "version = \"" version "\""
+                workspace = 0
+                next
+              }
+              { print }
+            ' > "$RUNNER_TEMP/expected-Cargo.lock"
+          cmp -s Cargo.lock "$RUNNER_TEMP/expected-Cargo.lock" || {
+            echo "Cargo.lock contains changes other than workspace versions" >&2
+            exit 1
+          }
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+            git fetch origin "refs/tags/$tag:refs/tags/$tag"
+            test "$(git rev-list -n 1 "$tag")" = "$MERGE_SHA" || {
+              echo "$tag already points to another commit" >&2
+              exit 1
+            }
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$tag" -m "Soloist Display $tag" "$MERGE_SHA"
+            git push origin "refs/tags/$tag"
+          fi
+
+          if gh release view "$tag" --json tagName >/dev/null 2>&1; then
+            echo "Release $tag already exists"
+            exit 0
+          fi
+          for attempt in 1 2 3; do
+            if gh workflow run release.yml --ref "$tag"; then
+              exit 0
+            fi
+            sleep 3
+          done
+          exit 1

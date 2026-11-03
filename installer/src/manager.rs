@@ -1943,6 +1943,50 @@ mod tests {
     }
 
     #[test]
+    #[serial]
+    fn failed_migration_recovers_original_service_and_environment() {
+        let (_directory, paths) = test_paths();
+        fs::create_dir_all(paths.soloist_service.parent().unwrap()).unwrap();
+        fs::create_dir_all(&paths.config).unwrap();
+        let unit = b"[Service]\nExecStart=/usr/bin/soloist\n";
+        let env = b"SOLOIST_API_KEY=original\n";
+        fs::write(&paths.soloist_service, unit).unwrap();
+        fs::write(&paths.soloist_env, env).unwrap();
+        let snapshot = service::SoloistUnitSnapshot::capture(&paths).unwrap();
+        snapshot.persist(&paths).unwrap();
+        let (mut tx, journal) = TransactionJournal::begin(&paths, "install").unwrap();
+        tx.install_recovery = Some(InstallRecovery {
+            previous_settings: None,
+            previous_config_schema: None,
+            previous_metadata: None,
+            previous_env: Some(env.to_vec()),
+            previous_runtime: None,
+            previous_display_unit: None,
+            previous_soloist_unit: Some(unit.to_vec()),
+            previous_renewal_service: None,
+            previous_renewal_timer: None,
+            previous_soloist_link: None,
+            previous_display_active: false,
+            previous_display_enabled: false,
+            previous_soloist_active: false,
+            previous_soloist_enabled: false,
+            previous_timer_active: false,
+            previous_timer_enabled: false,
+            restore_existing_service: true,
+            unit_backup_existed: false,
+        });
+        tx.status = TransactionStatus::Failed;
+        tx.persist(&journal).unwrap();
+        fs::write(&paths.soloist_service, b"[Service]\nExecStart=/managed/soloist\n").unwrap();
+        fs::write(&paths.soloist_env, b"SOLOIST_API_KEY=changed\n").unwrap();
+        recover(&paths).unwrap();
+        assert_eq!(fs::read(&paths.soloist_service).unwrap(), unit);
+        assert_eq!(fs::read(&paths.soloist_env).unwrap(), env);
+        assert!(service::SoloistUnitSnapshot::load(&paths).unwrap().is_none());
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
     fn uninstall_choices_validate_ownership() {
         let keep = UninstallOptions {
             soloist: Some(SoloistRemoval::Keep),

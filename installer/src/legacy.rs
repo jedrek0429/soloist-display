@@ -247,6 +247,20 @@ pub fn inspect(paths: &Paths) -> Result<Option<ExistingSettings>> {
     let unit = if paths.is_test() {
         fs::read_to_string(&paths.soloist_service)?
     } else {
+        let drop_ins = Command::new("systemctl")
+            .args(["--user", "show", "soloist.service", "--property=DropInPaths", "--value"])
+            .output()
+            .context("inspect Soloist drop-in configuration")?;
+        if !drop_ins.status.success() {
+            bail!("cannot check existing Soloist drop-in configuration");
+        }
+        if !String::from_utf8(drop_ins.stdout)
+            .context("invalid systemd drop-in path")?
+            .trim()
+            .is_empty()
+        {
+            bail!("existing Soloist uses systemd drop-ins; use external mode to preserve them");
+        }
         let output = Command::new("systemctl")
             .args(["--user", "cat", "soloist.service"])
             .output()

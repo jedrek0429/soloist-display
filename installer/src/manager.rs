@@ -1717,7 +1717,7 @@ mod tests {
         };
         installed_state(&paths, soloist_state).save(&paths).unwrap();
         atomic_link(&paths.releases.join("1.0.0-test"), &paths.current).unwrap();
-        uninstall(&paths, Some(RemoveMode::Display), false).unwrap();
+        uninstall(&paths, UninstallOptions { soloist: Some(SoloistRemoval::Keep), data: Some(DisplayDataRemoval::Keep), yes: true }, false).unwrap();
         assert!(paths.managed_soloist.join("soloist").exists());
         assert!(paths.config.join("config.json").exists());
         assert!(!paths.releases.exists());
@@ -1763,7 +1763,7 @@ mod tests {
         .unwrap();
         atomic_link(&paths.releases.join("1.0.0-test"), &paths.current).unwrap();
 
-        uninstall(&paths, Some(RemoveMode::All), true).unwrap();
+        uninstall(&paths, UninstallOptions { soloist: Some(SoloistRemoval::Restore), data: Some(DisplayDataRemoval::Remove), yes: true }, true).unwrap();
         assert_eq!(fs::read(&paths.soloist_service).unwrap(), original_service);
         assert_eq!(fs::read(&paths.soloist_env).unwrap(), original_credentials);
         assert_eq!(
@@ -1790,7 +1790,7 @@ mod tests {
         };
         installed_state(&paths, soloist_state).save(&paths).unwrap();
         atomic_link(&paths.releases.join("1.0.0-test"), &paths.current).unwrap();
-        uninstall(&paths, Some(RemoveMode::All), false).unwrap();
+        uninstall(&paths, UninstallOptions { soloist: None, data: Some(DisplayDataRemoval::Remove), yes: true }, false).unwrap();
         assert_eq!(fs::read(independent).unwrap(), b"independent");
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
@@ -1814,7 +1814,7 @@ mod tests {
         };
         installed_state(&paths, soloist_state).save(&paths).unwrap();
         atomic_link(&paths.releases.join("1.0.0-test"), &paths.current).unwrap();
-        uninstall(&paths, Some(RemoveMode::Data), false).unwrap();
+        uninstall(&paths, UninstallOptions { soloist: None, data: Some(DisplayDataRemoval::Remove), yes: true }, false).unwrap();
         assert!(!paths.config.join("config.json").exists());
         assert!(paths.soloist_env.exists());
         assert!(independent.exists());

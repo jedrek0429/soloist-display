@@ -26,7 +26,6 @@ jobs:
           mkdir -p "$RUNNER_TEMP/pages/src"
           cp site/index.html "$RUNNER_TEMP/pages/index.html"
           # Choose the newest published release (including prereleases).
-          # An unreleased main commit must not break Pages or publish a template.
           RELEASE_TAG="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq '[.[] | select(.draft == false)][0].tag_name // empty')"
           if [ -n "$RELEASE_TAG" ]; then
             RELEASE_TAG="$RELEASE_TAG" python3 - <<'PY'

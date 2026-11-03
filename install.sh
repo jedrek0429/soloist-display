@@ -3,13 +3,21 @@
 set -eu
 
 BOOTSTRAP_VERSION=1
-PIN_RELEASE_BASE='https://github.com/jedrek0429/soloist-display/releases/download/v0.2.1'
-PIN_X86_64='eba2ecd222b274dc5e6fc7f987da0f910804fe843aa018b0f0ba5f7fa71e70af'
-PIN_AARCH64='a8f2ef0fdd11ba4998dafd74ce11b74f49261b965b831353b2ab9172e6c39f0c'
-PIN_ARMV7='b268cf2723ad8929b6ca340a24dfe13a55f6ef128feaa92d07d5d1c674659103'
+PIN_RELEASE_BASE='https://github.com/jedrek0429/soloist-display/releases/download/v0.3.0'
+PIN_X86_64='64bff599dcdc38ff2f893357da1677c1e95df92128f2cb024dee2fbadd6b7300'
+PIN_AARCH64='91979d015671bb888577a1a99c7e7d987e5f9ee35245d3744e394101d1c1090b'
+PIN_ARMV7='75d4d5fcb3305d1eca5c56298c815e2c51826a02c684db4668ca59f1912da873'
 version=${SOLOIST_DISPLAY_VERSION-latest}
 case "$version" in
-  latest) RELEASE_BASE=https://github.com/jedrek0429/soloist-display/releases/latest/download ;;
+  latest)
+    # A release-rendered bootstrap pins both the hash and its immutable asset URL.
+    # Never verify a mutable /latest/download asset against another tag's digest.
+    case "$PIN_RELEASE_BASE" in
+      https://github.com/jedrek0429/soloist-display/releases/download/v*)
+        RELEASE_BASE=$PIN_RELEASE_BASE ;;
+      *) RELEASE_BASE=https://github.com/jedrek0429/soloist-display/releases/latest/download ;;
+    esac
+    ;;
   *[!0-9.]*|'') fail_version=1 ;;
   *) RELEASE_BASE="https://github.com/jedrek0429/soloist-display/releases/download/v$version" ;;
 esac
@@ -114,7 +122,7 @@ elif command -v openssl >/dev/null 2>&1; then
 else
   fail 'sha256sum or OpenSSL is required to verify the installer'
 fi
-[ "$actual_sha" = "$expected_sha" ] || fail 'installer SHA-256 verification failed'
+[ "$actual_sha" = "$expected_sha" ] || fail "installer SHA-256 verification failed ($installer_url; expected $expected_sha, got $actual_sha)"
 chmod 700 "$installer"
 
 say 'Installing'

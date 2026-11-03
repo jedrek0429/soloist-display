@@ -183,9 +183,8 @@ mod tests {
     fn terminal_pty_integration() {
         let binary = std::env::current_exe().unwrap();
         let escaped = binary.display().to_string().replace('\'', "'\\''");
-        let command = format!(
-            "'{escaped}' --exact terminal::tests::terminal_pty_probe --nocapture"
-        );
+        let command =
+            format!("'{escaped}' --exact terminal::tests::terminal_pty_probe --nocapture");
         for mode in ["normal", "quiet"] {
             let result = std::process::Command::new("script")
                 .args(["-q", "-e", "-c", &command, "/dev/null"])

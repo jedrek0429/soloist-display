@@ -26,7 +26,7 @@ body:
     validations:
       required: true
   - type: input
-    id: system
+    id: doctor
     attributes:
       label: "`soloist-display doctor`"
       placeholder: "If you are able to run the command, please paste its output here"

@@ -98,7 +98,10 @@ impl ManagedRuntime {
             if device.trim().is_empty() || device.contains(['\n', '\r', '\0']) {
                 bail!("invalid PipeWire device name");
             }
-            args.push_str(&format!(" --pipewire-device {}", unit_quote(Path::new(device))));
+            args.push_str(&format!(
+                " --pipewire-device {}",
+                unit_quote(Path::new(device))
+            ));
         }
         if let Some(volume) = self.initial_volume {
             if volume > 100 {

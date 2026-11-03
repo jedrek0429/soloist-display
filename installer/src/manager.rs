@@ -907,9 +907,7 @@ pub fn install(
             external.clone()
         } else if discovered_soloist.ownership == SoloistOwnership::Installer {
             let existing = discovered_soloist.clone();
-            if !soloist::healthy(&existing) {
-                soloist::configure(paths, name.clone(), api_key.clone())?;
-            }
+            soloist::configure(paths, name.clone(), api_key.clone())?;
             soloist::start_existing(paths, &existing)?;
             existing
         } else {
@@ -1938,6 +1936,50 @@ mod tests {
         assert!(service::SoloistUnitSnapshot::load(&paths)
             .unwrap()
             .is_none());
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
+    #[serial]
+    fn interrupted_migration_restores_missing_credentials_as_missing() {
+        let (_directory, paths) = test_paths();
+        fs::create_dir_all(paths.soloist_service.parent().unwrap()).unwrap();
+        let original_unit = b"[Service]\nEnvironmentFile=/missing/soloist.env\nExecStart=/usr/bin/soloist\n";
+        fs::write(&paths.soloist_service, original_unit).unwrap();
+        assert!(!paths.soloist_env.exists());
+        let snapshot = service::SoloistUnitSnapshot::capture(&paths).unwrap();
+        snapshot.persist(&paths).unwrap();
+
+        let (mut transaction, journal) = TransactionJournal::begin(&paths, "install").unwrap();
+        transaction.install_recovery = Some(InstallRecovery {
+            previous_settings: None,
+            previous_config_schema: None,
+            previous_metadata: None,
+            previous_env: None,
+            previous_runtime: None,
+            previous_display_unit: None,
+            previous_soloist_unit: Some(original_unit.to_vec()),
+            previous_renewal_service: None,
+            previous_renewal_timer: None,
+            previous_soloist_link: None,
+            previous_display_active: false,
+            previous_display_enabled: false,
+            previous_soloist_active: false,
+            previous_soloist_enabled: false,
+            previous_timer_active: false,
+            previous_timer_enabled: false,
+            restore_existing_service: true,
+            unit_backup_existed: false,
+        });
+        transaction.status = TransactionStatus::Services;
+        transaction.persist(&journal).unwrap();
+
+        fs::write(&paths.soloist_service, b"new managed service").unwrap();
+        fs::write(&paths.soloist_env, b"SOLOIST_API_KEY=temporary\n").unwrap();
+        recover(&paths).unwrap();
+        assert_eq!(fs::read(&paths.soloist_service).unwrap(), original_unit);
+        assert!(!paths.soloist_env.exists());
+        recover(&paths).unwrap();
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
 

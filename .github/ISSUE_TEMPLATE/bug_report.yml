@@ -10,6 +10,13 @@ body:
       placeholder: "I tried to... but instead..."
     validations:
       required: true
+  - type: input
+    id: system
+    attributes:
+      label: System and version 
+      placeholder: "e.g. Ubuntu 24.04, Soloist Display 1.0.0-alpha.1"
+    validations:
+      required: true
   - type: textarea
     id: reproduce
     attributes:
@@ -18,17 +25,10 @@ body:
       placeholder: "1. Open ...\n2. Click ...\n3. See ..."
     validations:
       required: false
-  - type: input
-    id: system
-    attributes:
-      label: System and version 
-      placeholder: "e.g. Ubuntu 24.04, Soloist Display 1.0.0-alpha.1"
-    validations:
-      required: true
-  - type: input
+  - type: textarea
     id: doctor
     attributes:
-      label: "`soloist-display doctor`"
+      label: "soloist-display doctor"
       placeholder: "If you are able to run the command, please paste its output here"
     validations:
       required: false

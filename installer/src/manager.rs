@@ -1714,11 +1714,10 @@ fn safe_remove(path: &Path, allowed: &[&Path]) -> Result<()> {
 
 pub fn uninstall(paths: &Paths, options: UninstallOptions, quiet: bool) -> Result<()> {
     let Some(state) = InstallState::load(paths)? else {
-        if !paths.display_service.exists() && !paths.current.exists() && !paths.current.is_symlink()
-        {
+        if !paths.display_service.exists() && !paths.current.exists() && !paths.current.is_symlink() {
             return Ok(());
         }
-        bail!("Soloist Display metadata is missing; repair or recover before uninstalling");
+        bail!("Soloist Display metadata is missing; recover or repair before uninstalling");
     };
     let managed = state.soloist.ownership == SoloistOwnership::Installer;
     let previous = if managed {
@@ -1726,82 +1725,75 @@ pub fn uninstall(paths: &Paths, options: UninstallOptions, quiet: bool) -> Resul
     } else {
         None
     };
-    let has_previous = previous
-        .as_ref()
-        .is_some_and(|snapshot| snapshot.has_previous());
+    let has_previous = previous.as_ref().is_some_and(|snapshot| snapshot.has_previous());
     let (soloist_action, data_action) = choose_uninstall_options(options, managed, has_previous)?;
     let progress = Progress::new(quiet, "Removing Soloist Display");
-    progress.step(1, "Stopping services");
-    if matches!(soloist_action, Some(SoloistRemoval::Keep)) && !quiet {
-        eprintln!("  Keeping managed Soloist; automatic binary renewal will be disabled.");
-    }
-    service::disable_owned(paths, "soloist-display.service")?;
-    if matches!(soloist_action, Some(SoloistRemoval::Restore)) {
-        previous
-            .as_ref()
-            .ok_or_else(|| anyhow!("missing previous Soloist service"))?
-            .restore(paths)
-            .context("restore previous Soloist before uninstalling the managed binary")?;
-    } else if matches!(soloist_action, Some(SoloistRemoval::Remove)) {
-        service::disable_owned(paths, "soloist.service")?;
-    }
-    service::remove_renewal_timer(paths)?;
-    progress.step(2, "Removing files");
-    remove_completion(paths)?;
-    for path in [
-        &paths.display_service,
-        &paths.visible_command,
-        &paths.applications.join("soloist-display.desktop"),
-        &paths.applications.join("soloist-display-settings.desktop"),
-    ] {
-        if path.exists() || path.is_symlink() {
-            safe_remove(
-                path,
-                &[&paths.config_home, &paths.data_home, &paths.bin_dir],
-            )?;
+    let mut transaction = crate::uninstall_tx::UninstallTransaction::begin(paths, managed)?;
+    let result = (|| -> Result<()> {
+        progress.step(1, "Stopping services");
+        service::disable_owned(paths, "soloist-display.service")?;
+        match soloist_action {
+            Some(SoloistRemoval::Restore) => {
+                previous
+                    .as_ref()
+                    .ok_or_else(|| anyhow!("missing previous Soloist service"))?
+                    .restore(paths)
+                    .context("restore previous Soloist before removing managed binary")?;
+            }
+            Some(SoloistRemoval::Remove) => {
+                service::disable_owned(paths, "soloist.service")?;
+            }
+            Some(SoloistRemoval::Keep) | None => {}
         }
-    }
-    if matches!(
-        soloist_action,
-        Some(SoloistRemoval::Remove | SoloistRemoval::Restore)
-    ) {
+        service::remove_renewal_timer(paths)?;
+        progress.step(2, "Removing files");
+        transaction.stage(paths, &completion_directory(paths).join("_soloist-display"))?;
+        remove_completion(paths)?;
+        for path in [
+            &paths.display_service,
+            &paths.visible_command,
+            &paths.applications.join("soloist-display.desktop"),
+            &paths.applications.join("soloist-display-settings.desktop"),
+        ] {
+            transaction.stage(paths, path)?;
+        }
         if matches!(soloist_action, Some(SoloistRemoval::Remove)) {
-            for path in [&paths.soloist_service, &paths.soloist_env] {
-                if path.exists() || path.is_symlink() {
-                    safe_remove(path, &[&paths.config_home])?;
-                }
-            }
+            transaction.stage(paths, &paths.soloist_service)?;
+            transaction.stage(paths, &paths.soloist_env)?;
         }
-        if paths.managed_soloist.exists() || paths.managed_soloist.is_symlink() {
-            safe_remove(&paths.managed_soloist, &[&paths.data_home])?;
+        if matches!(
+            soloist_action,
+            Some(SoloistRemoval::Remove | SoloistRemoval::Restore)
+        ) {
+            transaction.stage(paths, &paths.managed_soloist)?;
         }
-    }
-    progress.step(3, "Cleaning up");
-    if data_action == DisplayDataRemoval::Remove {
-        for path in [&paths.config.join("config.json"), &paths.cache] {
-            if path.exists() {
-                safe_remove(path, &[&paths.config_home, &paths.cache_home])?;
-            }
+        if data_action == DisplayDataRemoval::Remove {
+            transaction.stage(paths, &paths.config.join("config.json"))?;
+            transaction.stage(paths, &paths.cache)?;
         }
-        if paths.config.exists() && fs::read_dir(&paths.config)?.next().is_none() {
-            fs::remove_dir(&paths.config)?;
+        transaction.stage(paths, &paths.current)?;
+        transaction.stage(paths, &paths.releases)?;
+        progress.step(3, "Checking services");
+        service::daemon_reload(paths)?;
+        if matches!(soloist_action, Some(SoloistRemoval::Restore))
+            && previous.as_ref().is_some_and(|snapshot| snapshot.was_active())
+            && !service::active(paths, "soloist.service")
+        {
+            bail!("restored Soloist service is not active; uninstall was cancelled");
         }
+        progress.step(4, "Finishing");
+        transaction.commit(paths)
+    })();
+    if let Err(error) = result {
+        crate::uninstall_tx::recover(paths)
+            .context("uninstall failed and recovery could not complete")?;
+        return Err(error.context("uninstall did not complete"));
     }
-    for path in [&paths.current, &paths.releases] {
-        if path.exists() || path.is_symlink() {
-            safe_remove(path, &[&paths.data_home])?;
-        }
-    }
-    if paths.root.exists() && fs::read_dir(&paths.root)?.next().is_none() {
-        fs::remove_dir(&paths.root)?;
-    }
-    service::daemon_reload(paths)?;
-    if paths.state.exists() {
-        safe_remove(&paths.state, &[&paths.state_home])?;
-    }
-    progress.step(4, "Finishing");
     drop(progress);
     if !quiet {
+        if matches!(soloist_action, Some(SoloistRemoval::Keep)) {
+            eprintln!("  Managed Soloist was kept; automatic binary renewal is disabled.");
+        }
         println!("Soloist Display removed.");
     }
     Ok(())

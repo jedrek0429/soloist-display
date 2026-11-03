@@ -347,7 +347,7 @@ mod tests {
         let paths = Paths::discover().unwrap();
         let missing = temp.path().join("missing.env");
         let unit = format!(
-            "[Service]\nEnvironmentFile={}\nExecStart=/usr/bin/soloist --device-name ${SOLOIST_NAME} --api-key ${SOLOIST_API_KEY} --ws 127.0.0.1:9090\n",
+            "[Service]\nEnvironmentFile={}\nExecStart=/usr/bin/soloist --device-name ${{SOLOIST_NAME}} --api-key ${{SOLOIST_API_KEY}} --ws 127.0.0.1:9090\n",
             missing.display()
         );
         let settings = parse_unit(&paths, &unit).unwrap();

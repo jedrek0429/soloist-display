@@ -476,6 +476,28 @@ mod tests {
     }
 
     #[test]
+    #[serial]
+    fn rediscovery_preserves_external_endpoint_and_does_not_claim_existing_data() {
+        let (_directory, paths) = paths();
+        let independent = paths.home.join(".local/bin/soloist");
+        fs::create_dir_all(independent.parent().unwrap()).unwrap();
+        fs::write(&independent, b"independent").unwrap();
+        let previous = SoloistState {
+            ownership: SoloistOwnership::Independent,
+            executable: Some(independent),
+            service_owned: false,
+            data_owned: false,
+            websocket_url: Some("ws://127.0.0.1:9190/".into()),
+            version: None,
+        };
+        let state = discover(&paths, Some(&previous));
+        assert_eq!(state.ownership, SoloistOwnership::Independent);
+        assert_eq!(state.websocket_url, previous.websocket_url);
+        assert!(!state.data_owned);
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
     fn rejects_environment_line_injection() {
         assert!(env_quote("ok\nBAD=x").is_err());
     }

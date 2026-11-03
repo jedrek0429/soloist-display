@@ -56,7 +56,7 @@ jobs:
           python -m json.tool config.json >/dev/null
           python3 scripts/check-settings-contract.py
       - name: Release tag validation tests
-        run: python3 -m unittest discover -s scripts -p "test-*.py"
+        run: python3 -m unittest discover -s scripts -p "test_*.py"
       - name: Release bootstrap pin smoke test
         run: |
           mkdir -p /tmp/bootstrap-test

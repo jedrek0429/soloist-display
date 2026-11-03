@@ -582,6 +582,7 @@ pub struct InstallOptions {
     pub api_key: Option<String>,
     pub external_soloist: bool,
     pub soloist_ws: Option<String>,
+    pub start_external: bool,
 }
 
 pub fn install(
@@ -596,6 +597,7 @@ pub fn install(
         api_key,
         external_soloist,
         soloist_ws,
+        start_external,
     } = options;
     paths.ensure_management_dirs()?;
     recover(paths)?;
@@ -621,6 +623,7 @@ pub fn install(
             paths,
             &discovered_soloist,
             soloist_ws.as_deref(),
+            start_external,
         )?)
     } else {
         None
@@ -1141,6 +1144,7 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
                 paths,
                 &state.soloist,
                 state.soloist.websocket_url.as_deref(),
+                false,
             )?;
         }
         SoloistOwnership::None => {

@@ -12,7 +12,6 @@ The workflow validates the version, updates `Cargo.toml` and `Cargo.lock`, and o
 
 Review the PR and its checks before merging. Merging the version PR into `main` creates an annotated tag for the merged commit and dispatches **Signed release**. That workflow builds binaries, signs manifests and publishes the release.
 
-GitHub Actions must be allowed to create pull requests under **Settings → Actions → General → Workflow permissions**. Alternatively, set `RELEASE_BOT_TOKEN` to a token with Contents and Pull requests write access. `RELEASE_SIGNING_KEY` must be configured for the signing job. No private signing key belongs in the repository.
 If automatic publication fails after the tag was created, rerun **Signed release** with its `vX.Y.Z` tag as the ref. Do not move a published tag or silently replace release assets.
 
 ## Manual fallback

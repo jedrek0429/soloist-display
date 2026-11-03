@@ -1,0 +1,20 @@
+name: Feature request
+description: Suggest an idea or improvement for Soloist Display.
+title: ""
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like to see?
+      description: Describe your idea in your own words.
+      placeholder: It would be great if...
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why would this be useful? (optional)
+      description: Tell us how it would help you, if you'd like.
+    validations:
+      required: false

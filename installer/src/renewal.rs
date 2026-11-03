@@ -346,6 +346,57 @@ fn hasher_writer(hasher: &mut Sha256) -> HashWriter<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::{now, SoloistState, STATE_SCHEMA};
+    use serial_test::serial;
+
+    #[test]
+    #[serial]
+    fn interrupted_renewal_restores_previous_binary_and_metadata() {
+        let directory = tempfile::tempdir().unwrap();
+        std::env::set_var("HOME", directory.path());
+        std::env::set_var("SOLOIST_DISPLAY_TEST_ROOT", directory.path().join("root"));
+        let paths = Paths::discover().unwrap();
+        paths.ensure_management_dirs().unwrap();
+        let previous_dir = paths.managed_soloist.join("previous");
+        let current_dir = paths.managed_soloist.join("replacement");
+        fs::create_dir_all(&previous_dir).unwrap();
+        fs::create_dir_all(&current_dir).unwrap();
+        fs::write(previous_dir.join("soloist"), b"previous").unwrap();
+        fs::write(current_dir.join("soloist"), b"replacement").unwrap();
+        symlink(&current_dir, &paths.managed_soloist_current).unwrap();
+        let state = InstallState {
+            schema: STATE_SCHEMA,
+            version: "1.0.0".into(),
+            channel: None,
+            suppress_updates: false,
+            target: "test".into(),
+            active_release: paths.releases.join("1.0.0"),
+            previous_release: None,
+            installed_at: now(),
+            soloist: SoloistState {
+                ownership: SoloistOwnership::Installer,
+                executable: Some(previous_dir.join("soloist")),
+                service_owned: true,
+                data_owned: false,
+                websocket_url: Some("ws://127.0.0.1:9090/".into()),
+                version: Some("previous".into()),
+            },
+            managed_paths: vec![],
+            dependency_packages: vec![],
+        };
+        state.save(&paths).unwrap();
+        atomic_json(&pending_path(&paths), &RenewalPending {
+            previous_link: previous_dir.clone(),
+            previous_state: state,
+            previous_record: None,
+        }, Some(0o600)).unwrap();
+        recover(&paths).unwrap();
+        assert_eq!(fs::read_link(&paths.managed_soloist_current).unwrap(), previous_dir);
+        assert!(!pending_path(&paths).exists());
+        assert!(InstallState::load(&paths).unwrap().is_some());
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
     #[test]
     fn archive_mapping() {
         assert_eq!(MAX_ARCHIVE, 160 * 1024 * 1024);

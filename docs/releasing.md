@@ -2,14 +2,28 @@
 
 Soloist Display uses [Semantic Versioning](https://semver.org/). Release tags are immutable and match the workspace Cargo version exactly: `v1.0.0-alpha.1`, `v1.0.0-beta.1`, `v1.0.0-rc.1`, then `v1.0.0`. Never reuse a published tag: publish `alpha.2` to correct `alpha.1`.
 
-## Channels
+## Channels and updates
 
-- **Stable:** `latest` resolves GitHub's latest stable release; prereleases are excluded.
-- **Prerelease:** an installed prerelease manager follows the highest published SemVer (including stable) through the GitHub Releases API. Set `SOLOIST_DISPLAY_CHANNEL=prerelease` for an explicit opt-in or `SOLOIST_DISPLAY_CHANNEL=stable` to opt out.
-- **Pinned:** `SOLOIST_DISPLAY_VERSION=1.0.0-alpha.1` selects an exact signed version. Do not leave this variable exported for routine updates.
-- The landing page links to the newest published release, and its generated bootstrap pins that release's immutable URLs and SHA-256 digests.
+The default installer selects the highest published stable SemVer release. Until the first stable release exists, it selects the highest published prerelease. Publishing an older tag cannot change the preferred release. Once stable exists, users opt in to prereleases explicitly.
 
-A prerelease may change configuration or CLI behavior; back up settings and test migration from earlier releases. A stable release does not automatically become an alpha. The current CLI does not persist a user-editable channel setting; it infers prerelease behavior from the installed binary version unless overridden by the environment.
+The installed channel is persisted in installation metadata, including across updates to a stable version. Older metadata infers the initial channel from its installed version. A stable installation never automatically opts into prereleases.
+
+```sh
+soloist-display check-updates
+soloist-display update
+soloist-display update --channel prerelease
+soloist-display update --channel stable
+soloist-display update --version 1.2.0-rc.3
+soloist-display update --version 1.0.0-alpha.1 --allow-downgrade
+soloist-display notifications off
+soloist-display notifications on
+```
+
+The update command is the only command that installs an update. Launching or opening settings can display an update notice but must never prompt for or trigger an update. Notification suppression is persisted and does not prevent an explicit check or update.
+
+Explicit versions take priority over channels; selecting a version persists its corresponding stable/prerelease channel. Changing channels does not authorize a downgrade. A downgrade requires `--allow-downgrade` or `SOLOIST_DISPLAY_ALLOW_DOWNGRADE=1`. Configuration migrations may not be reversible, so back up the settings before downgrading.
+
+`SOLOIST_DISPLAY_VERSION` and `SOLOIST_DISPLAY_CHANNEL` remain available as environment overrides. Releases and downloaded binaries are verified against signed manifests; GitHub release metadata is only used to discover candidates.
 
 ## Prerequisites
 

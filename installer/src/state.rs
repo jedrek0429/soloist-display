@@ -1,4 +1,4 @@
-use crate::paths::Paths;
+use crate::{paths::Paths, release::ReleaseChannel};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -45,6 +45,10 @@ impl Default for SoloistState {
 pub struct InstallState {
     pub schema: u32,
     pub version: String,
+    #[serde(default)]
+    pub channel: Option<ReleaseChannel>,
+    #[serde(default)]
+    pub suppress_updates: bool,
     pub target: String,
     pub active_release: PathBuf,
     pub previous_release: Option<PathBuf>,
@@ -55,6 +59,14 @@ pub struct InstallState {
 }
 
 impl InstallState {
+    pub fn effective_channel(&self) -> ReleaseChannel {
+        self.channel.unwrap_or_else(|| {
+            semver::Version::parse(&self.version)
+                .map(|version| ReleaseChannel::for_version(&version))
+                .unwrap_or(ReleaseChannel::Stable)
+        })
+    }
+
     pub fn load(paths: &Paths) -> Result<Option<Self>> {
         if !paths.install_state.exists() {
             return Ok(None);

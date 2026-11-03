@@ -81,7 +81,6 @@ fn read_settings(path: &PathBuf) -> Value {
                         }
                     }
                 }
-                // Legacy global motion settings seed all appearance presets once.
                 for suffix in [
                     "Basic",
                     "Cd",
@@ -127,7 +126,6 @@ fn read_settings(path: &PathBuf) -> Value {
                         object.insert(key.into(), Value::String("off".into()));
                     }
                 }
-                // Normalize legacy "instant" in the new per-appearance presets too.
                 for suffix in [
                     "Basic",
                     "Cd",
@@ -561,8 +559,6 @@ async fn capture(
             };
             // Per-band reference levels compensate for the natural spectral
             // roll-off of music: a shared dB threshold hides the upper bands.
-            // These are fixed calibrations, not automatic normalization, so
-            // silence stays silent and each bar still follows its own energy.
             let db = 20. * rms.max(1e-8).log10();
             let level = ((db - REFERENCE_DB[band] + 49.) / 49.)
                 .clamp(0., 1.)

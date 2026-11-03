@@ -11,18 +11,18 @@ version=${SOLOIST_DISPLAY_VERSION-latest}
 case "$version" in
   latest)
     # A release-rendered bootstrap pins both the hash and its immutable asset URL.
-    # Never verify a mutable /latest/download asset against another tag's digest.
     case "$PIN_RELEASE_BASE" in
       https://github.com/jedrek0429/soloist-display/releases/download/v*)
         RELEASE_BASE=$PIN_RELEASE_BASE ;;
       *) RELEASE_BASE=https://github.com/jedrek0429/soloist-display/releases/latest/download ;;
     esac
     ;;
-  *[!0-9.]*|'') fail_version=1 ;;
   *) RELEASE_BASE="https://github.com/jedrek0429/soloist-display/releases/download/v$version" ;;
 esac
-[ "${fail_version:-0}" -eq 0 ] || { printf '%s\n' 'Invalid SOLOIST_DISPLAY_VERSION (expected X.Y.Z or latest)' >&2; exit 1; }
-# Legacy release-base override is reserved for local development and tests.
+if [ "$version" != latest ]; then
+  printf '%s\n' "$version" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$' ||
+    { printf '%s\n' 'Invalid SOLOIST_DISPLAY_VERSION (expected SemVer or latest)' >&2; exit 1; }
+fi
 if [ -n "${SOLOIST_DISPLAY_RELEASE_BASE:-}" ]; then RELEASE_BASE=$SOLOIST_DISPLAY_RELEASE_BASE; fi
 tmp_dir=
 
@@ -49,7 +49,7 @@ Downloads and verifies the Soloist Display installer, then runs it.
   --quiet       show only errors
   --verbose     show additional diagnostics
   --help        show this help
-  SOLOIST_DISPLAY_VERSION=X.Y.Z  select signed release (default: latest)
+  SOLOIST_DISPLAY_VERSION=SEMVER  select signed release (default: latest)
   --version     show bootstrap version
 EOF
     exit 0
@@ -87,7 +87,7 @@ case "$target" in
   armv7-*) pinned_sha=$PIN_ARMV7 ;;
 esac
 
-if [ "$version" != latest ] || [ "$RELEASE_BASE" != "$PIN_RELEASE_BASE" ]; then pinned_sha=untrusted; fi
+if [ "$RELEASE_BASE" != "$PIN_RELEASE_BASE" ]; then pinned_sha=untrusted; fi
 case "$pinned_sha" in
 @*|untrusted)
   command -v openssl >/dev/null 2>&1 || fail 'OpenSSL is required to authenticate installer metadata'
@@ -125,6 +125,14 @@ fi
 [ "$actual_sha" = "$expected_sha" ] || fail "installer SHA-256 verification failed ($installer_url; expected $expected_sha, got $actual_sha)"
 chmod 700 "$installer"
 
+if [ "$version" = latest ]; then
+  case "$PIN_RELEASE_BASE" in
+    https://github.com/jedrek0429/soloist-display/releases/download/v*-*)
+      pinned_tag=${PIN_RELEASE_BASE##*/v}
+      export SOLOIST_DISPLAY_VERSION="$pinned_tag"
+      ;;
+  esac
+fi
 say 'Installing'
 if [ -t 0 ] && [ -r /dev/tty ] && [ -w /dev/tty ]; then
   "$installer" install "$@" </dev/tty

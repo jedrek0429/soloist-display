@@ -160,3 +160,7 @@ pub fn remove_renewal_timer(paths: &Paths) -> Result<()> {
     }
     systemctl(paths, &["daemon-reload"], true)
 }
+
+pub fn restart_soloist(paths: &Paths) -> Result<()> {
+    systemctl(paths, &["restart", "soloist.service"], true)
+}

@@ -11,7 +11,6 @@ version=${SOLOIST_DISPLAY_VERSION-latest}
 case "$version" in
   latest)
     # A release-rendered bootstrap pins both the hash and its immutable asset URL.
-    # Never verify a mutable /latest/download asset against another tag's digest.
     case "$PIN_RELEASE_BASE" in
       https://github.com/jedrek0429/soloist-display/releases/download/v*)
         RELEASE_BASE=$PIN_RELEASE_BASE ;;
@@ -24,7 +23,6 @@ if [ "$version" != latest ]; then
   printf '%s\n' "$version" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$' ||
     { printf '%s\n' 'Invalid SOLOIST_DISPLAY_VERSION (expected X.Y.Z[-prerelease] or latest)' >&2; exit 1; }
 fi
-# Legacy release-base override is reserved for local development and tests.
 if [ -n "${SOLOIST_DISPLAY_RELEASE_BASE:-}" ]; then RELEASE_BASE=$SOLOIST_DISPLAY_RELEASE_BASE; fi
 tmp_dir=
 

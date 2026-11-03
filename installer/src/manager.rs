@@ -4,7 +4,7 @@ use crate::{
     paths::{path_string, Paths},
     platform::{Architecture, Platform},
     process,
-    release::{Artifact, ReleaseClient, ReleaseManifest},
+    release::{Artifact, ReleaseChannel, ReleaseClient, ReleaseManifest},
     service, soloist,
     state::{now, InstallState, SoloistOwnership, TransactionJournal, TransactionStatus},
 };
@@ -685,6 +685,8 @@ pub fn install(
         InstallState {
             schema: crate::state::STATE_SCHEMA,
             version: manifest.version.to_string(),
+            channel: Some(previous_state.as_ref().map(|state| state.effective_channel())
+                .unwrap_or_else(|| ReleaseChannel::for_version(&manifest.version))),
             target: platform.target.clone(),
             active_release: release,
             previous_release: previous_state.as_ref().map(|s| s.active_release.clone()),
@@ -731,11 +733,18 @@ pub fn install(
     Ok(())
 }
 
-pub fn update(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
+pub fn update(
+    paths: &Paths,
+    platform: &Platform,
+    quiet: bool,
+    channel: Option<ReleaseChannel>,
+    version: Option<&str>,
+) -> Result<()> {
     let state =
         InstallState::load(paths)?.ok_or_else(|| anyhow!("Soloist Display is not installed"))?;
     let client = ReleaseClient::new()?;
-    let (manifest, _) = client.latest()?;
+    let requested_channel = channel.unwrap_or_else(|| state.effective_channel());
+    let (manifest, _) = client.select(Some(requested_channel), version)?;
     let installed_version =
         semver::Version::parse(&state.version).context("installed version metadata is invalid")?;
     if manifest.version < installed_version
@@ -748,6 +757,11 @@ pub fn update(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
         );
     }
     if manifest.version.to_string() == state.version {
+        if channel.is_some() && state.channel != Some(requested_channel) {
+            let mut next = state.clone();
+            next.channel = Some(requested_channel);
+            next.save(paths)?;
+        }
         crate::terminal::success(format!("Soloist Display {} is up to date.", state.version));
         return Ok(());
     }
@@ -781,6 +795,9 @@ pub fn update(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
         next.previous_release = Some(state.active_release.clone());
         next.active_release = release;
         next.version = manifest.version.to_string();
+        next.channel = Some(if channel.is_some() { requested_channel } else if version.is_some() {
+            ReleaseChannel::for_version(&manifest.version)
+        } else { requested_channel });
         next.target = platform.target.clone();
         next.soloist = next_soloist;
         next.save(paths)?;
@@ -817,7 +834,7 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
     let (manifest, _) = client.latest()?;
     if manifest.version.to_string() != state.version {
         drop(progress);
-        return update(paths, platform, quiet);
+        return update(paths, platform, quiet, None, None);
     }
     let release_valid = ["manager", "audio-bridge"].iter().all(|kind| {
         manifest
@@ -967,7 +984,7 @@ pub fn launch(paths: &Paths, settings: bool) -> Result<()> {
             let mut answer = String::new();
             io::stdin().read_line(&mut answer)?;
             if matches!(answer.trim().to_ascii_lowercase().as_str(), "y" | "yes") {
-                update(paths, &Platform::detect()?, false)?;
+                update(paths, &Platform::detect()?, false, None, None)?;
             }
         } else {
             eprintln!("Run `soloist-display update` to install it.");
@@ -1207,6 +1224,7 @@ mod tests {
         InstallState {
             schema: crate::state::STATE_SCHEMA,
             version: "1.0.0".into(),
+            channel: None,
             target: "test".into(),
             active_release: release,
             previous_release: None,

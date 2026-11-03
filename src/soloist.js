@@ -1,4 +1,3 @@
-// Parse Soloist's nested entity graph without confusing album identity for artist identity.
 export function unwrap(value){return value?.entity||value}
 export function entityName(value){const node=unwrap(value);return node?.decorations?.identity?.name||node?.name||node?.title||''}
 export function artistFor(item){

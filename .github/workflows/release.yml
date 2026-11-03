@@ -22,7 +22,7 @@ jobs:
       - name: Validate release version
         run: |
           version="${GITHUB_REF_NAME#v}"
-          cargo run --quiet -p soloist-display-installer --bin release-tools -- verify-workspace-version "$GITHUB_REF_NAME" .
+          cargo run --quiet -p soloist-display-installer --bin release-tools -- verify-workspace-version "$GITHUB_REF_NAME"
       - name: Validate tag syntax
         run: |
           cargo run --quiet -p soloist-display-installer --bin release-tools -- validate-tag "$GITHUB_REF_NAME"

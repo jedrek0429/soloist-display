@@ -76,59 +76,77 @@ fn parse_unit(paths: &Paths, unit: &str) -> Result<ExistingSettings> {
     let mut env_files = Vec::new();
     let mut exec = None;
     let mut exec_count = 0;
-    let mut service_section = false;
+    let mut section = "";
     for line in unit.lines().map(str::trim) {
-        if line.starts_with('[') {
-            service_section = line == "[Service]";
+        if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        if !service_section || line.starts_with('#') || line.is_empty() {
+        if line.starts_with('[') && line.ends_with(']') {
+            section = match line {
+                "[Unit]" => "Unit",
+                "[Service]" => "Service",
+                "[Install]" => "Install",
+                _ => bail!("existing Soloist has an unsupported systemd section: {line}"),
+            };
             continue;
         }
-        let directive = line
+        let (directive, value) = line
             .split_once('=')
-            .map(|(key, _)| key)
-            .ok_or_else(|| anyhow!("invalid systemd service directive"))?;
-        if !matches!(
-            directive,
-            "Environment"
-                | "EnvironmentFile"
-                | "ExecStart"
-                | "Type"
-                | "Restart"
-                | "RestartSec"
-                | "StartLimitIntervalSec"
-                | "StartLimitBurst"
-                | "TimeoutStartSec"
-                | "StandardOutput"
-                | "StandardError"
-        ) {
-            bail!("existing Soloist uses an unsupported systemd service directive: {directive}");
-        }
-        if directive == "Type" && line.trim_start_matches("Type=").trim() != "simple" {
-            bail!("existing Soloist uses a non-simple systemd service; use external mode");
-        }
-        if let Some(line) = line.strip_prefix("Environment=") {
-            for assignment in words(line)? {
-                let (key, value) = assignment
-                    .split_once('=')
-                    .context("invalid Environment assignment")?;
-                env.insert(key.to_owned(), value.to_owned());
+            .ok_or_else(|| anyhow!("invalid systemd directive"))?;
+        match section {
+            "Unit" => match directive {
+                "Description" => {}
+                "After" => {
+                    for dependency in value.split_whitespace() {
+                        if !matches!(
+                            dependency,
+                            "sound.target" | "pipewire.service" | "pipewire-pulse.service" | "pulseaudio.service"
+                        ) {
+                            bail!("existing Soloist depends on {dependency}; use external mode");
+                        }
+                    }
+                }
+                _ => bail!("existing Soloist has an unsupported [Unit] directive: {directive}"),
+            },
+            "Install" => {
+                if directive != "WantedBy" || value.trim() != "default.target" {
+                    bail!("existing Soloist uses an unsupported [Install] directive: {directive}");
+                }
             }
-        } else if let Some(line) = line.strip_prefix("EnvironmentFile=") {
-            if line.is_empty() {
-                env_files.clear();
-            } else {
-                env_files.extend(words(line)?);
+            "Service" => {
+                match directive {
+                    "Environment" | "EnvironmentFile" | "ExecStart" => {}
+                    "Type" if value == "simple" => {}
+                    "Restart" if value == "on-failure" => {}
+                    "RestartSec" if matches!(value, "5" | "5s") => {}
+                    "StartLimitIntervalSec" if matches!(value, "60" | "60s") => {}
+                    "StartLimitBurst" if value == "5" => {}
+                    _ => bail!("existing Soloist uses an unsupported [Service] setting: {directive}={value}"),
+                }
+                if directive == "Environment" {
+                    for assignment in words(value)? {
+                        let (key, setting) = assignment
+                            .split_once('=')
+                            .context("invalid Environment assignment")?;
+                        env.insert(key.to_owned(), setting.to_owned());
+                    }
+                } else if directive == "EnvironmentFile" {
+                    if value.is_empty() {
+                        env_files.clear();
+                    } else {
+                        env_files.extend(words(value)?);
+                    }
+                } else if directive == "ExecStart" {
+                    if value.is_empty() {
+                        exec = None;
+                        exec_count = 0;
+                    } else {
+                        exec = Some(value.to_owned());
+                        exec_count += 1;
+                    }
+                }
             }
-        } else if let Some(line) = line.strip_prefix("ExecStart=") {
-            if line.is_empty() {
-                exec = None;
-                exec_count = 0;
-            } else {
-                exec = Some(line.to_owned());
-                exec_count += 1;
-            }
+            _ => bail!("existing Soloist has settings outside a recognized systemd section"),
         }
     }
     for env_file in env_files {
@@ -156,6 +174,14 @@ fn parse_unit(paths: &Paths, unit: &str) -> Result<ExistingSettings> {
                 bail!("ambiguous EnvironmentFile value");
             }
             env.insert(key.trim().to_owned(), values[0].clone());
+        }
+    }
+    for key in env.keys() {
+        if !matches!(
+            key.as_str(),
+            "SOLOIST_NAME" | "SOLOIST_API_KEY" | "HOME" | "STATE_DIRECTORY" | "CACHE_DIRECTORY"
+        ) {
+            bail!("existing Soloist uses an unsupported environment variable: {key}");
         }
     }
     if exec_count != 1 {
@@ -353,6 +379,37 @@ mod tests {
         let paths = Paths::discover().unwrap();
         let unit = "[Service]\nType=simple\nStateDirectory=soloist\nExecStart=/usr/bin/soloist -n Speaker -k secret\n";
         assert!(parse_unit(&paths, unit).is_err());
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
+    #[serial]
+    fn refuses_unpreserved_unit_dependencies_and_targets() {
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("HOME", temp.path());
+        std::env::set_var("SOLOIST_DISPLAY_TEST_ROOT", temp.path().join("root"));
+        let paths = Paths::discover().unwrap();
+        for unit in [
+            "[Unit]\nRequires=pipewire.service\nAfter=pipewire.service\n[Service]\nExecStart=/usr/bin/soloist\n",
+            "[Unit]\nAfter=network-online.target\n[Service]\nExecStart=/usr/bin/soloist\n",
+            "[Unit]\nWants=network.target\n[Service]\nExecStart=/usr/bin/soloist\n",
+            "[Service]\nExecStart=/usr/bin/soloist\n[Install]\nWantedBy=multi-user.target\n",
+            "[Service]\nRestart=always\nExecStart=/usr/bin/soloist\n",
+        ] {
+            assert!(parse_unit(&paths, unit).is_err(), "migration accepted: {unit}");
+        }
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
+    #[serial]
+    fn accepts_only_reproducible_unit_dependencies() {
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("HOME", temp.path());
+        std::env::set_var("SOLOIST_DISPLAY_TEST_ROOT", temp.path().join("root"));
+        let paths = Paths::discover().unwrap();
+        let unit = "[Unit]\nDescription=Spotify Soloist\nAfter=pipewire.service sound.target\n[Service]\nType=simple\nRestart=on-failure\nExecStart=/usr/bin/soloist\n[Install]\nWantedBy=default.target\n";
+        assert!(parse_unit(&paths, unit).is_ok());
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
 

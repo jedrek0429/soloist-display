@@ -26,7 +26,7 @@ cargo fmt --all -- --check
 cargo check --workspace --locked
 cargo test --workspace --locked
 cargo clippy --workspace --all-targets --locked -- -D warnings
-python3 -m unittest discover -s scripts -p 'test-*.py'
+python3 -m unittest discover -s scripts -p 'test_*.py'
 sh -n install.sh
 python3 scripts/validate-release-tag.py v1.0.0-alpha.1
 ```

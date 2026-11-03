@@ -2052,15 +2052,19 @@ mod tests {
         snapshot.persist(&paths).unwrap();
         let settings = legacy::inspect(&paths).unwrap().unwrap();
         assert_eq!(settings.runtime.data_dir, data);
-        settings.runtime.save(&paths).unwrap();
+        let copy = soloist::copy_existing_session(&paths, &data).unwrap();
+        let mut runtime = settings.runtime;
+        runtime.data_dir = copy.clone();
+        runtime.save(&paths).unwrap();
         soloist::configure(&paths, settings.name, settings.api_key).unwrap();
         let managed = paths.managed_soloist.join("current");
         fs::create_dir_all(&managed).unwrap();
         fs::write(managed.join("soloist"), b"managed").unwrap();
         service::install_soloist(&paths, &managed.join("soloist")).unwrap();
         let unit = fs::read_to_string(&paths.soloist_service).unwrap();
-        assert!(unit.contains(&data.to_string_lossy().to_string()));
+        assert!(unit.contains(&copy.to_string_lossy().to_string()));
         assert!(unit.contains("127.0.0.1:9190"));
+        fs::write(copy.join("session"), b"managed session").unwrap();
         snapshot.restore(&paths).unwrap();
         assert_eq!(
             fs::read_to_string(&paths.soloist_service).unwrap(),

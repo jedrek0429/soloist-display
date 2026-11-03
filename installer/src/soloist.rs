@@ -596,6 +596,29 @@ mod tests {
     }
 
     #[test]
+    #[serial]
+    fn rejects_websocket_servers_without_soloist_protocol() {
+        let (_directory, paths) = paths();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("ws://{}", listener.local_addr().unwrap());
+        let worker = std::thread::spawn(move || {
+            for _ in 0..2 {
+                let (stream, _) = listener.accept().unwrap();
+                let mut socket = tungstenite::accept(stream).unwrap();
+                socket.read().unwrap();
+                socket
+                    .send(tungstenite::Message::Text(
+                        r#"{"message":"unrelated websocket"}"#.into(),
+                    ))
+                    .unwrap();
+            }
+        });
+        assert!(verify_external(&paths, &SoloistState::default(), Some(&url), false).is_err());
+        worker.join().unwrap();
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
     fn validates_custom_external_websocket_endpoints() {
         assert!(validate_websocket_url("ws://127.0.0.1:9190").is_ok());
         assert!(validate_websocket_url("ws://localhost:9090").is_ok());

@@ -2082,6 +2082,59 @@ mod tests {
 
     #[test]
     #[serial]
+    fn live_uninstall_restores_original_service() {
+        if std::env::var("SOLOIST_DISPLAY_RUN_SYSTEMD_TEST").as_deref() != Ok("1") {
+            return;
+        }
+        let paths = Paths::discover().unwrap();
+        assert!(!paths.is_test());
+        assert!(service::user_manager_available(&paths));
+        assert!(!paths.soloist_service.exists());
+        assert!(!paths.install_state.exists());
+        paths.ensure_management_dirs().unwrap();
+        fs::create_dir_all(paths.soloist_service.parent().unwrap()).unwrap();
+        let original = "[Unit]\nDescription=Original Soloist\n[Service]\nExecStart=/usr/bin/sleep 3600\n[Install]\nWantedBy=default.target\n";
+        fs::write(&paths.soloist_service, original).unwrap();
+        let exercise = (|| -> Result<()> {
+            service::daemon_reload(&paths)?;
+            service::restore_unit_state(&paths, "soloist.service", true, true)?;
+            let snapshot = service::SoloistUnitSnapshot::capture(&paths)?;
+            snapshot.persist(&paths)?;
+            let managed_unit = "[Unit]\nDescription=Managed Soloist\n[Service]\nExecStart=/usr/bin/sleep 3600\n[Install]\nWantedBy=default.target\n";
+            fs::write(&paths.soloist_service, managed_unit)?;
+            service::daemon_reload(&paths)?;
+            service::restore_unit_state(&paths, "soloist.service", true, true)?;
+            let managed_dir = paths.managed_soloist.join("current-build");
+            fs::create_dir_all(&managed_dir)?;
+            fs::write(managed_dir.join("soloist"), b"owned")?;
+            let state = installed_state(&paths, SoloistState {
+                ownership: SoloistOwnership::Installer,
+                executable: Some(managed_dir.join("soloist")),
+                service_owned: true,
+                data_owned: false,
+                websocket_url: Some("ws://127.0.0.1:9090/".into()),
+                version: Some("build".into()),
+            });
+            atomic_link(&state.active_release, &paths.current)?;
+            state.save(&paths)?;
+            uninstall(&paths, UninstallOptions {
+                soloist: Some(SoloistRemoval::Restore),
+                data: Some(DisplayDataRemoval::Keep),
+                yes: true,
+            }, true)?;
+            assert_eq!(fs::read_to_string(&paths.soloist_service)?, original);
+            assert!(service::active(&paths, "soloist.service"));
+            assert!(!paths.managed_soloist.exists());
+            Ok(())
+        })();
+        let _ = service::disable_owned(&paths, "soloist.service");
+        fs::remove_file(&paths.soloist_service).ok();
+        service::daemon_reload(&paths).ok();
+        exercise.unwrap();
+    }
+
+    #[test]
+    #[serial]
     fn uninstall_display_preserves_installer_owned_soloist_and_settings() {
         let (_directory, paths) = test_paths();
         fs::create_dir_all(&paths.managed_soloist).unwrap();

@@ -53,10 +53,8 @@ fn websocket_healthy(endpoint: &str) -> bool {
     } else {
         std::net::SocketAddr::from(([127, 0, 0, 1], port))
     };
-    let Ok(stream) = std::net::TcpStream::connect_timeout(
-        &address,
-        Duration::from_millis(600),
-    ) else {
+    let Ok(stream) = std::net::TcpStream::connect_timeout(&address, Duration::from_millis(600))
+    else {
         return false;
     };
     let _ = stream.set_read_timeout(Some(Duration::from_millis(900)));
@@ -95,12 +93,16 @@ pub fn verify_external(
         state.executable = executable_from_service();
     }
     if state.executable.is_none() {
-        eprintln!("  External Soloist executable could not be located; WebSocket handshake succeeded.");
+        eprintln!(
+            "  External Soloist executable could not be located; WebSocket handshake succeeded."
+        );
     }
     if !unit_present {
         eprintln!("  External Soloist: no systemd unit detected; service startup and binary renewal remain your responsibility.");
     } else {
-        eprintln!("  External Soloist: systemd unit detected; automatic binary renewal is disabled.");
+        eprintln!(
+            "  External Soloist: systemd unit detected; automatic binary renewal is disabled."
+        );
     }
     Ok(state)
 }
@@ -354,10 +356,7 @@ pub fn install(
 /// Never replace an existing endpoint: independent Soloist installations may
 /// have their own configuration, which the installer must not take over.
 pub fn ensure_cli_discovery(paths: &Paths, state: &SoloistState) -> Result<()> {
-    if paths.is_test()
-        || state.ownership != SoloistOwnership::Installer
-        || !healthy(state)
-    {
+    if paths.is_test() || state.ownership != SoloistOwnership::Installer || !healthy(state) {
         return Ok(());
     }
     let Some(url) = state.websocket_url.as_deref() else {

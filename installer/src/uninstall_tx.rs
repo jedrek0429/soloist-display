@@ -27,6 +27,7 @@ struct MovedPath {
 pub struct UninstallTransaction {
     phase: Phase,
     moved: Vec<MovedPath>,
+    previous_display_unit: Option<Vec<u8>>,
     previous_soloist_unit: Option<Vec<u8>>,
     previous_soloist_env: Option<Vec<u8>>,
     previous_timer_unit: Option<Vec<u8>>,
@@ -100,6 +101,7 @@ impl UninstallTransaction {
         let result = Self {
             phase: Phase::Preparing,
             moved: Vec::new(),
+            previous_display_unit: bytes(&paths.display_service)?,
             previous_soloist_unit: if managed { bytes(&paths.soloist_service)? } else { None },
             previous_soloist_env: if managed { bytes(&paths.soloist_env)? } else { None },
             previous_timer_unit: bytes(&unit_dir.join("soloist-display-renew.timer"))?,
@@ -212,12 +214,14 @@ fn restore_services(paths: &Paths, tx: &UninstallTransaction) -> Result<()> {
             tx.timer_active,
         )?;
     }
-    service::restore_unit_state(
-        paths,
-        "soloist-display.service",
-        tx.display_enabled,
-        tx.display_active,
-    )?;
+    if tx.previous_display_unit.is_some() {
+        service::restore_unit_state(
+            paths,
+            "soloist-display.service",
+            tx.display_enabled,
+            tx.display_active,
+        )?;
+    }
     Ok(())
 }
 

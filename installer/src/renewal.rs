@@ -57,6 +57,11 @@ fn remove_staged_build(paths: &Paths, path: &Path) -> Result<()> {
 }
 
 fn cleanup_obsolete_builds(paths: &Paths, active: &Path, previous: &Path) -> Result<()> {
+    let previous = if previous.is_absolute() {
+        previous.to_path_buf()
+    } else {
+        paths.managed_soloist.join(previous)
+    };
     for entry in fs::read_dir(&paths.managed_soloist)? {
         let entry = entry?;
         let path = entry.path();
@@ -357,7 +362,9 @@ pub fn renew(paths: &Paths, platform: &Platform, force: bool) -> Result<()> {
             return Err(error.context("renewal failed; previous Soloist restored"));
         }
         fs::remove_file(pending_path(paths))?;
-        cleanup_obsolete_builds(paths, &final_dir, &previous)?;
+        if let Err(error) = cleanup_obsolete_builds(paths, &final_dir, &previous) {
+            eprintln!("warning: could not remove obsolete Soloist builds: {error:#}");
+        }
         Ok(())
     })();
     fs::remove_dir_all(stage).ok();
@@ -396,7 +403,7 @@ mod tests {
         let paths = Paths::discover().unwrap();
         paths.ensure_management_dirs().unwrap();
         let previous_dir = paths.managed_soloist.join("previous");
-        let current_dir = paths.managed_soloist.join("replacement");
+        let current_dir = paths.managed_soloist.join("build-replacement");
         fs::create_dir_all(&previous_dir).unwrap();
         fs::create_dir_all(&current_dir).unwrap();
         fs::write(previous_dir.join("soloist"), b"previous").unwrap();
@@ -440,6 +447,7 @@ mod tests {
             previous_dir
         );
         assert!(!pending_path(&paths).exists());
+        assert!(!current_dir.exists());
         assert!(InstallState::load(&paths).unwrap().is_some());
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }

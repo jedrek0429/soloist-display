@@ -1,39 +1,42 @@
 # Soloist Display
 
-A full-screen now-playing display and live audio visualizer for [Spotify Soloist](https://developer.spotify.com/documentation/soloist).
+A full-screen now-playing display for [Spotify Soloist](https://developer.spotify.com/documentation/soloist).
 
 ![Soloist Display](docs/screenshots/now-playing.webp)
 
-Turn your Linux computer or Raspberry Pi into a dedicated Spotify speaker with a beautiful display.
-
-Choose a song on your phone, select your computer in Spotify Connect, and enjoy animated album artwork, track information, and a live audio spectrum.
+Pick music on your phone. See the artwork, track details and live audio spectrum on your Linux computer or Raspberry Pi.
 
 ## Install
 
-Requires Spotify Premium and Linux with systemd and glibc 2.38 or newer (e.g. Ubuntu 24.04 or Debian 13). Supports x86_64, ARM64 and ARMv7.
+Requires **Spotify Premium**, systemd, glibc 2.38+ and Linux on x86_64, ARM64 or hard-float ARMv7 (Ubuntu 24.04+ or Debian 13+, for example).
 
 ```sh
 curl -fsSL https://jedrek0429.github.io/soloist-display/install.sh | sh
 ```
 
-Follow the setup prompts. Have your [Soloist API key](https://developer.spotify.com/dashboard/soloist) ready. If the command is not found after installation, open a new terminal.
+Follow the prompts. Have your [Soloist API key](https://developer.spotify.com/dashboard/soloist) ready.
+
+Already running Soloist? Choose **Managed** (Display maintains it) or **External** (you maintain it).
 
 ## Use
 
 ```sh
-soloist-display
+soloist-display                  # open the display
+soloist-display settings         # change the look
+soloist-display update           # update Display
+soloist-display doctor           # check what's wrong
 ```
 
-To change the appearance, run `soloist-display settings`. To update, run `soloist-display update`.
+Managed Soloist checks for new builds every six hours. External Soloist is left alone.
 
 ## Uninstall
 
 ```sh
-soloist-display uninstall --mode display
+soloist-display uninstall
 ```
 
-This keeps your settings and Spotify Soloist. To remove display settings too, use `--mode data`. To also remove Soloist when it was installed by Soloist Display, use `--mode all`.
+Choose what happens to Soloist and whether to keep Display settings. The options depend on what was installed.
 
-For [prerelease or specific-version installations](docs/advanced-installation.md), [unattended setup](docs/advanced-installation.md#unattended-setup), or [troubleshooting](docs/troubleshooting.md), see the guides.
+See [advanced installation](docs/advanced-installation.md) for automation and exact uninstall options, [troubleshooting](docs/troubleshooting.md) for faults, and [installer details](docs/installer.md) for what gets changed.
 
 MIT

@@ -1,21 +1,19 @@
 # Testing
 
-Test source builds without running the release installer.
+Build from source. Leave the published installer out of it.
 
 ```sh
 git clone https://github.com/jedrek0429/soloist-display.git
 cd soloist-display
-git switch main
-git pull --ff-only
 
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo test --workspace --locked
+cargo test --workspace --all-targets --locked
 cargo build --workspace --release --locked
 sh -n install.sh
 ```
 
-## Run locally
+## Run the display locally
 
 ```sh
 mkdir -p /tmp/soloist-test
@@ -25,10 +23,20 @@ SOLOIST_DISPLAY_AUDIO_PORT=9191 \
 ./target/release/soloist-audio-bridge
 ```
 
-Open http://127.0.0.1:8088 (settings: `/settings`).
+Open http://127.0.0.1:8088. Point `audioWebSocket` at `ws://127.0.0.1:9191` in test settings. Soloist still defaults to port `9090`.
 
-Uses separate configuration and ports; leaves the installed service alone. Soloist defaults to port `9090`. For the visualizer, set `audioWebSocket` to `ws://127.0.0.1:9191` in test settings.
+## Test the installer
 
-Check playback, display, settings, transitions, audio, and reconnection.
+Use a disposable Linux user or VM. The live systemd tests can create, start and remove `soloist.service`. **Do not run them on your usual setup.**
 
-Do not run `install`, `update`, or `uninstall` against your regular setup. Test installer and service changes in a disposable environment.
+CI covers the installer, recovery journals, Managed/External handling, rollback and live systemd unit restoration. Cross-building ARM binaries is not the same as testing on ARM hardware.
+
+Before a release, also test with a real Spotify Connect session:
+
+- Fresh Managed and External installs; External → Managed migration.
+- Existing custom service: either preserve its settings and session or refuse before takeover.
+- Successful renewal, broken new build and interrupted renewal.
+- `repair`, `doctor` and interrupted uninstall.
+- Uninstall with `restore`: the old service plays again.
+
+No green tick can replace a real speaker.

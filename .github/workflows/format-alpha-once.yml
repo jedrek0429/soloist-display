@@ -1,0 +1,26 @@
+name: Format alpha branch once
+on:
+  push:
+    branches: [chore/alpha-release]
+    paths: ['.github/workflows/format-alpha-once.yml']
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chore/alpha-release
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Format and remove temporary workflow
+        run: |
+          cargo fmt --all
+          git rm .github/workflows/format-alpha-once.yml
+          git add -u
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git commit -m "style: format Rust release tooling"
+          git push origin HEAD:chore/alpha-release

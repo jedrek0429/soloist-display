@@ -128,8 +128,7 @@ export class DiscDirector{
     const sleeveDelayOut=sleeveOn?this.settings.sleeveDelayOut:0;
     const align=this.settings.sleeveAlignment==='center';
     // Individual translate is independent of the track's sliding transform.
-    // Unlike animating left, it does not trigger layout during the parent fly.
-    const offset=align?'25%':'0%';
+        const offset=align?'25%':'0%';
 
     for(const disc of this.discs){
       disc.style.transform='';disc.style.opacity='';

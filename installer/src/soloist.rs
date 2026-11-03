@@ -19,21 +19,90 @@ use tar::Archive;
 
 const DEFAULT_WS: &str = "ws://127.0.0.1:9090";
 
-fn websocket_healthy(url: &str) -> bool {
-    let Ok(url) = url::Url::parse(url) else {
-        return false;
-    };
-    if !matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "::1")) {
+pub fn validate_websocket_url(raw: &str) -> Result<String> {
+    let url = url::Url::parse(raw).context("invalid Soloist WebSocket URL")?;
+    if url.scheme() != "ws"
+        || !matches!(
+            url.host_str(),
+            Some("127.0.0.1" | "localhost" | "::1" | "[::1]")
+        )
+        || url.username() != ""
+        || url.password().is_some()
+        || url.fragment().is_some()
+    {
+        bail!("external Soloist WebSocket must use ws:// on localhost");
+    }
+    if url.port_or_known_default().is_none() {
+        bail!("external Soloist WebSocket requires a port");
+    }
+    Ok(url.to_string())
+}
+
+fn websocket_healthy(endpoint: &str) -> bool {
+    if validate_websocket_url(endpoint).is_err() {
         return false;
     }
+    let Ok(url) = url::Url::parse(endpoint) else {
+        return false;
+    };
+    let Some(port) = url.port_or_known_default() else {
+        return false;
+    };
+    let address = if matches!(url.host_str(), Some("::1" | "[::1]")) {
+        std::net::SocketAddr::from(([0, 0, 0, 0, 0, 0, 0, 1], port))
+    } else {
+        std::net::SocketAddr::from(([127, 0, 0, 1], port))
+    };
     let Ok(stream) = std::net::TcpStream::connect_timeout(
-        &"127.0.0.1:9090".parse().unwrap(),
+        &address,
         Duration::from_millis(600),
     ) else {
         return false;
     };
-    let _ = stream.set_read_timeout(Some(Duration::from_millis(600)));
+    let _ = stream.set_read_timeout(Some(Duration::from_millis(900)));
+    let _ = stream.set_write_timeout(Some(Duration::from_millis(900)));
     tungstenite::client(url.as_str(), stream).is_ok()
+}
+
+pub fn verify_external(
+    paths: &Paths,
+    discovered: &SoloistState,
+    endpoint: Option<&str>,
+) -> Result<SoloistState> {
+    let url = validate_websocket_url(endpoint.unwrap_or(DEFAULT_WS))?;
+    let mut state = discovered.clone();
+    state.ownership = SoloistOwnership::Independent;
+    state.service_owned = false;
+    state.data_owned = false;
+    state.websocket_url = Some(url.clone());
+
+    let unit_present = service::soloist_unit_present(paths);
+    if !healthy(&state) && unit_present {
+        service::start_soloist_existing(paths)?;
+        for _ in 0..20 {
+            if healthy(&state) {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(250));
+        }
+    }
+    if !healthy(&state) {
+        bail!(
+            "external Soloist WebSocket at {url} is unavailable; fix the existing instance or rerun installation without --external-soloist to use managed Soloist"
+        );
+    }
+    if state.executable.is_none() && unit_present {
+        state.executable = executable_from_service();
+    }
+    if state.executable.is_none() {
+        eprintln!("  External Soloist executable could not be located; WebSocket handshake succeeded.");
+    }
+    if !unit_present {
+        eprintln!("  External Soloist: no systemd unit detected; service startup and binary renewal remain your responsibility.");
+    } else {
+        eprintln!("  External Soloist: systemd unit detected; automatic binary renewal is disabled.");
+    }
+    Ok(state)
 }
 
 fn executable_from_service() -> Option<PathBuf> {
@@ -234,6 +303,7 @@ pub fn install(
     api_key: Option<String>,
 ) -> Result<SoloistState> {
     configure(paths, name, api_key)?;
+    let data_owned = !paths.soloist_data.exists();
     let version_dir = paths.managed_soloist.join(version);
     fs::create_dir_all(&version_dir)?;
     fs::create_dir_all(&paths.cache)?;
@@ -274,7 +344,7 @@ pub fn install(
         ownership: SoloistOwnership::Installer,
         executable: Some(executable),
         service_owned: true,
-        data_owned: true,
+        data_owned,
         websocket_url: Some(DEFAULT_WS.into()),
         version: Some(version.into()),
     })
@@ -358,6 +428,16 @@ mod tests {
         paths.ensure_management_dirs().unwrap();
         (directory, paths)
     }
+    #[test]
+    fn validates_custom_external_websocket_endpoints() {
+        assert!(validate_websocket_url("ws://127.0.0.1:9190").is_ok());
+        assert!(validate_websocket_url("ws://localhost:9090").is_ok());
+        assert!(validate_websocket_url("ws://[::1]:9090").is_ok());
+        assert!(validate_websocket_url("ws://192.168.1.1:9090").is_err());
+        assert!(validate_websocket_url("wss://example.com").is_err());
+        assert!(validate_websocket_url("ws://alice:password@localhost:9090").is_err());
+    }
+
     #[test]
     fn rejects_environment_line_injection() {
         assert!(env_quote("ok\nBAD=x").is_err());

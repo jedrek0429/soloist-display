@@ -223,7 +223,6 @@ fn strip_owned_zshrc_block(existing: &str, directory: &Path) -> String {
 
 fn integrate_zshrc(existing: &str, directory: &Path) -> String {
     let cleaned = strip_owned_zshrc_block(existing, directory);
-    // A modified block belongs to the user; never overwrite it.
     if cleaned.contains(ZSH_START) {
         return cleaned;
     }

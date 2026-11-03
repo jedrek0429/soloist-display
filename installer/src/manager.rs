@@ -915,7 +915,8 @@ pub fn install(
                 service::stop_soloist_existing(paths)?;
                 if !paths.is_test() {
                     let endpoint = url::Url::parse(&settings.runtime.websocket_url)?;
-                    let port = endpoint.port_or_known_default()
+                    let port = endpoint
+                        .port_or_known_default()
                         .ok_or_else(|| anyhow!("previous Soloist WebSocket has no port"))?;
                     let mut stopped = false;
                     for _ in 0..30 {

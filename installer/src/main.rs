@@ -164,10 +164,12 @@ fn run() -> Result<i32> {
                     &platform,
                     cli.yes,
                     cli.quiet,
-                    device_name,
-                    api_key,
-                    external_soloist,
-                    soloist_ws,
+                    manager::InstallOptions {
+                        name: device_name,
+                        api_key,
+                        external_soloist,
+                        soloist_ws,
+                    },
                 )
             })?;
         }

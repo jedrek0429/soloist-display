@@ -1700,18 +1700,6 @@ fn choose_uninstall_options(
     Ok((soloist, data))
 }
 
-fn safe_remove(path: &Path, allowed: &[&Path]) -> Result<()> {
-    if !allowed.iter().any(|root| path.starts_with(root)) {
-        bail!("refusing to remove unmanaged path {}", path.display());
-    }
-    if path.is_symlink() || path.is_file() {
-        fs::remove_file(path)?;
-    } else if path.is_dir() {
-        fs::remove_dir_all(path)?;
-    }
-    Ok(())
-}
-
 pub fn uninstall(paths: &Paths, options: UninstallOptions, quiet: bool) -> Result<()> {
     let Some(state) = InstallState::load(paths)? else {
         if !paths.display_service.exists() && !paths.current.exists() && !paths.current.is_symlink() {
@@ -1835,10 +1823,6 @@ mod tests {
             managed_paths: vec![],
             dependency_packages: vec![],
         }
-    }
-    #[test]
-    fn removal_rejects_outside_managed_roots() {
-        assert!(safe_remove(Path::new("/etc/passwd"), &[Path::new("/tmp/example")]).is_err());
     }
     #[test]
     fn ports_detect_conflicts() {

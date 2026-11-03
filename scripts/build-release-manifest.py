@@ -29,7 +29,7 @@ for target in targets:
         name, path = f"{prefix}-{target}", dist / f"{prefix}-{target}"
         sha = digest(path)
         artifacts.append({"name": name, "kind": kind, "target": target, "url": f"{release}/{name}",
-                          "fallback_url": f"{latest}/{name}", "sha256": sha, "size": path.stat().st_size})
+                          "fallback_url": None, "sha256": sha, "size": path.stat().st_size})
         if kind == "manager":
             bootstrap.append(f"{target} {sha} {release}/{name}\n")
 for architecture in ("x86_64", "arm64", "arm32"):

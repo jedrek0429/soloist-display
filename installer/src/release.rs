@@ -112,9 +112,9 @@ impl ReleaseClient {
                 }
             } else {
                 let parsed = Version::parse(&requested)
-                    .context("SOLOIST_DISPLAY_VERSION must be X.Y.Z or latest")?;
+                    .context("SOLOIST_DISPLAY_VERSION must be canonical SemVer or latest")?;
                 if parsed.to_string() != requested {
-                    bail!("SOLOIST_DISPLAY_VERSION must be canonical X.Y.Z");
+                    bail!("SOLOIST_DISPLAY_VERSION must be canonical SemVer");
                 }
                 format!(
                     "https://github.com/jedrek0429/soloist-display/releases/download/v{requested}"
@@ -145,17 +145,27 @@ impl ReleaseClient {
     // discovers the highest published SemVer; a stable 1.0.0 supersedes its RC.
     fn latest_prerelease_base(&self) -> Result<String> {
         let url = "https://api.github.com/repos/jedrek0429/soloist-display/releases?per_page=100";
-        let releases: Vec<serde_json::Value> = self.client.get(url).send()?
-            .error_for_status()?.json().context("parse GitHub releases")?;
-        let selected = releases.into_iter().filter_map(|release| {
-            if release["draft"].as_bool() != Some(false) || release["prerelease"].as_bool().is_none() {
-                return None;
-            }
-            let tag = release["tag_name"].as_str()?;
-            let version = Version::parse(tag.strip_prefix('v')?).ok()?;
-            Some((version, tag.to_owned()))
-        }).max_by(|left, right| left.0.cmp(&right.0))
-          .ok_or_else(|| anyhow!("no published prerelease or stable release available"))?;
+        let releases: Vec<serde_json::Value> = self
+            .client
+            .get(url)
+            .send()?
+            .error_for_status()?
+            .json()
+            .context("parse GitHub releases")?;
+        let selected = releases
+            .into_iter()
+            .filter_map(|release| {
+                if release["draft"].as_bool() != Some(false)
+                    || release["prerelease"].as_bool().is_none()
+                {
+                    return None;
+                }
+                let tag = release["tag_name"].as_str()?;
+                let version = Version::parse(tag.strip_prefix('v')?).ok()?;
+                Some((version, tag.to_owned()))
+            })
+            .max_by(|left, right| left.0.cmp(&right.0))
+            .ok_or_else(|| anyhow!("no published prerelease or stable release available"))?;
         Ok(format!(
             "https://github.com/jedrek0429/soloist-display/releases/download/{}",
             selected.1

@@ -1,6 +1,6 @@
 use crate::terminal::Progress;
 use crate::{
-    dependencies, migrations,
+    dependencies, legacy, migrations,
     paths::{path_string, Paths},
     platform::{Architecture, Platform},
     process,
@@ -631,6 +631,14 @@ pub fn install(
         } else {
             Some(service::SoloistUnitSnapshot::capture(paths)?)
         };
+    let existing_settings = if !use_external
+        && discovered_soloist.ownership == SoloistOwnership::Independent
+    {
+        legacy::inspect(paths)?
+    } else {
+        None
+    };
+    let original_runtime = fs::read(paths.state.join("soloist-runtime.json")).ok();
     let original_current = fs::read_link(&paths.managed_soloist_current).ok();
     let original_settings = fs::read(paths.config.join("config.json")).ok();
     let original_metadata = fs::read(&paths.install_state).ok();
@@ -758,13 +766,17 @@ pub fn install(
             soloist::start_existing(paths, &existing)?;
             existing
         } else {
+            if let Some(settings) = &existing_settings {
+                service::stop_soloist_existing(paths)?;
+                settings.runtime.save(paths)?;
+            }
             soloist::install(
                 paths,
                 &client,
                 manifest.soloist(platform)?,
                 &manifest.version.to_string(),
-                name,
-                api_key,
+                name.or_else(|| existing_settings.as_ref().and_then(|settings| settings.name.clone())),
+                api_key.or_else(|| existing_settings.as_ref().and_then(|settings| settings.api_key.clone())),
             )?
         };
         save_soloist_websocket(
@@ -853,6 +865,15 @@ pub fn install(
                     rollback_errors.push(format!("remove new credentials: {failure:#}"));
                 }
             }
+        }
+        let runtime_path = paths.state.join("soloist-runtime.json");
+        let restore_runtime = match original_runtime {
+            Some(bytes) => fs::write(&runtime_path, bytes),
+            None if runtime_path.exists() => fs::remove_file(&runtime_path),
+            None => Ok(()),
+        };
+        if let Err(failure) = restore_runtime {
+            rollback_errors.push(format!("restore Soloist runtime: {failure:#}"));
         }
         let settings = paths.config.join("config.json");
         let restore_settings = match original_settings {

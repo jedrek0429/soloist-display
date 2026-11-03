@@ -687,6 +687,7 @@ pub fn install(
             version: manifest.version.to_string(),
             channel: Some(previous_state.as_ref().map(|state| state.effective_channel())
                 .unwrap_or_else(|| ReleaseChannel::for_version(&manifest.version))),
+            suppress_updates: previous_state.as_ref().is_some_and(|state| state.suppress_updates),
             target: platform.target.clone(),
             active_release: release,
             previous_release: previous_state.as_ref().map(|s| s.active_release.clone()),
@@ -739,6 +740,7 @@ pub fn update(
     quiet: bool,
     channel: Option<ReleaseChannel>,
     version: Option<&str>,
+    allow_downgrade: bool,
 ) -> Result<()> {
     let state =
         InstallState::load(paths)?.ok_or_else(|| anyhow!("Soloist Display is not installed"))?;
@@ -748,7 +750,7 @@ pub fn update(
     let installed_version =
         semver::Version::parse(&state.version).context("installed version metadata is invalid")?;
     if manifest.version < installed_version
-        && env::var("SOLOIST_DISPLAY_ALLOW_DOWNGRADE").as_deref() != Ok("1")
+        && !allow_downgrade && env::var("SOLOIST_DISPLAY_ALLOW_DOWNGRADE").as_deref() != Ok("1")
     {
         bail!(
             "refusing to downgrade from {} to {}",
@@ -834,7 +836,7 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
     let (manifest, _) = client.latest()?;
     if manifest.version.to_string() != state.version {
         drop(progress);
-        return update(paths, platform, quiet, None, None);
+        return update(paths, platform, quiet, None, None, false);
     }
     let release_valid = ["manager", "audio-bridge"].iter().all(|kind| {
         manifest
@@ -923,32 +925,32 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
 #[derive(Serialize, Deserialize)]
 struct UpdateCache {
     checked_at: u64,
+    channel: ReleaseChannel,
     latest: String,
 }
 
 fn is_newer(candidate: &str, installed: &str) -> bool {
-    match (
-        semver::Version::parse(candidate),
-        semver::Version::parse(installed),
-    ) {
+    match (semver::Version::parse(candidate), semver::Version::parse(installed)) {
         (Ok(candidate), Ok(installed)) => candidate > installed,
         _ => false,
     }
 }
 
-pub fn check_update_briefly(paths: &Paths, installed: &str) -> Option<String> {
+pub fn check_update_briefly(paths: &Paths, state: &InstallState) -> Option<String> {
+    if state.suppress_updates { return None; }
+    let channel = state.effective_channel();
     let cache_path = paths.cache.join("update.json");
     if let Ok(bytes) = fs::read(&cache_path) {
         if let Ok(cache) = serde_json::from_slice::<UpdateCache>(&bytes) {
-            if now().saturating_sub(cache.checked_at) < 86_400 {
-                return is_newer(&cache.latest, installed).then_some(cache.latest);
+            if cache.channel == channel && now().saturating_sub(cache.checked_at) < 86_400 {
+                return is_newer(&cache.latest, &state.version).then_some(cache.latest);
             }
         }
     }
     let (sender, receiver) = std::sync::mpsc::channel();
     thread::spawn(move || {
         let result = ReleaseClient::new()
-            .and_then(|client| client.latest())
+            .and_then(|client| client.select(Some(channel), None))
             .map(|(manifest, _)| manifest.version.to_string());
         let _ = sender.send(result);
     });
@@ -956,18 +958,46 @@ pub fn check_update_briefly(paths: &Paths, installed: &str) -> Option<String> {
         fs::create_dir_all(&paths.cache).ok();
         crate::state::atomic_json(
             &cache_path,
-            &UpdateCache {
-                checked_at: now(),
-                latest: latest.clone(),
-            },
+            &UpdateCache { checked_at: now(), channel, latest: latest.clone() },
             Some(0o600),
-        )
-        .ok();
-        if is_newer(&latest, installed) {
-            return Some(latest);
-        }
+        ).ok();
+        if is_newer(&latest, &state.version) { return Some(latest); }
     }
     None
+}
+
+pub fn set_update_notifications(paths: &Paths, enabled: bool) -> Result<()> {
+    let mut state = InstallState::load(paths)?
+        .ok_or_else(|| anyhow!("Soloist Display is not installed"))?;
+    state.suppress_updates = !enabled;
+    state.save(paths)?;
+    println!("Update notifications {}.", if enabled { "enabled" } else { "disabled" });
+    Ok(())
+}
+
+pub fn update_status(paths: &Paths) -> Result<()> {
+    let state = InstallState::load(paths)?
+        .ok_or_else(|| anyhow!("Soloist Display is not installed"))?;
+    let client = ReleaseClient::new()?;
+    println!("Installed: {}", state.version);
+    println!("Channel: {:?}", state.effective_channel());
+    println!("Notifications: {}", if state.suppress_updates { "off" } else { "on" });
+    for channel in [ReleaseChannel::Stable, ReleaseChannel::Prerelease] {
+        match client.select(Some(channel), None) {
+            Ok((manifest, _)) => {
+                let version = manifest.version.to_string();
+                let relation = match semver::Version::parse(&state.version) {
+                    Ok(current) if manifest.version > current => "upgrade available",
+                    Ok(current) if manifest.version < current => "older than installed",
+                    Ok(_) => "current",
+                    Err(_) => "installed version unknown",
+                };
+                println!("{channel:?}: {version} ({relation})");
+            }
+            Err(error) => println!("{channel:?}: unavailable ({error:#})"),
+        }
+    }
+    Ok(())
 }
 
 pub fn launch(paths: &Paths, settings: bool) -> Result<()> {
@@ -976,20 +1006,10 @@ pub fn launch(paths: &Paths, settings: bool) -> Result<()> {
     service::start_display(paths)?;
     wait_http(paths)?;
     let mut browser_update_notice = None;
-    if let Some(latest) = check_update_briefly(paths, &state.version) {
-        eprintln!("Soloist Display {latest} is available.");
-        if io::stdin().is_terminal() {
-            eprint!("Update now? [y/N] ");
-            io::stderr().flush()?;
-            let mut answer = String::new();
-            io::stdin().read_line(&mut answer)?;
-            if matches!(answer.trim().to_ascii_lowercase().as_str(), "y" | "yes") {
-                update(paths, &Platform::detect()?, false, None, None)?;
-            }
-        } else {
-            eprintln!("Run `soloist-display update` to install it.");
-            browser_update_notice = Some(latest);
-        }
+    if let Some(latest) = check_update_briefly(paths, &state) {
+        eprintln!("Soloist Display {latest} is available on the {:?} channel.", state.effective_channel());
+        eprintln!("Run `soloist-display update` to install it.");
+        browser_update_notice = Some(latest);
     }
     let mut url = if settings {
         "http://127.0.0.1:8080/settings".to_owned()
@@ -1225,6 +1245,7 @@ mod tests {
             schema: crate::state::STATE_SCHEMA,
             version: "1.0.0".into(),
             channel: None,
+            suppress_updates: false,
             target: "test".into(),
             active_release: release,
             previous_release: None,

@@ -3,7 +3,7 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::{
     fs, io,
-    os::unix::fs::OpenOptionsExt,
+    os::unix::fs::{OpenOptionsExt, PermissionsExt},
     path::{Path, PathBuf},
 };
 
@@ -29,6 +29,8 @@ pub struct UninstallTransaction {
     previous_timer_unit: Option<Vec<u8>>,
     previous_timer_service: Option<Vec<u8>>,
     previous_zshrc: Option<Vec<u8>>,
+    #[serde(default)]
+    previous_zshrc_mode: Option<u32>,
     managed: bool,
     display_active: bool,
     display_enabled: bool,
@@ -51,6 +53,14 @@ fn bytes(path: &Path) -> Result<Option<Vec<u8>>> {
         Ok(content) => Ok(Some(content)),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(error).with_context(|| format!("read {}", path.display())),
+    }
+}
+
+fn file_mode(path: &Path) -> Result<Option<u32>> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) => Ok(Some(metadata.permissions().mode() & 0o777)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error.into()),
     }
 }
 
@@ -117,6 +127,11 @@ impl UninstallTransaction {
                 None
             } else {
                 bytes(&zshrc)?
+            },
+            previous_zshrc_mode: if zshrc.is_symlink() {
+                None
+            } else {
+                file_mode(&zshrc)?
             },
             managed,
             display_active: !paths.is_test() && service::active(paths, "soloist-display.service"),
@@ -230,7 +245,7 @@ fn restore_services(paths: &Paths, tx: &UninstallTransaction) -> Result<()> {
     let zshrc = paths.home.join(".zshrc");
     if !zshrc.is_symlink() {
         if let Some(content) = &tx.previous_zshrc {
-            restore_file(&zshrc, Some(content), 0o600)?;
+            restore_file(&zshrc, Some(content), tx.previous_zshrc_mode.unwrap_or(0o600))?;
         }
     }
     service::daemon_reload(paths)?;
@@ -343,6 +358,21 @@ mod tests {
         recover(&paths).unwrap();
         assert!(!file.exists());
         assert!(!pending(&paths));
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
+    #[serial]
+    fn rollback_preserves_original_shell_configuration_and_permissions() {
+        let (_directory, paths) = setup();
+        let zshrc = paths.home.join(".zshrc");
+        fs::write(&zshrc, b"original shell settings").unwrap();
+        fs::set_permissions(&zshrc, fs::Permissions::from_mode(0o644)).unwrap();
+        let _tx = UninstallTransaction::begin(&paths, false).unwrap();
+        fs::write(&zshrc, b"partial uninstall").unwrap();
+        recover(&paths).unwrap();
+        assert_eq!(fs::read(&zshrc).unwrap(), b"original shell settings");
+        assert_eq!(fs::metadata(&zshrc).unwrap().permissions().mode() & 0o777, 0o644);
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
 

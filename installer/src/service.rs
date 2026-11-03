@@ -406,3 +406,46 @@ impl SoloistUnitSnapshot {
 pub fn restart_soloist(paths: &Paths) -> Result<()> {
     systemctl(paths, &["restart", "soloist.service"], true)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serial_test::serial;
+
+    #[test]
+    #[serial]
+    fn restores_previous_live_systemd_user_service() {
+        if std::env::var("SOLOIST_DISPLAY_RUN_SYSTEMD_TEST").as_deref() != Ok("1") {
+            return;
+        }
+        let paths = Paths::discover().unwrap();
+        assert!(!paths.is_test());
+        assert!(user_manager_available(&paths));
+        assert!(!paths.soloist_service.exists());
+        paths.ensure_management_dirs().unwrap();
+        fs::create_dir_all(paths.soloist_service.parent().unwrap()).unwrap();
+        let original = "[Unit]\nDescription=Original Soloist test unit\n[Service]\nExecStart=/usr/bin/sleep 3600\n[Install]\nWantedBy=default.target\n";
+        fs::write(&paths.soloist_service, original).unwrap();
+        let test_result = (|| -> Result<()> {
+            daemon_reload(&paths)?;
+            systemctl(&paths, &["enable", "--now", "soloist.service"], true)?;
+            let snapshot = SoloistUnitSnapshot::capture(&paths)?;
+            assert!(snapshot.was_active);
+            assert!(snapshot.was_enabled);
+            fs::write(
+                &paths.soloist_service,
+                "[Unit]\nDescription=Managed Soloist test unit\n[Service]\nExecStart=/usr/bin/sleep 3600\n[Install]\nWantedBy=default.target\n",
+            )?;
+            daemon_reload(&paths)?;
+            systemctl(&paths, &["restart", "soloist.service"], true)?;
+            snapshot.restore(&paths)?;
+            assert_eq!(fs::read_to_string(&paths.soloist_service)?, original);
+            assert!(active(&paths, "soloist.service"));
+            Ok(())
+        })();
+        let _ = systemctl(&paths, &["disable", "--now", "soloist.service"], true);
+        fs::remove_file(&paths.soloist_service).ok();
+        let _ = daemon_reload(&paths);
+        test_result.unwrap();
+    }
+}

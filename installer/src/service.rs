@@ -180,6 +180,31 @@ pub fn active(paths: &Paths, unit: &str) -> bool {
             .is_ok_and(|s| s.success())
 }
 
+pub fn enabled(paths: &Paths, unit: &str) -> bool {
+    !paths.is_test()
+        && Command::new("systemctl")
+            .args(["--user", "is-enabled", "--quiet", unit])
+            .status()
+            .is_ok_and(|status| status.success())
+}
+
+pub fn restore_unit_state(paths: &Paths, unit: &str, was_enabled: bool, was_active: bool) -> Result<()> {
+    if paths.is_test() {
+        return Ok(());
+    }
+    if was_enabled {
+        systemctl(paths, &["enable", unit], true)?;
+    } else {
+        systemctl(paths, &["disable", unit], true)?;
+    }
+    if was_active {
+        systemctl(paths, &["restart", unit], true)?;
+    } else {
+        systemctl(paths, &["stop", unit], true)?;
+    }
+    Ok(())
+}
+
 pub fn disable_owned(paths: &Paths, unit: &str) -> Result<()> {
     if paths.is_test() {
         return Ok(());

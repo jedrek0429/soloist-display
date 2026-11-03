@@ -797,18 +797,62 @@ pub fn install(
         Ok::<_, anyhow::Error>(())
     })();
     if let Err(error) = result {
-        // On a failed first install, do not leave a running bridge behind
-        // without committed installation metadata.
+        let mut rollback_errors = Vec::new();
         if previous_state.is_none() && !paths.is_test() {
             let _ = Command::new("systemctl")
                 .args(["--user", "stop", "soloist-display.service"])
                 .status();
         }
+        if let Some(unit) = &existing_unit {
+            if let Err(failure) = unit.restore(paths) {
+                rollback_errors.push(format!("restore Soloist service: {failure:#}"));
+            }
+            let link = &paths.managed_soloist_current;
+            if let Some(previous) = original_current {
+                if let Err(failure) = atomic_link(&previous, link) {
+                    rollback_errors.push(format!("restore Soloist binary: {failure:#}"));
+                }
+            } else if link.is_symlink() {
+                if let Err(failure) = fs::remove_file(link) {
+                    rollback_errors.push(format!("remove new Soloist link: {failure:#}"));
+                }
+            }
+            if !original_env_exists && paths.soloist_env.exists() {
+                if let Err(failure) = fs::remove_file(&paths.soloist_env) {
+                    rollback_errors.push(format!("remove new credentials: {failure:#}"));
+                }
+            }
+        }
+        let settings = paths.config.join("config.json");
+        let restore_settings = match original_settings {
+            Some(bytes) => fs::write(&settings, bytes),
+            None if settings.exists() => fs::remove_file(&settings),
+            None => Ok(()),
+        };
+        if let Err(failure) = restore_settings {
+            rollback_errors.push(format!("restore display settings: {failure:#}"));
+        }
+        let restore_metadata = match original_metadata {
+            Some(bytes) => fs::write(&paths.install_state, bytes),
+            None if paths.install_state.exists() => fs::remove_file(&paths.install_state),
+            None => Ok(()),
+        };
+        if let Err(failure) = restore_metadata {
+            rollback_errors.push(format!("restore install metadata: {failure:#}"));
+        }
         if let Some(previous) = transaction.previous_current.as_ref() {
-            atomic_link(previous, &paths.current).ok();
+            if let Err(failure) = atomic_link(previous, &paths.current) {
+                rollback_errors.push(format!("restore Display executable: {failure:#}"));
+            }
         }
         transaction.fail(&journal_path, error.to_string()).ok();
-        return Err(error.context("installation failed; the previous active release was restored"));
+        if !rollback_errors.is_empty() {
+            return Err(anyhow!(
+                "installation failed: {error:#}; rollback incomplete: {}",
+                rollback_errors.join("; ")
+            ));
+        }
+        return Err(error.context("installation failed; the previous state was restored"));
     }
     drop(progress);
     if !quiet {

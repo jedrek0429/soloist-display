@@ -1,8 +1,7 @@
 use crate::{
     paths::Paths,
     platform::Platform,
-    service,
-    soloist,
+    service, soloist,
     state::{atomic_json, InstallState, SoloistOwnership},
 };
 use anyhow::{anyhow, bail, Context, Result};
@@ -50,7 +49,9 @@ pub fn recover(paths: &Paths) -> Result<()> {
     if pending.previous_state.soloist.ownership != SoloistOwnership::Installer {
         bail!("refusing to restore a renewal not owned by Soloist Display");
     }
-    let rollback = paths.managed_soloist.join(format!(".rollback-{}", std::process::id()));
+    let rollback = paths
+        .managed_soloist
+        .join(format!(".rollback-{}", std::process::id()));
     symlink(&pending.previous_link, &rollback)?;
     fs::rename(&rollback, &paths.managed_soloist_current)?;
     pending.previous_state.save(paths)?;
@@ -385,13 +386,21 @@ mod tests {
             dependency_packages: vec![],
         };
         state.save(&paths).unwrap();
-        atomic_json(&pending_path(&paths), &RenewalPending {
-            previous_link: previous_dir.clone(),
-            previous_state: state,
-            previous_record: None,
-        }, Some(0o600)).unwrap();
+        atomic_json(
+            &pending_path(&paths),
+            &RenewalPending {
+                previous_link: previous_dir.clone(),
+                previous_state: state,
+                previous_record: None,
+            },
+            Some(0o600),
+        )
+        .unwrap();
         recover(&paths).unwrap();
-        assert_eq!(fs::read_link(&paths.managed_soloist_current).unwrap(), previous_dir);
+        assert_eq!(
+            fs::read_link(&paths.managed_soloist_current).unwrap(),
+            previous_dir
+        );
         assert!(!pending_path(&paths).exists());
         assert!(InstallState::load(&paths).unwrap().is_some());
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");

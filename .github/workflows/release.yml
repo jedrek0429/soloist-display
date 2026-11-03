@@ -22,11 +22,10 @@ jobs:
       - name: Validate release version
         run: |
           version="${GITHUB_REF_NAME#v}"
-          actual="$(cargo metadata --no-deps --format-version 1 | python3 -c 'import json,sys; print(next(p["version"] for p in json.load(sys.stdin)["packages"] if p["name"] == "soloist-display-installer"))')"
-          test "$actual" = "$version"
+          cargo run --quiet -p soloist-display-installer --bin release-tools -- verify-workspace-version "$GITHUB_REF_NAME" .
       - name: Validate tag syntax
         run: |
-          python3 scripts/validate-release-tag.py "$GITHUB_REF_NAME"
+          cargo run --quiet -p soloist-display-installer --bin release-tools -- validate-tag "$GITHUB_REF_NAME"
       - name: Build static executables
         run: |
           mkdir dist
@@ -63,6 +62,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - name: Restore unsigned release inputs
         uses: actions/download-artifact@v8
         with:
@@ -73,7 +74,7 @@ jobs:
           RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
         run: |
           test -n "$RELEASE_SIGNING_KEY"
-          python3 scripts/build-release-manifest.py dist "$GITHUB_REF_NAME" "${GITHUB_REF_NAME#v}"
+          cargo run --quiet -p soloist-display-installer --bin release-tools -- build-manifest dist "$GITHUB_REF_NAME" "${GITHUB_REF_NAME#v}"
           key="$RUNNER_TEMP/release-key.pem"
           trap 'rm -f "$key"' EXIT
           printf '%s\n' "$RELEASE_SIGNING_KEY" > "$key"
@@ -85,7 +86,7 @@ jobs:
           openssl base64 -A -in "$RUNNER_TEMP/bootstrap.sig" -out dist/bootstrap-manifest.sig
           printf '\n' >> dist/release-manifest.sig
           printf '\n' >> dist/bootstrap-manifest.sig
-          python3 scripts/render-bootstrap.py install.sh dist/bootstrap-manifest.txt \
+          cargo run --quiet -p soloist-display-installer --bin release-tools -- render-bootstrap install.sh dist/bootstrap-manifest.txt \
             "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}" > dist/install.sh
           chmod 755 dist/install.sh
           sh -n dist/install.sh

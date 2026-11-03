@@ -3,11 +3,11 @@ use crate::{
     service,
     state::atomic_json,
 };
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::{
     fs, io,
-    os::unix::fs::{OpenOptionsExt, PermissionsExt},
+    os::unix::fs::OpenOptionsExt,
     path::{Path, PathBuf},
 };
 

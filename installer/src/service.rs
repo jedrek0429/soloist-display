@@ -137,3 +137,26 @@ pub fn disable_owned(paths: &Paths, unit: &str) -> Result<()> {
 pub fn daemon_reload(paths: &Paths) -> Result<()> {
     systemctl(paths, &["daemon-reload"], true)
 }
+
+const RENEWAL_SERVICE: &str = "[Unit]\nDescription=Check Spotify Soloist binary updates\n\n[Service]\nType=oneshot\nExecStart=__MANAGER__ renew-soloist\n";
+const RENEWAL_TIMER: &str = "[Unit]\nDescription=Check Spotify Soloist builds every six hours\n\n[Timer]\nOnBootSec=10min\nOnUnitActiveSec=6h\nPersistent=true\n\n[Install]\nWantedBy=timers.target\n";
+
+pub fn install_renewal_timer(paths: &Paths) -> Result<()> {
+    let directory = paths.soloist_service.parent().context("missing systemd user directory")?;
+    let service_path = directory.join("soloist-display-renew.service");
+    let timer_path = directory.join("soloist-display-renew.timer");
+    write_if_changed(&service_path, &RENEWAL_SERVICE.replace("__MANAGER__", &unit_quote(&paths.visible_command)), 0o644)?;
+    write_if_changed(&timer_path, RENEWAL_TIMER, 0o644)?;
+    systemctl(paths, &["daemon-reload"], true)?;
+    systemctl(paths, &["enable", "--now", "soloist-display-renew.timer"], true)
+}
+
+pub fn remove_renewal_timer(paths: &Paths) -> Result<()> {
+    let directory = paths.soloist_service.parent().context("missing systemd user directory")?;
+    systemctl(paths, &["disable", "--now", "soloist-display-renew.timer"], true)?;
+    for name in ["soloist-display-renew.service", "soloist-display-renew.timer"] {
+        let path = directory.join(name);
+        if path.exists() { fs::remove_file(path)?; }
+    }
+    systemctl(paths, &["daemon-reload"], true)
+}

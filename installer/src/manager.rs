@@ -861,10 +861,11 @@ pub fn install(
     if !quiet {
         progress.step(1, "Checking dependencies");
     }
-    let packages = match {
+    let package_result = {
         let _pause = (!dependencies::runtime_ready()).then(|| progress.pause());
         dependencies::install(platform, quiet)
-    } {
+    };
+    let packages = match package_result {
         Ok(packages) => packages,
         Err(error) => {
             transaction.fail(&journal_path, error.to_string()).ok();

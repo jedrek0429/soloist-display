@@ -16,7 +16,7 @@ use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell};
 use lock::InstallLock;
-use manager::RemoveMode;
+use manager::{DisplayDataRemoval, SoloistRemoval, UninstallOptions};
 use paths::Paths;
 use platform::Platform;
 use release::ReleaseChannel;
@@ -108,7 +108,9 @@ enum Command {
     /// Safely remove installer-owned components.
     Uninstall {
         #[arg(long, value_enum)]
-        mode: Option<RemoveMode>,
+        soloist: Option<SoloistRemoval>,
+        #[arg(long, value_enum)]
+        data: Option<DisplayDataRemoval>,
     },
 }
 
@@ -215,9 +217,17 @@ fn run() -> Result<i32> {
                 return Ok(1);
             }
         }
-        Command::Uninstall { mode } => {
-            locked(&paths, || manager::uninstall(&paths, mode, cli.quiet))?
-        }
+        Command::Uninstall { soloist, data } => locked(&paths, || {
+            manager::uninstall(
+                &paths,
+                UninstallOptions {
+                    soloist,
+                    data,
+                    yes: cli.yes,
+                },
+                cli.quiet,
+            )
+        })?,
     }
     Ok(0)
 }

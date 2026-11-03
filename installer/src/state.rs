@@ -118,6 +118,8 @@ pub struct InstallRecovery {
     pub previous_renewal_service: Option<Vec<u8>>,
     pub previous_renewal_timer: Option<Vec<u8>>,
     pub previous_soloist_link: Option<PathBuf>,
+    pub previous_display_active: bool,
+    pub previous_timer_active: bool,
     pub restore_existing_service: bool,
     pub unit_backup_existed: bool,
 }

@@ -10,7 +10,7 @@ Open **Actions → Prepare release → Run workflow** on `main`. Enter a SemVer 
 
 The workflow validates the version, updates `Cargo.toml` and `Cargo.lock`, and opens `chore: bump vX.Y.Z`. It also dispatches the build and distribution checks on that branch. GitHub suppresses ordinary workflow triggers from changes made using `GITHUB_TOKEN`.
 
-Review the PR and its checks before merging. Merging the version PR into `main` creates an annotated tag for the merged commit and dispatches **Signed release**. That existing workflow builds binaries, signs manifests and publishes the release. Prereleases are not marked as the latest stable release.
+Review the PR and its checks before merging. Merging the version PR into `main` creates an annotated tag for the merged commit and dispatches **Signed release**. That workflow builds binaries, signs manifests and publishes the release.
 
 GitHub Actions must be allowed to create pull requests under **Settings → Actions → General → Workflow permissions**. Alternatively, set `RELEASE_BOT_TOKEN` to a token with Contents and Pull requests write access. `RELEASE_SIGNING_KEY` must be configured for the signing job. No private signing key belongs in the repository.
 

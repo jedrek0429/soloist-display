@@ -151,9 +151,25 @@ fn parse_unit(paths: &Paths, unit: &str) -> Result<ExistingSettings> {
         api_key: env.get("SOLOIST_API_KEY").cloned(),
         runtime: ManagedRuntime::default_for(paths),
     };
+    if let Some(home) = env.get("HOME") {
+        if Path::new(home) != paths.home {
+            bail!("existing Soloist uses a different HOME; specify its data directory explicitly");
+        }
+    }
+    if let Some(state_dir) = env.get("STATE_DIRECTORY") {
+        settings.runtime.data_dir = PathBuf::from(state_dir);
+    }
+    if let Some(cache_dir) = env.get("CACHE_DIRECTORY") {
+        settings.runtime.cache_dir = PathBuf::from(cache_dir);
+    }
     let mut i = 1;
     while i < args.len() {
         let arg = &args[i];
+        if arg == "--verbose" || arg == "-v" {
+            settings.runtime.verbose = true;
+            i += 1;
+            continue;
+        }
         let (flag, raw) = if let Some((flag, value)) = arg.split_once('=') {
             (flag, value.to_owned())
         } else {
@@ -167,11 +183,26 @@ fn parse_unit(paths: &Paths, unit: &str) -> Result<ExistingSettings> {
         };
         let value = expand(&raw, &env)?;
         match flag {
-            "--device-name" | "--name" => settings.name = Some(value),
-            "--api-key" => settings.api_key = Some(value),
+            "--device-name" | "-n" => settings.name = Some(value),
+            "--api-key" | "-k" => settings.api_key = Some(value),
             "--data-dir" | "-D" => settings.runtime.data_dir = PathBuf::from(value),
-            "--cache-dir" => settings.runtime.cache_dir = PathBuf::from(value),
-            "--ws" => {
+            "--cache-dir" | "-C" => settings.runtime.cache_dir = PathBuf::from(value),
+            "--cache-size" | "-z" => {
+                let size = value.parse::<u64>().context("invalid Soloist cache size")?;
+                if size != 0 && size < 100 {
+                    bail!("invalid Soloist cache size");
+                }
+                settings.runtime.cache_size_mb = Some(size);
+            }
+            "--pipewire-device" | "-d" => settings.runtime.pipewire_device = Some(value),
+            "--initial-volume" | "-i" => {
+                let volume = value.parse::<u8>().context("invalid Soloist volume")?;
+                if volume > 100 {
+                    bail!("Soloist initial volume must be at most 100");
+                }
+                settings.runtime.initial_volume = Some(volume);
+            }
+            "--ws" | "-w" => {
                 let ws = if value.starts_with("ws://") { value } else { format!("ws://{value}") };
                 settings.runtime.websocket_url = soloist::validate_websocket_url(&ws)?;
             }
@@ -227,6 +258,42 @@ mod tests {
         assert_eq!(parsed.api_key.as_deref(), Some("secret"));
         assert_eq!(parsed.runtime.websocket_url, "ws://127.0.0.1:9190/");
         assert_eq!(parsed.runtime.data_dir, temp.path().join("data"));
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
+    #[serial]
+    fn migrates_documented_short_flags_and_environment_paths() {
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("HOME", temp.path());
+        std::env::set_var("SOLOIST_DISPLAY_TEST_ROOT", temp.path().join("root"));
+        let paths = Paths::discover().unwrap();
+        let unit = format!(
+            "[Service]\nEnvironment=STATE_DIRECTORY={} CACHE_DIRECTORY={}\nExecStart=/usr/bin/soloist -n Speaker -k secret -w 127.0.0.1:9190 -C {} -z 500 -d alsa_output.usb -i 36 -v\n",
+            temp.path().join("session").display(),
+            temp.path().join("cache").display(),
+            temp.path().join("cache").display()
+        );
+        let parsed = parse_unit(&paths, &unit).unwrap();
+        assert_eq!(parsed.runtime.data_dir, temp.path().join("session"));
+        assert_eq!(parsed.runtime.cache_size_mb, Some(500));
+        assert_eq!(parsed.runtime.pipewire_device.as_deref(), Some("alsa_output.usb"));
+        assert_eq!(parsed.runtime.initial_volume, Some(36));
+        assert!(parsed.runtime.verbose);
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
+    #[serial]
+    fn rejects_unsupported_systemd_specifiers_before_migration() {
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("HOME", temp.path());
+        std::env::set_var("SOLOIST_DISPLAY_TEST_ROOT", temp.path().join("root"));
+        let paths = Paths::discover().unwrap();
+        assert!(parse_unit(
+            &paths,
+            "[Service]\nExecStart=/usr/bin/soloist -n %H -k secret\n"
+        ).is_err());
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
     #[test]

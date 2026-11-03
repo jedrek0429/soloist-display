@@ -478,9 +478,6 @@ pub fn install(
     })
 }
 
-/// Ensure the Soloist CLI can discover the fixed loopback endpoint used by Display.
-/// Never replace an existing endpoint: independent Soloist installations may
-/// have their own configuration, which the installer must not take over.
 pub fn ensure_cli_discovery(paths: &Paths, state: &SoloistState) -> Result<()> {
     if paths.is_test() || state.ownership != SoloistOwnership::Installer || !healthy(state) {
         return Ok(());
@@ -495,9 +492,6 @@ pub fn ensure_cli_discovery(paths: &Paths, state: &SoloistState) -> Result<()> {
     let Some(port) = endpoint.port_or_known_default() else {
         return Ok(());
     };
-    // The managed service explicitly uses this directory. For independent
-    // services, only use the standard CLI data directory if no custom -D
-    // directory is configured; do not guess or overwrite custom paths.
     let runtime = service::ManagedRuntime::load(paths)?;
     let data = &runtime.data_dir;
     fs::create_dir_all(data)?;

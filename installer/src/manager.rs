@@ -1051,6 +1051,9 @@ pub fn install(
             }
         }
         transaction.fail(&journal_path, error.to_string()).ok();
+        if let Err(failure) = recover(paths) {
+            rollback_errors.push(format!("recover installation: {failure:#}"));
+        }
         if !rollback_errors.is_empty() {
             return Err(anyhow!(
                 "installation failed: {error:#}; rollback incomplete: {}",
@@ -1187,6 +1190,7 @@ pub fn update(
         }
         service::install_display(paths).ok();
         tx.fail(&tx_path, error.to_string()).ok();
+        recover(paths).context("update failed and recovery could not finish")?;
         return Err(error.context("update failed; restored the previous release"));
     }
     drop(progress);
@@ -1261,6 +1265,7 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
             state.save(paths).ok();
             atomic_link(&state.active_release, &paths.current).ok();
             tx.fail(&tx_path, error.to_string()).ok();
+            recover(paths).context("repair failed and recovery could not finish")?;
             return Err(error.context("repair failed; restored the previous files"));
         }
         if had_original {

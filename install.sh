@@ -125,7 +125,6 @@ fi
 [ "$actual_sha" = "$expected_sha" ] || fail "installer SHA-256 verification failed ($installer_url; expected $expected_sha, got $actual_sha)"
 chmod 700 "$installer"
 
-# Pin the manager to the same signed prerelease as this bootstrap.
 if [ "$version" = latest ]; then
   case "$PIN_RELEASE_BASE" in
     https://github.com/jedrek0429/soloist-display/releases/download/v*-*)

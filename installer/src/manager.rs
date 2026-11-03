@@ -1309,20 +1309,57 @@ pub fn doctor(paths: &Paths) -> Result<bool> {
         "Port 9091 is unavailable; inspect the display service and check for a conflict."
     );
     if let Some(state) = state {
+        let endpoint = state.soloist.websocket_url.as_deref().unwrap_or("(missing)");
+        let mode = match state.soloist.ownership {
+            SoloistOwnership::Installer => "managed",
+            SoloistOwnership::Independent => "external",
+            SoloistOwnership::None => "unconfigured",
+        };
+        println!("{:<22} {}", "Soloist mode", mode);
+        println!("{:<22} {}", "Soloist endpoint", endpoint);
         check!(
             "Soloist WebSocket",
-            soloist::healthy(&state.soloist),
-            "Start Soloist and verify loopback WebSocket port 9090."
+            paths.is_test() || soloist::healthy(&state.soloist),
+            format!("No Soloist WebSocket handshake at {endpoint}; check its listener and service.")
         );
-        if state.soloist.ownership == SoloistOwnership::Installer {
-            let secure = fs::metadata(&paths.soloist_env)
-                .map(|metadata| metadata.permissions().mode() & 0o077 == 0)
-                .unwrap_or(false);
-            check!(
-                "Soloist credentials",
-                secure,
-                "Run `chmod 600 ~/.config/soloist-display/soloist.env`, then repair."
-            );
+        match state.soloist.ownership {
+            SoloistOwnership::Installer => {
+                check!(
+                    "Managed Soloist",
+                    paths.managed_soloist_current.join("soloist").is_file(),
+                    "Run `soloist-display repair` to restore the managed executable."
+                );
+                check!(
+                    "Soloist service",
+                    service::active(paths, "soloist.service"),
+                    "Run `soloist-display repair` or inspect journalctl --user -u soloist."
+                );
+                check!(
+                    "Renewal timer",
+                    service::active(paths, "soloist-display-renew.timer"),
+                    "Run `soloist-display repair` to enable automatic renewal."
+                );
+                let secure = fs::metadata(&paths.soloist_env)
+                    .map(|metadata| metadata.permissions().mode() & 0o077 == 0)
+                    .unwrap_or(false);
+                check!(
+                    "Soloist credentials",
+                    secure,
+                    "Run chmod 600 ~/.config/soloist-display/soloist.env and repair."
+                );
+            }
+            SoloistOwnership::Independent => {
+                let present = service::soloist_unit_present(paths);
+                println!(
+                    "{:<22} {}",
+                    "External systemd unit",
+                    if present { "detected (not managed)" } else { "absent (optional)" }
+                );
+                println!("{:<22} disabled (external mode)", "Automatic renewal");
+            }
+            SoloistOwnership::None => {
+                check!("Soloist configuration", false, "Reinstall with managed or external Soloist.");
+            }
         }
     }
     check!(

@@ -1,4 +1,5 @@
 mod dependencies;
+mod legacy;
 mod lock;
 mod manager;
 mod migrations;
@@ -6,16 +7,18 @@ mod paths;
 mod platform;
 mod process;
 mod release;
+mod renewal;
 mod service;
 mod soloist;
 mod state;
 mod terminal;
+mod uninstall_tx;
 
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell};
 use lock::InstallLock;
-use manager::RemoveMode;
+use manager::{DisplayDataRemoval, SoloistRemoval, UninstallOptions};
 use paths::Paths;
 use platform::Platform;
 use release::ReleaseChannel;
@@ -62,12 +65,20 @@ enum NotificationSetting {
 enum Command {
     /// Generate shell completion script (e.g. `soloist-display completions zsh`).
     Completions { shell: Shell },
-    /// Install Soloist Display and, when absent, Spotify Soloist.
+    /// Install Soloist Display with managed or independently maintained Spotify Soloist.
     Install {
         #[arg(long, hide = true, env = "SOLOIST_NAME")]
         device_name: Option<String>,
         #[arg(long, hide = true, env = "SOLOIST_API_KEY")]
         api_key: Option<String>,
+        /// Use an existing Soloist instance without managing its service or binary.
+        #[arg(long)]
+        external_soloist: bool,
+        /// WebSocket endpoint for an external Soloist instance.
+        #[arg(long, requires = "external_soloist")]
+        soloist_ws: Option<String>,
+        #[arg(long, requires = "external_soloist")]
+        start_external: bool,
     },
     /// Open the now-playing display.
     Launch,
@@ -81,6 +92,11 @@ enum Command {
         version: Option<String>,
         #[arg(long)]
         allow_downgrade: bool,
+    },
+    /// Renew the installer-owned Spotify Soloist binary from Spotify's CDN.
+    RenewSoloist {
+        #[arg(long)]
+        force: bool,
     },
     /// Show installed version and latest available release on each channel.
     CheckUpdates,
@@ -96,13 +112,18 @@ enum Command {
     /// Safely remove installer-owned components.
     Uninstall {
         #[arg(long, value_enum)]
-        mode: Option<RemoveMode>,
+        soloist: Option<SoloistRemoval>,
+        #[arg(long, value_enum)]
+        data: Option<DisplayDataRemoval>,
     },
 }
 
 fn locked<T>(paths: &Paths, operation: impl FnOnce() -> Result<T>) -> Result<T> {
     paths.ensure_management_dirs()?;
     let _lock = InstallLock::acquire(&paths.lock, Duration::from_secs(15))?;
+    uninstall_tx::recover(paths)?;
+    manager::recover(paths)?;
+    renewal::recover(paths)?;
     operation()
 }
 
@@ -122,6 +143,9 @@ fn run() -> Result<i32> {
         return Ok(0);
     }
     let paths = Paths::discover()?;
+    if uninstall_tx::pending(&paths) {
+        locked(&paths, || Ok(()))?;
+    }
     terminal::set_log_path(paths.logs.join("installer.jsonl"));
     let requested = if cli.settings {
         Some(Command::Settings)
@@ -134,16 +158,34 @@ fn run() -> Result<i32> {
         None => Command::Install {
             device_name: None,
             api_key: None,
+            external_soloist: false,
+            soloist_ws: None,
+            start_external: false,
         },
     };
     match command {
         Command::Install {
             device_name,
             api_key,
+            external_soloist,
+            soloist_ws,
+            start_external,
         } => {
             let platform = Platform::detect()?;
             locked(&paths, || {
-                manager::install(&paths, &platform, cli.yes, cli.quiet, device_name, api_key)
+                manager::install(
+                    &paths,
+                    &platform,
+                    cli.yes,
+                    cli.quiet,
+                    manager::InstallOptions {
+                        name: device_name,
+                        api_key,
+                        external_soloist,
+                        soloist_ws,
+                        start_external,
+                    },
+                )
             })?;
         }
         Command::Launch => manager::launch(&paths, false)?,
@@ -166,6 +208,10 @@ fn run() -> Result<i32> {
                 )
             })?;
         }
+        Command::RenewSoloist { force } => {
+            let platform = Platform::detect()?;
+            locked(&paths, || renewal::renew(&paths, &platform, force))?;
+        }
         Command::CheckUpdates => manager::update_status(&paths)?,
         Command::Notifications { setting } => {
             locked(&paths, || {
@@ -184,9 +230,17 @@ fn run() -> Result<i32> {
                 return Ok(1);
             }
         }
-        Command::Uninstall { mode } => {
-            locked(&paths, || manager::uninstall(&paths, mode, cli.quiet))?
-        }
+        Command::Uninstall { soloist, data } => locked(&paths, || {
+            manager::uninstall(
+                &paths,
+                UninstallOptions {
+                    soloist,
+                    data,
+                    yes: cli.yes,
+                },
+                cli.quiet,
+            )
+        })?,
     }
     Ok(0)
 }

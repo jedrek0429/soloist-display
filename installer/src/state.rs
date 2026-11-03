@@ -108,6 +108,28 @@ pub struct Backup {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct InstallRecovery {
+    pub previous_settings: Option<Vec<u8>>,
+    pub previous_config_schema: Option<Vec<u8>>,
+    pub previous_metadata: Option<Vec<u8>>,
+    pub previous_env: Option<Vec<u8>>,
+    pub previous_runtime: Option<Vec<u8>>,
+    pub previous_display_unit: Option<Vec<u8>>,
+    pub previous_soloist_unit: Option<Vec<u8>>,
+    pub previous_renewal_service: Option<Vec<u8>>,
+    pub previous_renewal_timer: Option<Vec<u8>>,
+    pub previous_soloist_link: Option<PathBuf>,
+    pub previous_display_active: bool,
+    pub previous_display_enabled: bool,
+    pub previous_soloist_active: bool,
+    pub previous_soloist_enabled: bool,
+    pub previous_timer_active: bool,
+    pub previous_timer_enabled: bool,
+    pub restore_existing_service: bool,
+    pub unit_backup_existed: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TransactionJournal {
     pub id: String,
     pub operation: String,
@@ -117,6 +139,8 @@ pub struct TransactionJournal {
     pub created: Vec<PathBuf>,
     pub backups: Vec<Backup>,
     pub package_changes: Vec<String>,
+    #[serde(default)]
+    pub install_recovery: Option<InstallRecovery>,
     pub error: Option<String>,
 }
 
@@ -135,6 +159,7 @@ impl TransactionJournal {
             created: vec![],
             backups: vec![],
             package_changes: vec![],
+            install_recovery: None,
             error: None,
         };
         journal.persist(&path)?;

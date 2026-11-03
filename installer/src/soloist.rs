@@ -63,28 +63,47 @@ fn websocket_healthy(endpoint: &str) -> bool {
 }
 
 fn protocol_healthy(endpoint: &str) -> bool {
-    let Ok(url) = url::Url::parse(endpoint) else { return false; };
-    let Some(port) = url.port() else { return false; };
+    let Ok(url) = url::Url::parse(endpoint) else {
+        return false;
+    };
+    let Some(port) = url.port() else {
+        return false;
+    };
     let addr = if matches!(url.host_str(), Some("::1" | "[::1]")) {
         std::net::SocketAddr::from(([0, 0, 0, 0, 0, 0, 0, 1], port))
     } else {
         std::net::SocketAddr::from(([127, 0, 0, 1], port))
     };
-    let Ok(stream) = std::net::TcpStream::connect_timeout(&addr, Duration::from_millis(700)) else { return false; };
+    let Ok(stream) = std::net::TcpStream::connect_timeout(&addr, Duration::from_millis(700)) else {
+        return false;
+    };
     let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
     let _ = stream.set_write_timeout(Some(Duration::from_secs(2)));
-    let Ok((mut ws, _)) = tungstenite::client(url.as_str(), stream) else { return false; };
-    if ws.send(tungstenite::Message::Text(r#"{"type":"command","command":"get_state"}"#.into())).is_err() {
+    let Ok((mut ws, _)) = tungstenite::client(url.as_str(), stream) else {
+        return false;
+    };
+    if ws
+        .send(tungstenite::Message::Text(
+            r#"{"type":"command","command":"get_state"}"#.into(),
+        ))
+        .is_err()
+    {
         return false;
     }
     for _ in 0..4 {
-        let Ok(message) = ws.read() else { break; };
+        let Ok(message) = ws.read() else {
+            break;
+        };
         if let tungstenite::Message::Text(text) = message {
             if serde_json::from_str::<serde_json::Value>(&text)
                 .ok()
-                .is_some_and(|value| value.as_object().is_some_and(|obj| {
-                    obj.get("type").and_then(serde_json::Value::as_str).is_some()
-                }))
+                .is_some_and(|value| {
+                    value.as_object().is_some_and(|obj| {
+                        obj.get("type")
+                            .and_then(serde_json::Value::as_str)
+                            .is_some()
+                    })
+                })
             {
                 return true;
             }
@@ -128,13 +147,17 @@ pub fn verify_external(
                 return Err(error.context("start external Soloist"));
             }
             for _ in 0..20 {
-                if protocol_healthy(&url) { break; }
+                if protocol_healthy(&url) {
+                    break;
+                }
                 std::thread::sleep(Duration::from_millis(250));
             }
         }
     }
     if !protocol_healthy(&url) {
-        if started { service::stop_soloist_existing(paths).ok(); }
+        if started {
+            service::stop_soloist_existing(paths).ok();
+        }
         bail!(
             "external Soloist at {url} did not respond to get_state; check its protocol and service, or use managed Soloist"
         );
@@ -262,7 +285,8 @@ fn read_credentials(path: &Path) -> Result<(Option<String>, Option<String>)> {
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        let (variable, raw) = line.split_once('=')
+        let (variable, raw) = line
+            .split_once('=')
             .ok_or_else(|| anyhow!("invalid existing Soloist environment file"))?;
         if variable != "SOLOIST_NAME" && variable != "SOLOIST_API_KEY" {
             continue;
@@ -285,9 +309,14 @@ fn read_credentials(path: &Path) -> Result<(Option<String>, Option<String>)> {
 
 pub fn configure(paths: &Paths, name: Option<String>, api_key: Option<String>) -> Result<()> {
     let (previous_name, previous_key) = read_credentials(&paths.soloist_env)?;
-    if name.is_none() && api_key.is_none()
-        && previous_name.as_ref().is_some_and(|value| !value.trim().is_empty())
-        && previous_key.as_ref().is_some_and(|value| !value.trim().is_empty())
+    if name.is_none()
+        && api_key.is_none()
+        && previous_name
+            .as_ref()
+            .is_some_and(|value| !value.trim().is_empty())
+        && previous_key
+            .as_ref()
+            .is_some_and(|value| !value.trim().is_empty())
     {
         return Ok(());
     }
@@ -543,7 +572,11 @@ mod tests {
                 let (stream, _) = listener.accept().unwrap();
                 let mut socket = tungstenite::accept(stream).unwrap();
                 let _ = socket.read().unwrap();
-                socket.send(tungstenite::Message::Text(r#"{"type":"state","status":"stopped"}"#.into())).unwrap();
+                socket
+                    .send(tungstenite::Message::Text(
+                        r#"{"type":"state","status":"stopped"}"#.into(),
+                    ))
+                    .unwrap();
             }
         });
         let state = verify_external(&paths, &SoloistState::default(), Some(&url), false).unwrap();

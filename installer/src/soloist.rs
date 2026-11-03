@@ -203,7 +203,7 @@ fn env_quote(value: &str) -> Result<String> {
 }
 
 pub fn configure(paths: &Paths, name: Option<String>, api_key: Option<String>) -> Result<()> {
-    if paths.soloist_env.exists() {
+    if paths.soloist_env.exists() && name.is_none() && api_key.is_none() {
         return Ok(());
     }
     let name = name
@@ -307,7 +307,8 @@ pub fn install(
     api_key: Option<String>,
 ) -> Result<SoloistState> {
     configure(paths, name, api_key)?;
-    let data_owned = !paths.soloist_data.exists();
+    let runtime = service::ManagedRuntime::load(paths)?;
+    let data_owned = !runtime.data_dir.exists();
     let version_dir = paths.managed_soloist.join(version);
     fs::create_dir_all(&version_dir)?;
     fs::create_dir_all(&paths.cache)?;
@@ -349,7 +350,7 @@ pub fn install(
         executable: Some(executable),
         service_owned: true,
         data_owned,
-        websocket_url: Some(DEFAULT_WS.into()),
+        websocket_url: Some(runtime.websocket_url),
         version: Some(version.into()),
     })
 }
@@ -374,7 +375,8 @@ pub fn ensure_cli_discovery(paths: &Paths, state: &SoloistState) -> Result<()> {
     // The managed service explicitly uses this directory. For independent
     // services, only use the standard CLI data directory if no custom -D
     // directory is configured; do not guess or overwrite custom paths.
-    let data = &paths.soloist_data;
+    let runtime = service::ManagedRuntime::load(paths)?;
+    let data = &runtime.data_dir;
     fs::create_dir_all(data)?;
     for (filename, value) in [("ws.addr", host.to_owned()), ("ws.port", port.to_string())] {
         let path = data.join(filename);

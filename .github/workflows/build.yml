@@ -54,6 +54,18 @@ jobs:
         run: |
           for file in src/*.js; do node --check --input-type=module < "$file"; done
           python -m json.tool config.json >/dev/null
+      - name: Release bootstrap pin smoke test
+        run: |
+          mkdir -p /tmp/bootstrap-test
+          for target in x86_64-unknown-linux-musl aarch64-unknown-linux-musl armv7-unknown-linux-musleabihf; do
+            printf '%s %s https://github.com/jedrek0429/soloist-display/releases/download/v0.0.0/soloist-display-%s\n' "$target" "$(printf '%s' "$target" | sha256sum | cut -d' ' -f1)" "$target"
+          done > /tmp/bootstrap-test/bootstrap-manifest.txt
+          python3 scripts/render-bootstrap.py install.sh /tmp/bootstrap-test/bootstrap-manifest.txt https://github.com/jedrek0429/soloist-display/releases/download/v0.0.0 > /tmp/bootstrap-test/install.sh
+          sh -n /tmp/bootstrap-test/install.sh
+          shellcheck /tmp/bootstrap-test/install.sh
+          grep -Fq "PIN_RELEASE_BASE='https://github.com/jedrek0429/soloist-display/releases/download/v0.0.0'" /tmp/bootstrap-test/install.sh
+          ! grep -q '@SOLOIST_DISPLAY_' /tmp/bootstrap-test/install.sh
+          sh scripts/test-bootstrap-e2e.sh
       - name: CLI smoke test
         run: |
           cargo build --workspace

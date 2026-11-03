@@ -126,7 +126,7 @@ fi
 chmod 700 "$installer"
 
 say 'Installing'
-if [ -r /dev/tty ] && [ -w /dev/tty ]; then
+if [ -t 0 ] && [ -r /dev/tty ] && [ -w /dev/tty ]; then
   "$installer" install "$@" </dev/tty
 else
   "$installer" install "$@"

@@ -1,0 +1,43 @@
+#!/bin/sh
+# End-to-end bootstrap verification with a local, deterministic download fixture.
+set -eu
+root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+temp=$(mktemp -d)
+trap 'rm -rf "$temp"' EXIT HUP INT TERM
+mkdir -p "$temp/bin" "$temp/assets"
+cat > "$temp/assets/installer" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$*" > "$SOLOIST_TEST_INVOKED"
+EOF
+chmod 755 "$temp/assets/installer"
+hash=$(sha256sum "$temp/assets/installer" | cut -d' ' -f1)
+for target in x86_64-unknown-linux-musl aarch64-unknown-linux-musl armv7-unknown-linux-musleabihf; do
+  printf '%s %s https://github.com/jedrek0429/soloist-display/releases/download/v0.0.0/soloist-display-%s\n' "$target" "$hash" "$target"
+done > "$temp/manifest"
+python3 "$root/scripts/render-bootstrap.py" "$root/install.sh" "$temp/manifest" \
+  https://github.com/jedrek0429/soloist-display/releases/download/v0.0.0 > "$temp/bootstrap.sh"
+cat > "$temp/bin/curl" <<'EOF'
+#!/bin/sh
+# Serve the fixture for any pinned release binary URL.
+for arg do
+  case "$arg" in
+    -o) output_next=1 ;;
+    *) if [ "${output_next:-0}" = 1 ]; then destination=$arg; output_next=0; fi ;;
+  esac
+done
+cp "$SOLOIST_TEST_BINARY" "$destination"
+EOF
+chmod +x "$temp/bin/curl"
+export SOLOIST_TEST_BINARY="$temp/assets/installer" SOLOIST_TEST_INVOKED="$temp/invoked"
+PATH="$temp/bin:$PATH" sh "$temp/bootstrap.sh" --yes
+grep -Fxq 'install --yes' "$temp/invoked"
+# A tampered binary must be rejected before execution.
+printf 'tamper\n' >> "$temp/assets/installer"
+rm "$temp/invoked"
+if PATH="$temp/bin:$PATH" sh "$temp/bootstrap.sh" --yes > "$temp/out" 2>&1; then
+  echo 'Tampered fixture unexpectedly installed' >&2
+  exit 1
+fi
+grep -q 'installer SHA-256 verification failed' "$temp/out"
+test ! -e "$temp/invoked"
+echo 'Bootstrap fixture verified: success and tamper rejection'

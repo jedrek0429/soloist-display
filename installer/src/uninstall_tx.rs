@@ -308,8 +308,8 @@ pub fn recover(paths: &Paths) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::os::unix::fs::PermissionsExt;
     use serial_test::serial;
+    use std::os::unix::fs::PermissionsExt;
 
     fn setup() -> (tempfile::TempDir, Paths) {
         let directory = tempfile::tempdir().unwrap();

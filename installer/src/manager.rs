@@ -1964,7 +1964,8 @@ mod tests {
     fn interrupted_migration_restores_missing_credentials_as_missing() {
         let (_directory, paths) = test_paths();
         fs::create_dir_all(paths.soloist_service.parent().unwrap()).unwrap();
-        let original_unit = b"[Service]\nEnvironmentFile=/missing/soloist.env\nExecStart=/usr/bin/soloist\n";
+        let original_unit =
+            b"[Service]\nEnvironmentFile=/missing/soloist.env\nExecStart=/usr/bin/soloist\n";
         fs::write(&paths.soloist_service, original_unit).unwrap();
         assert!(!paths.soloist_env.exists());
         let snapshot = service::SoloistUnitSnapshot::capture(&paths).unwrap();

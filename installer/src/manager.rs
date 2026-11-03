@@ -1660,7 +1660,7 @@ fn choose_uninstall_options(
             bail!("non-interactive uninstall requires --soloist and --data, or --yes");
         }
         if previous {
-            eprintln!("Soloist: 1 Restore previous installation (recommended)  2 Keep managed  3 Remove managed");
+            eprintln!("Soloist: 1 Restore previous installation (recommended)  2 Keep managed");
         } else {
             eprintln!("Soloist: 1 Keep managed (recommended)  2 Remove managed");
         }
@@ -1671,7 +1671,7 @@ fn choose_uninstall_options(
         Some(match (previous, value.trim()) {
             (true, "" | "1") => SoloistRemoval::Restore,
             (true, "2") | (false, "" | "1") => SoloistRemoval::Keep,
-            (true, "3") | (false, "2") => SoloistRemoval::Remove,
+            (false, "2") => SoloistRemoval::Remove,
             _ => bail!("invalid Soloist uninstall choice"),
         })
     };

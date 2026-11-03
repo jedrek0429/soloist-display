@@ -3,26 +3,26 @@
 set -eu
 
 BOOTSTRAP_VERSION=1
-PIN_RELEASE_BASE='https://github.com/jedrek0429/soloist-display/releases/download/v0.3.0'
-PIN_X86_64='64bff599dcdc38ff2f893357da1677c1e95df92128f2cb024dee2fbadd6b7300'
-PIN_AARCH64='91979d015671bb888577a1a99c7e7d987e5f9ee35245d3744e394101d1c1090b'
-PIN_ARMV7='75d4d5fcb3305d1eca5c56298c815e2c51826a02c684db4668ca59f1912da873'
+PIN_RELEASE_BASE='https://github.com/jedrek0429/soloist-display/releases/download/v1.0.0-alpha.1'
+PIN_X86_64='ef3d196164594e856b8431a32c2af51999edac4aff71c6abc34ef31021a61b80'
+PIN_AARCH64='b3854cbf76b802ad9df97b95f82e7c385acc8f7bcc1a556986f70c54c4bb51fc'
+PIN_ARMV7='2a3986a682420d7c6617bd90296179c43b3fca2863261333c8ca863804e8753e'
 version=${SOLOIST_DISPLAY_VERSION-latest}
 case "$version" in
   latest)
     # A release-rendered bootstrap pins both the hash and its immutable asset URL.
-    # Never verify a mutable /latest/download asset against another tag's digest.
     case "$PIN_RELEASE_BASE" in
       https://github.com/jedrek0429/soloist-display/releases/download/v*)
         RELEASE_BASE=$PIN_RELEASE_BASE ;;
       *) RELEASE_BASE=https://github.com/jedrek0429/soloist-display/releases/latest/download ;;
     esac
     ;;
-  *[!0-9.]*|'') fail_version=1 ;;
   *) RELEASE_BASE="https://github.com/jedrek0429/soloist-display/releases/download/v$version" ;;
 esac
-[ "${fail_version:-0}" -eq 0 ] || { printf '%s\n' 'Invalid SOLOIST_DISPLAY_VERSION (expected X.Y.Z or latest)' >&2; exit 1; }
-# Legacy release-base override is reserved for local development and tests.
+if [ "$version" != latest ]; then
+  printf '%s\n' "$version" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$' ||
+    { printf '%s\n' 'Invalid SOLOIST_DISPLAY_VERSION (expected SemVer or latest)' >&2; exit 1; }
+fi
 if [ -n "${SOLOIST_DISPLAY_RELEASE_BASE:-}" ]; then RELEASE_BASE=$SOLOIST_DISPLAY_RELEASE_BASE; fi
 tmp_dir=
 
@@ -49,7 +49,7 @@ Downloads and verifies the Soloist Display installer, then runs it.
   --quiet       show only errors
   --verbose     show additional diagnostics
   --help        show this help
-  SOLOIST_DISPLAY_VERSION=X.Y.Z  select signed release (default: latest)
+  SOLOIST_DISPLAY_VERSION=SEMVER  select signed release (default: latest)
   --version     show bootstrap version
 EOF
     exit 0
@@ -87,7 +87,7 @@ case "$target" in
   armv7-*) pinned_sha=$PIN_ARMV7 ;;
 esac
 
-if [ "$version" != latest ] || [ "$RELEASE_BASE" != "$PIN_RELEASE_BASE" ]; then pinned_sha=untrusted; fi
+if [ "$RELEASE_BASE" != "$PIN_RELEASE_BASE" ]; then pinned_sha=untrusted; fi
 case "$pinned_sha" in
 @*|untrusted)
   command -v openssl >/dev/null 2>&1 || fail 'OpenSSL is required to authenticate installer metadata'
@@ -125,8 +125,16 @@ fi
 [ "$actual_sha" = "$expected_sha" ] || fail "installer SHA-256 verification failed ($installer_url; expected $expected_sha, got $actual_sha)"
 chmod 700 "$installer"
 
+if [ "$version" = latest ]; then
+  case "$PIN_RELEASE_BASE" in
+    https://github.com/jedrek0429/soloist-display/releases/download/v*-*)
+      pinned_tag=${PIN_RELEASE_BASE##*/v}
+      export SOLOIST_DISPLAY_VERSION="$pinned_tag"
+      ;;
+  esac
+fi
 say 'Installing'
-if [ -r /dev/tty ] && [ -w /dev/tty ]; then
+if [ -t 0 ] && [ -r /dev/tty ] && [ -w /dev/tty ]; then
   "$installer" install "$@" </dev/tty
 else
   "$installer" install "$@"

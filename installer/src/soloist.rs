@@ -322,10 +322,10 @@ pub fn configure(paths: &Paths, name: Option<String>, api_key: Option<String>) -
     {
         return Ok(());
     }
-    let name = name
-        .or(previous_name)
-        .or_else(|| std::env::var("SOLOIST_NAME").ok())
-        .filter(|s| !s.trim().is_empty())
+    let name = [name, previous_name, std::env::var("SOLOIST_NAME").ok()]
+        .into_iter()
+        .flatten()
+        .find(|value| !value.trim().is_empty())
         .unwrap_or_else(|| {
             if io::stdin().is_terminal() {
                 prompt("Spotify Connect device name", false)
@@ -334,10 +334,10 @@ pub fn configure(paths: &Paths, name: Option<String>, api_key: Option<String>) -
                 "Soloist Display".into()
             }
         });
-    let key = api_key
-        .or(previous_key)
-        .or_else(|| std::env::var("SOLOIST_API_KEY").ok())
-        .filter(|s| !s.trim().is_empty())
+    let key = [api_key, previous_key, std::env::var("SOLOIST_API_KEY").ok()]
+        .into_iter()
+        .flatten()
+        .find(|value| !value.trim().is_empty())
         .map(Ok)
         .unwrap_or_else(|| prompt("Spotify Soloist API key", true))?;
     if key.trim().is_empty() {
@@ -358,6 +358,14 @@ pub fn configure(paths: &Paths, name: Option<String>, api_key: Option<String>) -
     fs::set_permissions(&temporary, fs::Permissions::from_mode(0o600))?;
     fs::rename(temporary, &paths.soloist_env)?;
     Ok(())
+}
+
+pub fn managed_installation_complete(paths: &Paths) -> Result<bool> {
+    let (name, key) = read_credentials(&paths.soloist_env)?;
+    Ok(paths.soloist_service.is_file()
+        && name.as_deref().is_some_and(|value| !value.trim().is_empty())
+        && key.as_deref().is_some_and(|value| !value.trim().is_empty())
+        && service::active(paths, "soloist.service"))
 }
 
 fn safe_extract_soloist(archive_path: &Path, destination: &Path) -> Result<()> {
@@ -591,10 +599,10 @@ pub fn ensure_cli_discovery(paths: &Paths, state: &SoloistState) -> Result<()> {
 }
 
 pub fn start_existing(paths: &Paths, state: &SoloistState) -> Result<()> {
-    if healthy(state) {
-        return Ok(());
-    }
     if state.ownership == SoloistOwnership::Installer {
+        if managed_installation_complete(paths)? && healthy(state) {
+            return Ok(());
+        }
         service::install_soloist(paths, &paths.managed_soloist_current.join("soloist"))?;
         for _ in 0..20 {
             if healthy(state) {
@@ -603,6 +611,9 @@ pub fn start_existing(paths: &Paths, state: &SoloistState) -> Result<()> {
             std::thread::sleep(Duration::from_millis(250));
         }
         bail!("managed Soloist did not start or expose its WebSocket");
+    }
+    if healthy(state) {
+        return Ok(());
     }
     if state.ownership == SoloistOwnership::Independent {
         if !paths.is_test() {
@@ -752,6 +763,47 @@ mod tests {
         assert_eq!(state.ownership, SoloistOwnership::Independent);
         assert_eq!(state.websocket_url, previous.websocket_url);
         assert!(!state.data_owned);
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
+    #[serial]
+    fn missing_managed_credentials_require_recovery_even_with_a_service() {
+        let (_directory, paths) = paths();
+        fs::create_dir_all(paths.soloist_service.parent().unwrap()).unwrap();
+        fs::write(&paths.soloist_service, "[Service]\n").unwrap();
+        assert!(!managed_installation_complete(&paths).unwrap());
+
+        fs::create_dir_all(paths.soloist_env.parent().unwrap()).unwrap();
+        fs::write(
+            &paths.soloist_env,
+            "SOLOIST_NAME=\"Speaker\"\nSOLOIST_API_KEY=\"token\"\n",
+        )
+        .unwrap();
+        assert!(managed_installation_complete(&paths).unwrap());
+
+        fs::write(
+            &paths.soloist_env,
+            "SOLOIST_NAME=\"Speaker\"\nSOLOIST_API_KEY=\"\"\n",
+        )
+        .unwrap();
+        assert!(!managed_installation_complete(&paths).unwrap());
+
+        fs::remove_file(&paths.soloist_service).unwrap();
+        assert!(!managed_installation_complete(&paths).unwrap());
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
+    #[serial]
+    fn empty_legacy_credentials_do_not_mask_environment_key() {
+        let (_directory, paths) = paths();
+        std::env::set_var("SOLOIST_API_KEY", "environment-key");
+        let result = configure(&paths, Some(String::new()), Some(String::new()));
+        std::env::remove_var("SOLOIST_API_KEY");
+        result.unwrap();
+        let (_, key) = read_credentials(&paths.soloist_env).unwrap();
+        assert_eq!(key.as_deref(), Some("environment-key"));
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
 

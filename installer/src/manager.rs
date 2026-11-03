@@ -1550,11 +1550,20 @@ pub fn doctor(paths: &Paths) -> Result<bool> {
                     "Managed Soloist runtime metadata is unavailable; check the state directory before repairing."
                 );
                 if let Ok(runtime) = runtime {
-                    println!("{:<22} {}", "Soloist data directory", runtime.data_dir.display());
-                    println!("{:<22} {}", "Soloist cache directory", runtime.cache_dir.display());
+                    println!(
+                        "{:<22} {}",
+                        "Soloist data directory",
+                        runtime.data_dir.display()
+                    );
+                    println!(
+                        "{:<22} {}",
+                        "Soloist cache directory",
+                        runtime.cache_dir.display()
+                    );
                     check!(
                         "WebSocket configuration",
-                        Some(runtime.websocket_url.as_str()) == state.soloist.websocket_url.as_deref(),
+                        Some(runtime.websocket_url.as_str())
+                            == state.soloist.websocket_url.as_deref(),
                         "The managed service and Display WebSocket endpoints disagree."
                     );
                 }
@@ -1562,7 +1571,8 @@ pub fn doctor(paths: &Paths) -> Result<bool> {
                     "Owned service file",
                     fs::read_to_string(&paths.soloist_service)
                         .ok()
-                        .is_some_and(|unit| unit.contains(&paths.managed_soloist_current.display().to_string())),
+                        .is_some_and(|unit| unit
+                            .contains(&paths.managed_soloist_current.display().to_string())),
                     "soloist.service does not point at the managed Soloist binary."
                 );
                 check!(
@@ -2025,7 +2035,10 @@ mod tests {
         assert!(unit.contains(&data.to_string_lossy().to_string()));
         assert!(unit.contains("127.0.0.1:9190"));
         snapshot.restore(&paths).unwrap();
-        assert_eq!(fs::read_to_string(&paths.soloist_service).unwrap(), original_unit);
+        assert_eq!(
+            fs::read_to_string(&paths.soloist_service).unwrap(),
+            original_unit
+        );
         assert_eq!(fs::read(data.join("session")).unwrap(), b"existing session");
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }

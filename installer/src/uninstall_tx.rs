@@ -319,12 +319,13 @@ mod tests {
     #[serial]
     fn interruption_before_commit_restores_every_staged_file() {
         let (_directory, paths) = setup();
-        fs::write(&paths.install_state, b"metadata").unwrap();
+        let settings = paths.config.join("config.json");
+        fs::write(&settings, b"metadata").unwrap();
         let mut tx = UninstallTransaction::begin(&paths, false).unwrap();
-        tx.stage(&paths, &paths.install_state).unwrap();
-        assert!(!paths.install_state.exists());
+        tx.stage(&paths, &settings).unwrap();
+        assert!(!settings.exists());
         recover(&paths).unwrap();
-        assert_eq!(fs::read(&paths.install_state).unwrap(), b"metadata");
+        assert_eq!(fs::read(&settings).unwrap(), b"metadata");
         assert!(!pending(&paths));
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }

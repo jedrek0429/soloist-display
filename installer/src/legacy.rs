@@ -80,6 +80,7 @@ fn parse_unit(paths: &Paths, unit: &str) -> Result<ExistingSettings> {
     for line in unit.lines().map(str::trim) {
         if line.starts_with('[') {
             service_section = line == "[Service]";
+            continue;
         }
         if !service_section || line.starts_with('#') || line.is_empty() {
             continue;

@@ -1,4 +1,3 @@
-//! Release tooling used by GitHub Actions. No Python runtime is required.
 use anyhow::{anyhow, bail, Context, Result};
 use semver::Version;
 use serde_json::{json, Map, Value};

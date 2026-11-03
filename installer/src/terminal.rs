@@ -107,26 +107,28 @@ impl Progress {
                 let mut drawn = false;
                 while running.load(Ordering::Acquire) {
                     let (number, label) = *state.lock().unwrap_or_else(|e| e.into_inner());
-                    let _guard = output_lock().lock().unwrap_or_else(|e| e.into_inner());
-                    if suspended.load(Ordering::Acquire) {
-                        if drawn {
-                            eprint!("\r\x1b[2K");
+                    {
+                        let _guard = output_lock().lock().unwrap_or_else(|e| e.into_inner());
+                        if suspended.load(Ordering::Acquire) {
+                            if drawn {
+                                eprint!("\r\x1b[2K");
+                                let _ = io::stderr().flush();
+                                drawn = false;
+                            }
+                        } else if number > 0 {
+                            let bar = format!(
+                                "{}{}",
+                                "=".repeat(number * 20 / 4),
+                                "-".repeat(20 - number * 20 / 4)
+                            );
+                            eprint!(
+                                "\r\x1b[2K  {} [{}]  {number}/4  {label}",
+                                frames[tick % 4],
+                                bar
+                            );
                             let _ = io::stderr().flush();
-                            drawn = false;
+                            drawn = true;
                         }
-                    } else if number > 0 {
-                        let bar = format!(
-                            "{}{}",
-                            "=".repeat(number * 20 / 4),
-                            "-".repeat(20 - number * 20 / 4)
-                        );
-                        eprint!(
-                            "\r\x1b[2K  {} [{}]  {number}/4  {label}",
-                            frames[tick % 4],
-                            bar
-                        );
-                        let _ = io::stderr().flush();
-                        drawn = true;
                     }
                     tick += 1;
                     thread::sleep(Duration::from_millis(90));

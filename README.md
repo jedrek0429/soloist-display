@@ -6,67 +6,34 @@ A full-screen now-playing display and live audio visualizer for [Spotify Soloist
 
 Turn your Linux computer or Raspberry Pi into a dedicated Spotify speaker with a beautiful display.
 
-Choose a song on your phone, select your computer in Spotify Connect, and enjoy your music with animated album artwork, track information, and a live audio spectrum.
+Choose a song on your phone, select your computer in Spotify Connect, and enjoy animated album artwork, track information, and a live audio spectrum.
 
 ## Install
 
-Requires Spotify Premium and a systemd-based Linux installation with glibc 2.38 or newer (including Ubuntu 24.04+ and Debian 13+) on x86_64, ARM64, or hard-float ARMv7.
+Requires Spotify Premium and Linux with systemd and glibc 2.38 or newer (e.g. Ubuntu 24.04 or Debian 13). Supports x86_64, ARM64 and ARMv7.
 
 ```sh
 curl -fsSL https://jedrek0429.github.io/soloist-display/install.sh | sh
 ```
 
-For an **alpha release**, select the exact signed version (prereleases are not included in GitHub's `latest` endpoint):
-
-```sh
-curl -fsSL https://github.com/jedrek0429/soloist-display/releases/download/v1.0.0-alpha.1/install.sh | SOLOIST_DISPLAY_VERSION=1.0.0-alpha.1 sh
-```
-
-An installed alpha follows published prereleases when you run `soloist-display update`. Stable installations remain on the stable channel. Set `SOLOIST_DISPLAY_CHANNEL=stable` or `SOLOIST_DISPLAY_CHANNEL=prerelease` to override channel selection for a command. For exact-version operations use `SOLOIST_DISPLAY_VERSION`; this overrides channel selection.
-
-To select a signed release, set `SOLOIST_DISPLAY_VERSION` (defaults to `latest` (stable unless using a release-pinned bootstrap)):
-
-```sh
-curl -fsSL https://jedrek0429.github.io/soloist-display/install.sh | SOLOIST_DISPLAY_VERSION=1.0.0-alpha.1 sh
-```
-
-The installer verifies signed release files, installs required runtime packages, and configures user services. If Soloist is already working on `127.0.0.1:9090`, it is preserved and reused. Otherwise, have a [Soloist API key](https://developer.spotify.com/dashboard/soloist) ready; setup asks only for the Spotify Connect device name and API key.
-
-Open a new terminal after the first installation if `soloist-display` is not yet on your `PATH`.
-
-For unattended setup, provide the same values without putting the secret in command history:
-
-```sh
-export SOLOIST_NAME="Soloist Display"
-read -rsp "Soloist API key: " SOLOIST_API_KEY; export SOLOIST_API_KEY; echo
-curl -fsSL https://jedrek0429.github.io/soloist-display/install.sh | sh -s -- --yes
-unset SOLOIST_API_KEY
-```
+Follow the setup prompts. Have your [Soloist API key](https://developer.spotify.com/dashboard/soloist) ready. If the command is not found after installation, open a new terminal.
 
 ## Use
 
 ```sh
-soloist-display             # open the display
-soloist-display settings    # open settings
-soloist-display update      # install a verified update
-soloist-display repair      # restore managed files and services
-soloist-display doctor      # check services, ports, Soloist and audio
+soloist-display
 ```
 
-The display checks briefly for updates when opened and offers to install one when available.
+To change the appearance, run `soloist-display settings`. To update, run `soloist-display update`.
 
-## Remove
+## Uninstall
 
 ```sh
-soloist-display uninstall --mode display  # keep settings and Soloist
-soloist-display uninstall --mode data     # also remove display settings and data
-soloist-display uninstall --mode all      # also remove Soloist, only when installer-owned
+soloist-display uninstall --mode display
 ```
 
-An independently installed Soloist is never removed. Runtime packages installed through the system package manager are left in place because they may be used by other applications.
+This keeps your settings and Spotify Soloist. To remove display settings too, use `--mode data`. To also remove Soloist when it was installed by Soloist Display, use `--mode all`.
 
-## Troubleshooting
+For [prerelease or specific-version installations](docs/advanced-installation.md), [unattended setup](docs/advanced-installation.md#unattended-setup), or [troubleshooting](docs/installer.md), see the guides.
 
-Run `soloist-display doctor`, then inspect `journalctl --user -u soloist-display -u soloist` if a service fails. Soloist builds expire after 90 days; `soloist-display update` installs the current verified build.
-
-[Installer architecture and recovery](docs/installer.md) · [Release signing](docs/releasing.md) · MIT
+MIT

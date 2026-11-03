@@ -33,11 +33,7 @@ soloist-display update --version 1.0.0-alpha.1 --allow-downgrade
 
 The installer requires `--yes` when no terminal is attached. Set the Spotify Connect device name and Soloist API key in the environment:
 
-```sh
-SOLOIST_NAME="Living Room" SOLOIST_API_KEY="YOUR_KEY" sh -c 'curl -fsSL https://jedrek0429.github.io/soloist-display/install.sh | sh -s -- --yes'
-```
-
-Avoid putting a real API key directly into shell history or committed scripts. For interactive Bash, you can read the key without echoing it:
+Avoid putting a real API key into shell history or committed scripts. For interactive Bash, read the key without echoing it:
 
 ```bash
 export SOLOIST_NAME="Living Room"

@@ -35,7 +35,7 @@ Managed Soloist checks for new builds every six hours. External Soloist is left 
 soloist-display uninstall
 ```
 
-Choose what happens to Soloist and whether to keep Display settings. The choices depend on what was installed. No mystery `--mode` flags.
+Choose what happens to Soloist and whether to keep Display settings. The options depend on what was installed.
 
 See [advanced installation](docs/advanced-installation.md) for automation and exact uninstall options, [troubleshooting](docs/troubleshooting.md) for faults, and [installer details](docs/installer.md) for what gets changed.
 

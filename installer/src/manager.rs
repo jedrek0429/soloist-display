@@ -761,7 +761,6 @@ pub fn install(
     let original_current = fs::read_link(&paths.managed_soloist_current).ok();
     let original_settings = fs::read(paths.config.join("config.json")).ok();
     let original_metadata = fs::read(&paths.install_state).ok();
-    let original_env_exists = paths.soloist_env.exists();
     let original_unit_backup_exists = service::SoloistUnitSnapshot::load(paths)?.is_some();
     let progress = Progress::new(quiet, "Installing Soloist Display");
     if !quiet && !io::stderr().is_terminal() {
@@ -933,12 +932,20 @@ pub fn install(
                         bail!("previous Soloist did not release its WebSocket listener; refusing to copy a potentially live session");
                     }
                 }
-                let cloned_data = paths.managed_soloist.join("session");
-                transaction.record_created(&journal_path, cloned_data.clone())?;
-                let cloned_data =
-                    soloist::copy_existing_session(paths, &settings.runtime.data_dir)?;
                 let mut runtime = settings.runtime.clone();
-                runtime.data_dir = cloned_data;
+                if settings.runtime.data_dir.exists() {
+                    let cloned_data = paths.managed_soloist.join("session");
+                    transaction.record_created(&journal_path, cloned_data.clone())?;
+                    runtime.data_dir =
+                        soloist::copy_existing_session(paths, &settings.runtime.data_dir)?;
+                } else {
+                    crate::terminal::log_event(
+                        "migration",
+                        "warning",
+                        "existing Soloist session directory is missing; a new session will be created",
+                    );
+                    runtime.data_dir = paths.soloist_data.clone();
+                }
                 runtime.save(paths)?;
             }
             soloist::install(
@@ -1015,73 +1022,9 @@ pub fn install(
     })();
     if let Err(error) = result {
         drop(progress);
-        let mut rollback_errors = Vec::new();
-        if previous_state.is_none() && !paths.is_test() {
-            let _ = Command::new("systemctl")
-                .args(["--user", "stop", "soloist-display.service"])
-                .output();
-        }
-        if let Some(unit) = &existing_unit {
-            if let Err(failure) = unit.restore(paths) {
-                rollback_errors.push(format!("restore Soloist service: {failure:#}"));
-            }
-            let link = &paths.managed_soloist_current;
-            if let Some(previous) = original_current {
-                if let Err(failure) = atomic_link(&previous, link) {
-                    rollback_errors.push(format!("restore Soloist binary: {failure:#}"));
-                }
-            } else if link.is_symlink() {
-                if let Err(failure) = fs::remove_file(link) {
-                    rollback_errors.push(format!("remove new Soloist link: {failure:#}"));
-                }
-            }
-            if !original_env_exists && paths.soloist_env.exists() {
-                if let Err(failure) = fs::remove_file(&paths.soloist_env) {
-                    rollback_errors.push(format!("remove new credentials: {failure:#}"));
-                }
-            }
-        }
-        let runtime_path = paths.state.join("soloist-runtime.json");
-        let restore_runtime = match original_runtime {
-            Some(bytes) => fs::write(&runtime_path, bytes),
-            None if runtime_path.exists() => fs::remove_file(&runtime_path),
-            None => Ok(()),
-        };
-        if let Err(failure) = restore_runtime {
-            rollback_errors.push(format!("restore Soloist runtime: {failure:#}"));
-        }
-        let settings = paths.config.join("config.json");
-        let restore_settings = match original_settings {
-            Some(bytes) => fs::write(&settings, bytes),
-            None if settings.exists() => fs::remove_file(&settings),
-            None => Ok(()),
-        };
-        if let Err(failure) = restore_settings {
-            rollback_errors.push(format!("restore display settings: {failure:#}"));
-        }
-        let restore_metadata = match original_metadata {
-            Some(bytes) => fs::write(&paths.install_state, bytes),
-            None if paths.install_state.exists() => fs::remove_file(&paths.install_state),
-            None => Ok(()),
-        };
-        if let Err(failure) = restore_metadata {
-            rollback_errors.push(format!("restore install metadata: {failure:#}"));
-        }
-        if let Some(previous) = transaction.previous_current.as_ref() {
-            if let Err(failure) = atomic_link(previous, &paths.current) {
-                rollback_errors.push(format!("restore Display executable: {failure:#}"));
-            }
-        }
         transaction.fail(&journal_path, error.to_string()).ok();
-        if let Err(failure) = recover(paths) {
-            rollback_errors.push(format!("recover installation: {failure:#}"));
-        }
-        if !rollback_errors.is_empty() {
-            return Err(anyhow!(
-                "installation failed: {error:#}; rollback incomplete: {}",
-                rollback_errors.join("; ")
-            ));
-        }
+        recover(paths)
+            .with_context(|| format!("installation failed: {error:#}; rollback incomplete"))?;
         return Err(error.context("installation failed; changes were rolled back"));
     }
     drop(progress);

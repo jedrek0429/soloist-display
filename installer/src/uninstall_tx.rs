@@ -3,7 +3,7 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::{
     fs, io,
-    os::unix::fs::{OpenOptionsExt, PermissionsExt},
+    os::unix::fs::OpenOptionsExt,
     path::{Path, PathBuf},
 };
 
@@ -28,9 +28,6 @@ pub struct UninstallTransaction {
     previous_soloist_env: Option<Vec<u8>>,
     previous_timer_unit: Option<Vec<u8>>,
     previous_timer_service: Option<Vec<u8>>,
-    previous_zshrc: Option<Vec<u8>>,
-    #[serde(default)]
-    previous_zshrc_mode: Option<u32>,
     managed: bool,
     display_active: bool,
     display_enabled: bool,
@@ -53,14 +50,6 @@ fn bytes(path: &Path) -> Result<Option<Vec<u8>>> {
         Ok(content) => Ok(Some(content)),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(error).with_context(|| format!("read {}", path.display())),
-    }
-}
-
-fn file_mode(path: &Path) -> Result<Option<u32>> {
-    match fs::symlink_metadata(path) {
-        Ok(metadata) => Ok(Some(metadata.permissions().mode() & 0o777)),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(error.into()),
     }
 }
 
@@ -106,7 +95,6 @@ impl UninstallTransaction {
             .soloist_service
             .parent()
             .context("missing systemd unit directory")?;
-        let zshrc = paths.home.join(".zshrc");
         let result = Self {
             phase: Phase::Preparing,
             moved: Vec::new(),
@@ -123,16 +111,6 @@ impl UninstallTransaction {
             },
             previous_timer_unit: bytes(&unit_dir.join("soloist-display-renew.timer"))?,
             previous_timer_service: bytes(&unit_dir.join("soloist-display-renew.service"))?,
-            previous_zshrc: if zshrc.is_symlink() {
-                None
-            } else {
-                bytes(&zshrc)?
-            },
-            previous_zshrc_mode: if zshrc.is_symlink() {
-                None
-            } else {
-                file_mode(&zshrc)?
-            },
             managed,
             display_active: !paths.is_test() && service::active(paths, "soloist-display.service"),
             display_enabled: service::enabled(paths, "soloist-display.service"),
@@ -167,6 +145,20 @@ impl UninstallTransaction {
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
             Err(error) => return Err(error.into()),
             Ok(_) => {}
+        }
+        let mut ancestor = original.parent();
+        while let Some(directory) = ancestor {
+            match fs::symlink_metadata(directory) {
+                Ok(metadata) if metadata.file_type().is_symlink() => {
+                    bail!("refusing to traverse symlinked directory {}", directory.display());
+                }
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                    bail!("uninstall directory disappeared: {}", directory.display());
+                }
+                Err(error) => return Err(error.into()),
+                _ => {}
+            }
+            ancestor = directory.parent();
         }
         let staged = staged_name(original)?;
         if fs::symlink_metadata(&staged).is_ok() {
@@ -242,16 +234,6 @@ fn restore_services(paths: &Paths, tx: &UninstallTransaction) -> Result<()> {
         tx.previous_timer_service.as_deref(),
         0o644,
     )?;
-    let zshrc = paths.home.join(".zshrc");
-    if !zshrc.is_symlink() {
-        if let Some(content) = &tx.previous_zshrc {
-            restore_file(
-                &zshrc,
-                Some(content),
-                tx.previous_zshrc_mode.unwrap_or(0o600),
-            )?;
-        }
-    }
     service::daemon_reload(paths)?;
     if tx.managed && tx.previous_soloist_unit.is_some() {
         service::restore_unit_state(
@@ -380,6 +362,22 @@ mod tests {
             fs::metadata(&zshrc).unwrap().permissions().mode() & 0o777,
             0o644
         );
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
+    #[serial]
+    fn rejects_owned_path_under_symlinked_ancestor() {
+        let (_directory, paths) = setup();
+        let foreign = paths.home.join("foreign-dir");
+        fs::create_dir_all(&foreign).unwrap();
+        fs::write(foreign.join("settings"), b"keep this").unwrap();
+        let symlinked = paths.config_home.join("via-link");
+        std::os::unix::fs::symlink(&foreign, &symlinked).unwrap();
+        let mut tx = UninstallTransaction::begin(&paths, false).unwrap();
+        assert!(tx.stage(&paths, &symlinked.join("settings")).is_err());
+        recover(&paths).unwrap();
+        assert_eq!(fs::read(foreign.join("settings")).unwrap(), b"keep this");
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
 

@@ -759,9 +759,19 @@ pub fn update(
         );
     }
     if manifest.version.to_string() == state.version {
-        if channel.is_some() && state.channel != Some(requested_channel) {
+        if (channel.is_some() || version.is_some()) && state.channel != Some(
+            if version.is_some() && channel.is_none() {
+                ReleaseChannel::for_version(&manifest.version)
+            } else {
+                requested_channel
+            },
+        ) {
             let mut next = state.clone();
-            next.channel = Some(requested_channel);
+            next.channel = Some(if version.is_some() && channel.is_none() {
+                ReleaseChannel::for_version(&manifest.version)
+            } else {
+                requested_channel
+            });
             next.save(paths)?;
         }
         crate::terminal::success(format!("Soloist Display {} is up to date.", state.version));
@@ -833,11 +843,7 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
         .ok_or_else(|| anyhow!("Soloist Display is not installed; run the installer first"))?;
     migrations::migrate(paths)?;
     let client = ReleaseClient::new()?;
-    let (manifest, _) = client.latest()?;
-    if manifest.version.to_string() != state.version {
-        drop(progress);
-        return update(paths, platform, quiet, None, None, false);
-    }
+    let (manifest, _) = client.select(None, Some(&state.version))?;
     let release_valid = ["manager", "audio-bridge"].iter().all(|kind| {
         manifest
             .artifact(kind, platform)

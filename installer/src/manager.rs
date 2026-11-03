@@ -1256,7 +1256,7 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
                 )?;
             } else {
                 soloist::configure(paths, None, None)?;
-                soloist::start_existing(paths, &state.soloist)?;
+                service::install_soloist(paths, &paths.managed_soloist_current.join("soloist"))?;
             }
             service::install_renewal_timer(paths)?;
         }

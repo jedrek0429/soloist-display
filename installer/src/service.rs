@@ -162,11 +162,24 @@ pub fn install_renewal_timer(paths: &Paths) -> Result<()> {
 }
 
 pub fn remove_renewal_timer(paths: &Paths) -> Result<()> {
-    let directory = paths.soloist_service.parent().context("missing systemd user directory")?;
-    systemctl(paths, &["disable", "--now", "soloist-display-renew.timer"], true)?;
-    for name in ["soloist-display-renew.service", "soloist-display-renew.timer"] {
-        let path = directory.join(name);
-        if path.exists() { fs::remove_file(path)?; }
+    let directory = paths
+        .soloist_service
+        .parent()
+        .context("missing systemd user directory")?;
+    let service_path = directory.join("soloist-display-renew.service");
+    let timer_path = directory.join("soloist-display-renew.timer");
+    if !service_path.exists() && !timer_path.exists() {
+        return Ok(());
+    }
+    systemctl(
+        paths,
+        &["disable", "--now", "soloist-display-renew.timer"],
+        true,
+    )?;
+    for path in [service_path, timer_path] {
+        if path.exists() {
+            fs::remove_file(path)?;
+        }
     }
     systemctl(paths, &["daemon-reload"], true)
 }

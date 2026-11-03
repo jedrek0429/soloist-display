@@ -26,9 +26,10 @@ cargo fmt --all -- --check
 cargo check --workspace --locked
 cargo test --workspace --locked
 cargo clippy --workspace --all-targets --locked -- -D warnings
-python3 -m unittest discover -s scripts -p 'test_*.py'
+cargo test --workspace --all-targets --locked
 sh -n install.sh
-python3 scripts/validate-release-tag.py v1.0.0-alpha.1
+cargo run --quiet -p soloist-display-installer --bin release-tools -- check-settings .
+cargo run --quiet -p soloist-display-installer --bin release-tools -- validate-tag v1.0.0-alpha.1
 ```
 
 Test `soloist-display --version`, `doctor`, `repair`, `update`, `uninstall`, fresh install, old-settings migration, interrupted update and rollback in an isolated installation. Check all supported architectures. CI cross-compilation and file-format checks are not evidence of native ARM execution; record separately any hardware runtime testing.

@@ -998,11 +998,6 @@ pub fn install(
             if let Err(failure) = unit.restore(paths) {
                 rollback_errors.push(format!("restore Soloist service: {failure:#}"));
             }
-            if !original_unit_backup_exists {
-                if let Err(failure) = service::SoloistUnitSnapshot::remove_backup(paths) {
-                    rollback_errors.push(format!("remove migration backup: {failure:#}"));
-                }
-            }
             let link = &paths.managed_soloist_current;
             if let Some(previous) = original_current {
                 if let Err(failure) = atomic_link(&previous, link) {

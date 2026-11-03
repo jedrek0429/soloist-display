@@ -222,6 +222,100 @@ pub fn active(paths: &Paths, unit: &str) -> bool {
             .is_ok_and(|s| s.success())
 }
 
+fn service_pid(paths: &Paths, unit: &str) -> Option<u32> {
+    if paths.is_test() {
+        return None;
+    }
+    let result = Command::new("systemctl")
+        .args(["--user", "show", unit, "--property=MainPID", "--value"])
+        .output()
+        .ok()?;
+    if !result.status.success() {
+        return None;
+    }
+    let pid = String::from_utf8(result.stdout).ok()?.trim().parse::<u32>().ok()?;
+    (pid > 0).then_some(pid)
+}
+
+fn owns_listener(pid: u32, endpoint: &str) -> bool {
+    use std::collections::HashSet;
+    let Ok(url) = url::Url::parse(endpoint) else {
+        return false;
+    };
+    let Some(port) = url.port_or_known_default() else {
+        return false;
+    };
+    let fd_dir = format!("/proc/{pid}/fd");
+    let Ok(fds) = fs::read_dir(fd_dir) else {
+        return false;
+    };
+    let sockets: HashSet<u64> = fds
+        .filter_map(|fd| fd.ok())
+        .filter_map(|fd| fs::read_link(fd.path()).ok())
+        .filter_map(|link| {
+            link.to_str()?
+                .strip_prefix("socket:[")?
+                .strip_suffix(']')?
+                .parse::<u64>()
+                .ok()
+        })
+        .collect();
+    if sockets.is_empty() {
+        return false;
+    }
+    for table in ["/proc/net/tcp", "/proc/net/tcp6"] {
+        let Ok(contents) = fs::read_to_string(table) else {
+            continue;
+        };
+        for line in contents.lines().skip(1) {
+            let cols: Vec<_> = line.split_whitespace().collect();
+            if cols.len() < 10 || cols[3] != "0A" {
+                continue;
+            }
+            let Some((_, hex_port)) = cols[1].rsplit_once(':') else {
+                continue;
+            };
+            if u16::from_str_radix(hex_port, 16).ok() == Some(port)
+                && cols[9].parse::<u64>().is_ok_and(|inode| sockets.contains(&inode))
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+pub fn managed_process_healthy(
+    paths: &Paths,
+    expected_binary: &Path,
+    endpoint: &str,
+    websocket_healthy: impl FnOnce() -> bool,
+) -> bool {
+    if paths.is_test() {
+        return true;
+    }
+    use std::os::unix::fs::MetadataExt;
+    if !active(paths, "soloist.service") {
+        return false;
+    }
+    let Some(pid) = service_pid(paths, "soloist.service") else {
+        return false;
+    };
+    let executable = format!("/proc/{pid}/exe");
+    let (Ok(actual), Ok(expected)) = (fs::metadata(executable), fs::metadata(expected_binary))
+    else {
+        return false;
+    };
+    if actual.dev() != expected.dev() || actual.ino() != expected.ino() {
+        return false;
+    }
+    if !owns_listener(pid, endpoint) {
+        return false;
+    }
+    websocket_healthy() && active(paths, "soloist.service")
+        && service_pid(paths, "soloist.service") == Some(pid)
+}
+
 pub fn enabled(paths: &Paths, unit: &str) -> bool {
     !paths.is_test()
         && Command::new("systemctl")

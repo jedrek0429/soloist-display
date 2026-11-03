@@ -201,8 +201,47 @@ enum SavedUnit {
 #[derive(Serialize, Deserialize)]
 pub struct SoloistUnitSnapshot {
     unit: SavedUnit,
+    #[serde(default)]
+    previous_env: Option<SavedUnit>,
     was_active: bool,
     was_enabled: bool,
+}
+
+fn save_original(path: &Path) -> Result<SavedUnit> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            Ok(SavedUnit::Symlink(fs::read_link(path)?))
+        }
+        Ok(metadata) if metadata.is_file() => Ok(SavedUnit::File(
+            fs::read(path)?,
+            metadata.permissions().mode() & 0o777,
+        )),
+        Ok(_) => Err(anyhow!("unsupported file type at {}", path.display())),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(SavedUnit::Missing),
+        Err(error) => Err(error.into()),
+    }
+}
+
+fn restore_original(path: &Path, saved: &SavedUnit) -> Result<()> {
+    if fs::symlink_metadata(path).is_ok() {
+        fs::remove_file(path)?;
+    }
+    match saved {
+        SavedUnit::Missing => {}
+        SavedUnit::File(bytes, mode) => {
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            let staged = path.with_extension(format!("restore.{}", std::process::id()));
+            fs::write(&staged, bytes)?;
+            fs::set_permissions(&staged, fs::Permissions::from_mode(*mode))?;
+            fs::rename(staged, path)?;
+        }
+        SavedUnit::Symlink(target) => {
+            symlink(target, path)?;
+        }
+    }
+    Ok(())
 }
 
 impl SoloistUnitSnapshot {
@@ -235,18 +274,8 @@ impl SoloistUnitSnapshot {
     }
 
     pub fn capture(paths: &Paths) -> Result<Self> {
-        let unit = match fs::symlink_metadata(&paths.soloist_service) {
-            Ok(metadata) if metadata.file_type().is_symlink() => {
-                SavedUnit::Symlink(fs::read_link(&paths.soloist_service)?)
-            }
-            Ok(metadata) if metadata.is_file() => SavedUnit::File(
-                fs::read(&paths.soloist_service)?,
-                metadata.permissions().mode() & 0o777,
-            ),
-            Ok(_) => return Err(anyhow!("unsupported existing Soloist unit file")),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => SavedUnit::Missing,
-            Err(error) => return Err(error.into()),
-        };
+        let unit = save_original(&paths.soloist_service)?;
+        let previous_env = Some(save_original(&paths.soloist_env)?);
         let was_enabled = !paths.is_test()
             && Command::new("systemctl")
                 .args(["--user", "is-enabled", "--quiet", "soloist.service"])
@@ -254,29 +283,20 @@ impl SoloistUnitSnapshot {
                 .is_ok_and(|status| status.success());
         Ok(Self {
             unit,
+            previous_env,
             was_active: active(paths, "soloist.service") && !paths.is_test(),
             was_enabled,
         })
     }
 
     pub fn restore(&self, paths: &Paths) -> Result<()> {
-        if fs::symlink_metadata(&paths.soloist_service).is_ok() {
-            fs::remove_file(&paths.soloist_service)?;
+        if !paths.is_test() && active(paths, "soloist.service") {
+            systemctl(paths, &["stop", "soloist.service"], true)?;
         }
-        match &self.unit {
-            SavedUnit::Missing => {}
-            SavedUnit::File(contents, mode) => {
-                let temporary = paths
-                    .soloist_service
-                    .with_extension(format!("restore.{}", std::process::id()));
-                fs::write(&temporary, contents)?;
-                fs::set_permissions(&temporary, fs::Permissions::from_mode(*mode))?;
-                fs::rename(temporary, &paths.soloist_service)?;
-            }
-            SavedUnit::Symlink(target) => {
-                symlink(target, &paths.soloist_service)?;
-            }
+        if let Some(env) = &self.previous_env {
+            restore_original(&paths.soloist_env, env)?;
         }
+        restore_original(&paths.soloist_service, &self.unit)?;
         systemctl(paths, &["daemon-reload"], true)?;
         if matches!(self.unit, SavedUnit::Missing)
             && !self.was_active
@@ -291,11 +311,10 @@ impl SoloistUnitSnapshot {
         }
         if self.was_active {
             systemctl(paths, &["restart", "soloist.service"], true)?;
-        } else {
-            systemctl(paths, &["stop", "soloist.service"], true)?;
         }
         Ok(())
     }
+
 }
 
 pub fn restart_soloist(paths: &Paths) -> Result<()> {

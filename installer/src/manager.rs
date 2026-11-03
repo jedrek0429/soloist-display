@@ -1627,6 +1627,53 @@ mod tests {
 
     #[test]
     #[serial]
+    fn uninstall_all_restores_existing_service_credentials_and_session() {
+        let (_directory, paths) = test_paths();
+        fs::create_dir_all(paths.soloist_service.parent().unwrap()).unwrap();
+        fs::create_dir_all(paths.soloist_env.parent().unwrap()).unwrap();
+        fs::create_dir_all(&paths.soloist_data).unwrap();
+        fs::write(paths.soloist_data.join("session"), b"existing session").unwrap();
+        let original_service = b"[Service]\nExecStart=/opt/soloist\n";
+        let original_credentials = b"SOLOIST_API_KEY=existing\n";
+        fs::write(&paths.soloist_service, original_service).unwrap();
+        fs::write(&paths.soloist_env, original_credentials).unwrap();
+        let prior = service::SoloistUnitSnapshot::capture(&paths).unwrap();
+        prior.persist(&paths).unwrap();
+
+        fs::write(&paths.soloist_service, b"[Service]\nExecStart=/managed/soloist\n")
+            .unwrap();
+        fs::write(&paths.soloist_env, b"SOLOIST_API_KEY=managed\n").unwrap();
+        fs::create_dir_all(&paths.managed_soloist).unwrap();
+        let managed = paths.managed_soloist.join("soloist");
+        fs::write(&managed, b"managed").unwrap();
+        installed_state(
+            &paths,
+            SoloistState {
+                ownership: SoloistOwnership::Installer,
+                executable: Some(managed),
+                service_owned: true,
+                data_owned: false,
+                websocket_url: Some("ws://127.0.0.1:9090".into()),
+                version: Some("test".into()),
+            },
+        )
+        .save(&paths)
+        .unwrap();
+        atomic_link(&paths.releases.join("1.0.0-test"), &paths.current).unwrap();
+
+        uninstall(&paths, Some(RemoveMode::All), true).unwrap();
+        assert_eq!(fs::read(&paths.soloist_service).unwrap(), original_service);
+        assert_eq!(fs::read(&paths.soloist_env).unwrap(), original_credentials);
+        assert_eq!(
+            fs::read(paths.soloist_data.join("session")).unwrap(),
+            b"existing session"
+        );
+        assert!(!paths.managed_soloist.exists());
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
+    #[serial]
     fn uninstall_all_never_removes_independent_soloist() {
         let (directory, paths) = test_paths();
         let independent = directory.path().join("independent-soloist");

@@ -81,7 +81,7 @@ fn read_settings(path: &PathBuf) -> Value {
                         }
                     }
                 }
-                            for suffix in [
+                for suffix in [
                     "Basic",
                     "Cd",
                     "Vinyl",
@@ -126,7 +126,7 @@ fn read_settings(path: &PathBuf) -> Value {
                         object.insert(key.into(), Value::String("off".into()));
                     }
                 }
-                            for suffix in [
+                for suffix in [
                     "Basic",
                     "Cd",
                     "Vinyl",

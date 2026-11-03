@@ -143,6 +143,9 @@ fn run() -> Result<i32> {
         return Ok(0);
     }
     let paths = Paths::discover()?;
+    if uninstall_tx::pending(&paths) {
+        locked(&paths, || Ok(()))?;
+    }
     terminal::set_log_path(paths.logs.join("installer.jsonl"));
     let requested = if cli.settings {
         Some(Command::Settings)

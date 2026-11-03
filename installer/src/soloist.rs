@@ -112,6 +112,10 @@ fn protocol_healthy(endpoint: &str) -> bool {
     false
 }
 
+pub fn external_healthy(state: &SoloistState) -> bool {
+    state.websocket_url.as_deref().is_some_and(protocol_healthy)
+}
+
 pub fn verify_external(
     paths: &Paths,
     discovered: &SoloistState,

@@ -48,6 +48,8 @@ Soloist is expected to serve its local WebSocket at `127.0.0.1:9090`. When troub
 
 Ensure that music is playing through the computer running Soloist Display. The visualizer captures audio from the PulseAudio/PipeWire default sink monitor; playback routed to another output may not appear.
 
+You may need to increate sensitivity in Soloist Display settings.
+
 Check `soloist-display doctor` and verify the default audio sink. Advanced users can choose another monitor with `SOLOIST_DISPLAY_MONITOR`.
 
 ## Installation or update failed

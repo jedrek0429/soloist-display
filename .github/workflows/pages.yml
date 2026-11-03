@@ -28,15 +28,13 @@ jobs:
           # Choose the newest published release (including prereleases).
           RELEASE_TAG="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq '[.[] | select(.draft == false)][0].tag_name // empty')"
           if [ -n "$RELEASE_TAG" ]; then
-            RELEASE_TAG="$RELEASE_TAG" python3 - <<'PY'
-          import html, os, pathlib, urllib.parse
-          p = pathlib.Path(os.environ["RUNNER_TEMP"]) / "pages/index.html"
-          tag = os.environ["RELEASE_TAG"]
-          url = "https://github.com/jedrek0429/soloist-display/releases/tag/" + urllib.parse.quote(tag, safe="")
-          label = tag + (" · Alpha" if "-alpha." in tag else " · Pre-release" if "-" in tag else "")
-          markup = '<a class="version" href="' + url + '">' + html.escape(label) + '</a>'
-          p.write_text(p.read_text().replace("<!-- release-version -->", markup))
-          PY
+            printf '%s\n' "$RELEASE_TAG" | grep -Eq '^v[0-9A-Za-z.-]+$'
+            case "$RELEASE_TAG" in
+              *-alpha.*) RELEASE_LABEL=" · Alpha" ;;
+              *-*) RELEASE_LABEL=" · Pre-release" ;;
+              *) RELEASE_LABEL="" ;;
+            esac
+            sed -i "s@<!-- release-version -->@<a class=\"version\" href=\"https://github.com/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}\">${RELEASE_TAG}${RELEASE_LABEL}</a>@" "$RUNNER_TEMP/pages/index.html"
           fi
           cp styles.css "$RUNNER_TEMP/pages/styles.css"
           cp src/motion.js src/spectrum.js "$RUNNER_TEMP/pages/src/"

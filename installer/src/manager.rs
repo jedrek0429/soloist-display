@@ -1516,6 +1516,29 @@ pub fn doctor(paths: &Paths) -> Result<bool> {
         );
         match state.soloist.ownership {
             SoloistOwnership::Installer => {
+                let runtime_path = paths.state.join("soloist-runtime.json");
+                let runtime = service::ManagedRuntime::load(paths);
+                check!(
+                    "Runtime configuration",
+                    runtime_path.is_file() && runtime.is_ok(),
+                    "Managed Soloist runtime metadata is unavailable; check the state directory before repairing."
+                );
+                if let Ok(runtime) = runtime {
+                    println!("{:<22} {}", "Soloist data directory", runtime.data_dir.display());
+                    println!("{:<22} {}", "Soloist cache directory", runtime.cache_dir.display());
+                    check!(
+                        "WebSocket configuration",
+                        Some(runtime.websocket_url.as_str()) == state.soloist.websocket_url.as_deref(),
+                        "The managed service and Display WebSocket endpoints disagree."
+                    );
+                }
+                check!(
+                    "Owned service file",
+                    fs::read_to_string(&paths.soloist_service)
+                        .ok()
+                        .is_some_and(|unit| unit.contains(&paths.managed_soloist_current.display().to_string())),
+                    "soloist.service does not point at the managed Soloist binary."
+                );
                 check!(
                     "Managed Soloist",
                     paths.managed_soloist_current.join("soloist").is_file(),

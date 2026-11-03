@@ -1647,8 +1647,12 @@ fn safe_remove(path: &Path, allowed: &[&Path]) -> Result<()> {
 }
 
 pub fn uninstall(paths: &Paths, options: UninstallOptions, quiet: bool) -> Result<()> {
-    let state =
-        InstallState::load(paths)?.ok_or_else(|| anyhow!("Soloist Display is not installed"))?;
+    let Some(state) = InstallState::load(paths)? else {
+        if !paths.display_service.exists() && !paths.current.exists() && !paths.current.is_symlink() {
+            return Ok(());
+        }
+        bail!("Soloist Display metadata is missing; repair or recover before uninstalling");
+    };
     let managed = state.soloist.ownership == SoloistOwnership::Installer;
     let previous = if managed {
         service::SoloistUnitSnapshot::load(paths)?
@@ -1723,11 +1727,11 @@ pub fn uninstall(paths: &Paths, options: UninstallOptions, quiet: bool) -> Resul
     if paths.root.exists() && fs::read_dir(&paths.root)?.next().is_none() {
         fs::remove_dir(&paths.root)?;
     }
+    service::daemon_reload(paths)?;
     if paths.state.exists() {
         safe_remove(&paths.state, &[&paths.state_home])?;
     }
     progress.step(4, "Finishing");
-    service::daemon_reload(paths)?;
     drop(progress);
     if !quiet {
         println!("Soloist Display removed.");

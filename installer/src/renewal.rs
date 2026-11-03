@@ -134,7 +134,7 @@ pub fn recover(paths: &Paths) -> Result<()> {
     if !paths.is_test() {
         let mut healthy = false;
         for _ in 0..24 {
-            if soloist::healthy(&pending.previous_state.soloist) {
+            if soloist::external_healthy(&pending.previous_state.soloist) {
                 healthy = true;
                 break;
             }
@@ -262,7 +262,7 @@ pub fn renew(paths: &Paths, platform: &Platform, force: bool) -> Result<()> {
                     && last_modified == record.last_modified
                     && length == record.content_length)
         })
-        && (paths.is_test() || soloist::healthy(&state.soloist))
+        && (paths.is_test() || soloist::external_healthy(&state.soloist))
         && state
             .soloist
             .executable
@@ -347,7 +347,7 @@ pub fn renew(paths: &Paths, platform: &Platform, force: bool) -> Result<()> {
             if !paths.is_test() {
                 let mut ready = false;
                 for _ in 0..24 {
-                    if soloist::healthy(&state.soloist) {
+                    if soloist::external_healthy(&state.soloist) {
                         ready = true;
                         break;
                     }

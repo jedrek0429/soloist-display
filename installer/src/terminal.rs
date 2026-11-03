@@ -222,13 +222,14 @@ mod tests {
         let command =
             format!("'{escaped}' --exact terminal::tests::terminal_pty_probe --nocapture");
         for mode in ["normal", "quiet", "prompt"] {
-            let result = std::process::Command::new("script")
-                .args(["-q", "-e", "-c", &command, "/dev/null"])
+            let result = std::process::Command::new("timeout")
+                .args(["--kill-after=2s", "8s", "script", "-q", "-e", "-c", &command, "/dev/null"])
+                .stdin(std::process::Stdio::null())
                 .env_remove("CI")
                 .env("TERM", "xterm")
                 .env("SOLOIST_DISPLAY_PTY_PROBE", mode)
                 .output()
-                .expect("util-linux script is required for PTY tests");
+                .expect("coreutils timeout and util-linux script are required for PTY tests");
             let output = String::from_utf8_lossy(&result.stdout);
             assert!(result.status.success(), "PTY {mode}: {output}");
             if mode == "quiet" {

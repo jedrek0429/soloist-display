@@ -1,10 +1,17 @@
 name: Distribution smoke tests
 on:
-  pull_request:
-    paths: ['installer/**', 'install.sh', 'Cargo.toml', 'Cargo.lock', '.github/workflows/**']
   push:
     branches: [main]
-    paths: ['installer/**', 'install.sh', 'Cargo.toml', 'Cargo.lock', '.github/workflows/**']
+    paths:
+      - 'installer/**'
+      - 'audio-bridge/**'
+      - 'src/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'config.json'
+      - 'install.sh'
+      - '.github/workflows/**'
+      - 'scripts/**'
   schedule:
     - cron: '17 4 * * 1'
   workflow_dispatch:
@@ -68,6 +75,18 @@ jobs:
           /tmp/soloist-display-bin/soloist-display --help
           if /tmp/soloist-display-bin/soloist-display doctor >/tmp/doctor.log 2>&1; then exit 1; fi
           grep -q 'Installation metadata' /tmp/doctor.log
-          HOME=/tmp/home SOLOIST_DISPLAY_TEST_ROOT=/tmp/test-root \
-            /tmp/soloist-display-bin/soloist-display install --yes >/tmp/install.log 2>&1 || true
+          if HOME=/tmp/home SOLOIST_DISPLAY_TEST_ROOT=/tmp/test-root \
+            /tmp/soloist-display-bin/soloist-display install </dev/null >/tmp/no-tty.log 2>&1; then
+            echo 'Installation accepted missing --yes' >&2
+            exit 1
+          fi
+          grep -Fq 'non-interactive installation requires --yes' /tmp/no-tty.log
+          if HOME=/tmp/home SOLOIST_DISPLAY_TEST_ROOT=/tmp/test-root \
+            SOLOIST_DISPLAY_FAULT=package_install \
+            /tmp/soloist-display-bin/soloist-display install --yes >/tmp/install.log 2>&1; then
+            echo 'Injected installer failure was ignored' >&2
+            exit 1
+          fi
+          grep -Fq 'injected package installation failure' /tmp/install.log
           grep -Fq 'Soloist Display · ${{ matrix.expected }} / X86_64' /tmp/install.log
+          test ! -f /tmp/test-root/state/soloist-display/install.json

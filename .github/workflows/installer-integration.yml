@@ -1,0 +1,46 @@
+name: Installer integration
+on:
+  pull_request:
+    paths:
+      - 'installer/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'install.sh'
+      - '.github/workflows/installer-integration.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'installer/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'install.sh'
+      - '.github/workflows/installer-integration.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: installer-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  systemd-integration:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Start systemd user manager
+        run: |
+          sudo loginctl enable-linger "$(whoami)"
+          sudo systemctl start "user@$(id -u).service"
+          echo "XDG_RUNTIME_DIR=/run/user/$(id -u)" >> "$GITHUB_ENV"
+          echo "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus" >> "$GITHUB_ENV"
+      - name: Test live Soloist unit restoration
+        env:
+          SOLOIST_DISPLAY_RUN_SYSTEMD_TEST: '1'
+        run: |
+          systemctl --user show-environment
+          cargo test --locked -p soloist-display-installer restores_previous_live_systemd_user_service -- --nocapture
+      - name: Test live uninstall and original service restoration
+        env:
+          SOLOIST_DISPLAY_RUN_SYSTEMD_TEST: '1'
+        run: cargo test --locked -p soloist-display-installer live_uninstall_restores_original_service -- --nocapture

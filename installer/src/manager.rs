@@ -721,6 +721,8 @@ pub fn install(
         previous_renewal_service: fs::read(service_dir.join("soloist-display-renew.service")).ok(),
         previous_renewal_timer: fs::read(service_dir.join("soloist-display-renew.timer")).ok(),
         previous_soloist_link: original_current.clone(),
+        previous_display_active: !paths.is_test() && service::active(paths, "soloist-display.service"),
+        previous_timer_active: !paths.is_test() && service::active(paths, "soloist-display-renew.timer"),
         restore_existing_service: existing_unit.is_some(),
         unit_backup_existed: original_unit_backup_exists,
     });

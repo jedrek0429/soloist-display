@@ -49,6 +49,13 @@ jobs:
           file "$RUNNER_TEMP/soloist-arm64" | grep -q 'ARM aarch64'
           file "$RUNNER_TEMP/soloist-arm32" | grep -q 'ARM.*EABI5'
           readelf -h "$RUNNER_TEMP/soloist-arm32" | grep -q 'hard-float ABI'
+      - name: Save standalone release tool
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-tools
+          path: target/x86_64-unknown-linux-musl/release/release-tools
+          retention-days: 30
+          if-no-files-found: error
       - name: Save unsigned release inputs
         uses: actions/upload-artifact@v7
         with:
@@ -62,8 +69,12 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - name: Restore release tool
+        uses: actions/download-artifact@v8
+        with:
+          name: release-tools
+          path: tool/
+      - run: chmod +x tool/release-tools
       - name: Restore unsigned release inputs
         uses: actions/download-artifact@v8
         with:
@@ -74,7 +85,7 @@ jobs:
           RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
         run: |
           test -n "$RELEASE_SIGNING_KEY"
-          cargo run --quiet -p soloist-display-installer --bin release-tools -- build-manifest dist "$GITHUB_REF_NAME" "${GITHUB_REF_NAME#v}"
+          tool/release-tools build-manifest dist "$GITHUB_REF_NAME" "${GITHUB_REF_NAME#v}"
           key="$RUNNER_TEMP/release-key.pem"
           trap 'rm -f "$key"' EXIT
           printf '%s\n' "$RELEASE_SIGNING_KEY" > "$key"
@@ -86,7 +97,7 @@ jobs:
           openssl base64 -A -in "$RUNNER_TEMP/bootstrap.sig" -out dist/bootstrap-manifest.sig
           printf '\n' >> dist/release-manifest.sig
           printf '\n' >> dist/bootstrap-manifest.sig
-          cargo run --quiet -p soloist-display-installer --bin release-tools -- render-bootstrap install.sh dist/bootstrap-manifest.txt \
+          tool/release-tools render-bootstrap install.sh dist/bootstrap-manifest.txt \
             "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}" > dist/install.sh
           chmod 755 dist/install.sh
           sh -n dist/install.sh

@@ -84,6 +84,7 @@ pub struct Progress {
     quiet: bool,
     latest: Arc<Mutex<(usize, &'static str)>>,
     active: Arc<AtomicBool>,
+    paused: Arc<AtomicBool>,
     highest: AtomicUsize,
     worker: Option<thread::JoinHandle<()>>,
 }
@@ -93,9 +94,11 @@ impl Progress {
         let quiet = quiet || QUIET.load(Ordering::Relaxed);
         let latest = Arc::new(Mutex::new((0, "")));
         let active = Arc::new(AtomicBool::new(true));
+        let paused = Arc::new(AtomicBool::new(false));
         let worker = if !quiet && interactive() && !verbose() {
             let state = latest.clone();
             let running = active.clone();
+            let suspended = paused.clone();
             Some(thread::spawn(move || {
                 // Do not flash a progress bar for operations completed immediately.
                 thread::sleep(Duration::from_millis(180));
@@ -104,13 +107,19 @@ impl Progress {
                 let mut drawn = false;
                 while running.load(Ordering::Acquire) {
                     let (number, label) = *state.lock().unwrap_or_else(|e| e.into_inner());
-                    if number > 0 {
+                    let _guard = output_lock().lock().unwrap_or_else(|e| e.into_inner());
+                    if suspended.load(Ordering::Acquire) {
+                        if drawn {
+                            eprint!("\r\x1b[2K");
+                            let _ = io::stderr().flush();
+                            drawn = false;
+                        }
+                    } else if number > 0 {
                         let bar = format!(
                             "{}{}",
                             "=".repeat(number * 20 / 4),
                             "-".repeat(20 - number * 20 / 4)
                         );
-                        let _guard = output_lock().lock().unwrap_or_else(|e| e.into_inner());
                         eprint!(
                             "\r\x1b[2K  {} [{}]  {number}/4  {label}",
                             frames[tick % 4],
@@ -135,10 +144,21 @@ impl Progress {
             quiet,
             latest,
             active,
+            paused,
             highest: AtomicUsize::new(0),
             worker,
         }
     }
+    pub fn pause(&self) -> ProgressPause<'_> {
+        self.paused.store(true, Ordering::Release);
+        if self.worker.is_some() {
+            let _guard = output_lock().lock().unwrap_or_else(|e| e.into_inner());
+            eprint!("\r\x1b[2K");
+            let _ = io::stderr().flush();
+        }
+        ProgressPause { progress: self }
+    }
+
     pub fn step(&self, number: usize, label: &'static str) {
         if number == 0 || number > 4 {
             return;
@@ -154,6 +174,16 @@ impl Progress {
         }
     }
 }
+pub struct ProgressPause<'a> {
+    progress: &'a Progress,
+}
+
+impl Drop for ProgressPause<'_> {
+    fn drop(&mut self) {
+        self.progress.paused.store(false, Ordering::Release);
+    }
+}
+
 impl Drop for Progress {
     fn drop(&mut self) {
         self.active.store(false, Ordering::Release);

@@ -21,7 +21,7 @@ case "$version" in
 esac
 if [ "$version" != latest ]; then
   printf '%s\n' "$version" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$' ||
-    { printf '%s\n' 'Invalid SOLOIST_DISPLAY_VERSION (expected X.Y.Z[-prerelease] or latest)' >&2; exit 1; }
+    { printf '%s\n' 'Invalid SOLOIST_DISPLAY_VERSION (expected SemVer or latest)' >&2; exit 1; }
 fi
 if [ -n "${SOLOIST_DISPLAY_RELEASE_BASE:-}" ]; then RELEASE_BASE=$SOLOIST_DISPLAY_RELEASE_BASE; fi
 tmp_dir=
@@ -49,7 +49,7 @@ Downloads and verifies the Soloist Display installer, then runs it.
   --quiet       show only errors
   --verbose     show additional diagnostics
   --help        show this help
-  SOLOIST_DISPLAY_VERSION=X.Y.Z[-alpha.N]  select signed release (default: latest)
+  SOLOIST_DISPLAY_VERSION=SEMVER  select signed release (default: latest)
   --version     show bootstrap version
 EOF
     exit 0

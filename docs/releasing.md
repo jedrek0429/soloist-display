@@ -19,7 +19,7 @@ soloist-display notifications off
 soloist-display notifications on
 ```
 
-The update command is the only command that installs an update. Launching or opening settings can display an update notice but must never prompt for or trigger an update. Notification suppression is persisted and does not prevent an explicit check or update.
+Updates are never installed unattended. On an interactive launch, the CLI may offer `Update now? [y/N]`; only an explicit `y` starts the update. In non-interactive sessions it shows a notice without installing. Notification suppression persists and disables the prompt, but does not prevent an explicit check or update. The prerelease channel remains selected when an RC upgrades to its stable release.
 
 Explicit versions take priority over channels; selecting a version persists its corresponding stable/prerelease channel. Changing channels does not authorize a downgrade. A downgrade requires `--allow-downgrade` or `SOLOIST_DISPLAY_ALLOW_DOWNGRADE=1`. Configuration migrations may not be reversible, so back up the settings before downgrading.
 

@@ -62,10 +62,42 @@ fn websocket_healthy(endpoint: &str) -> bool {
     tungstenite::client(url.as_str(), stream).is_ok()
 }
 
+fn protocol_healthy(endpoint: &str) -> bool {
+    let Ok(url) = url::Url::parse(endpoint) else { return false; };
+    let Some(port) = url.port() else { return false; };
+    let addr = if matches!(url.host_str(), Some("::1" | "[::1]")) {
+        std::net::SocketAddr::from(([0, 0, 0, 0, 0, 0, 0, 1], port))
+    } else {
+        std::net::SocketAddr::from(([127, 0, 0, 1], port))
+    };
+    let Ok(stream) = std::net::TcpStream::connect_timeout(&addr, Duration::from_millis(700)) else { return false; };
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+    let _ = stream.set_write_timeout(Some(Duration::from_secs(2)));
+    let Ok((mut ws, _)) = tungstenite::client(url.as_str(), stream) else { return false; };
+    if ws.send(tungstenite::Message::Text(r#"{"type":"command","command":"get_state"}"#.into())).is_err() {
+        return false;
+    }
+    for _ in 0..4 {
+        let Ok(message) = ws.read() else { break; };
+        if let tungstenite::Message::Text(text) = message {
+            if serde_json::from_str::<serde_json::Value>(&text)
+                .ok()
+                .is_some_and(|value| value.as_object().is_some_and(|obj| {
+                    obj.get("type").and_then(serde_json::Value::as_str).is_some()
+                }))
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 pub fn verify_external(
     paths: &Paths,
     discovered: &SoloistState,
     endpoint: Option<&str>,
+    allow_start: bool,
 ) -> Result<SoloistState> {
     let url = validate_websocket_url(endpoint.unwrap_or(DEFAULT_WS))?;
     let mut state = discovered.clone();
@@ -75,18 +107,36 @@ pub fn verify_external(
     state.websocket_url = Some(url.clone());
 
     let unit_present = service::soloist_unit_present(paths);
-    if !healthy(&state) && unit_present {
-        service::start_soloist_existing(paths)?;
-        for _ in 0..20 {
-            if healthy(&state) {
-                break;
+    let was_active = unit_present && service::active(paths, "soloist.service");
+    let mut started = false;
+    if !protocol_healthy(&url) && unit_present && !was_active {
+        let consent = if allow_start {
+            true
+        } else if io::stdin().is_terminal() {
+            eprint!("External Soloist is stopped. Start its existing service? [y/N]: ");
+            io::stderr().flush()?;
+            let mut reply = String::new();
+            io::stdin().read_line(&mut reply)?;
+            matches!(reply.trim().to_ascii_lowercase().as_str(), "y" | "yes")
+        } else {
+            false
+        };
+        if consent {
+            started = true;
+            if let Err(error) = service::start_soloist_existing(paths) {
+                service::stop_soloist_existing(paths).ok();
+                return Err(error.context("start external Soloist"));
             }
-            std::thread::sleep(Duration::from_millis(250));
+            for _ in 0..20 {
+                if protocol_healthy(&url) { break; }
+                std::thread::sleep(Duration::from_millis(250));
+            }
         }
     }
-    if !healthy(&state) {
+    if !protocol_healthy(&url) {
+        if started { service::stop_soloist_existing(paths).ok(); }
         bail!(
-            "external Soloist WebSocket at {url} is unavailable; fix the existing instance or rerun installation without --external-soloist to use managed Soloist"
+            "external Soloist at {url} did not respond to get_state; check its protocol and service, or use managed Soloist"
         );
     }
     if state.executable.is_none() && unit_present {
@@ -454,10 +504,12 @@ mod tests {
         let worker = std::thread::spawn(move || {
             for _ in 0..2 {
                 let (stream, _) = listener.accept().unwrap();
-                let _socket = tungstenite::accept(stream).unwrap();
+                let mut socket = tungstenite::accept(stream).unwrap();
+                let _ = socket.read().unwrap();
+                socket.send(tungstenite::Message::Text(r#"{"type":"state","status":"stopped"}"#.into())).unwrap();
             }
         });
-        let state = verify_external(&paths, &SoloistState::default(), Some(&url)).unwrap();
+        let state = verify_external(&paths, &SoloistState::default(), Some(&url), false).unwrap();
         assert_eq!(state.ownership, SoloistOwnership::Independent);
         assert_eq!(
             state.websocket_url.as_deref(),

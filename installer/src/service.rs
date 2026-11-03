@@ -3,7 +3,12 @@ use crate::{
     process,
 };
 use anyhow::{anyhow, Context, Result};
-use std::{fs, os::unix::fs::PermissionsExt, path::Path, process::Command};
+use std::{
+    fs,
+    os::unix::fs::{symlink, PermissionsExt},
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 const DISPLAY_UNIT: &str = r#"[Unit]
 Description=Soloist Display local server and audio spectrum
@@ -103,9 +108,13 @@ pub fn install_soloist(paths: &Paths, executable: &Path) -> Result<()> {
         .replace("__SOLOIST__", &unit_quote(executable))
         .replace("__DATA__", &unit_quote(&paths.soloist_data))
         .replace("__CACHE__", &unit_quote(&paths.soloist_cache));
-    write_if_changed(&paths.soloist_service, &unit, 0o644)?;
+    let changed = write_if_changed(&paths.soloist_service, &unit, 0o644)?;
     systemctl(paths, &["daemon-reload"], true)?;
-    systemctl(paths, &["enable", "--now", "soloist.service"], false)
+    systemctl(paths, &["enable", "--now", "soloist.service"], false)?;
+    if changed {
+        systemctl(paths, &["restart", "soloist.service"], true)?;
+    }
+    Ok(())
 }
 
 pub fn start_display(paths: &Paths) -> Result<()> {
@@ -159,6 +168,97 @@ pub fn remove_renewal_timer(paths: &Paths) -> Result<()> {
         if path.exists() { fs::remove_file(path)?; }
     }
     systemctl(paths, &["daemon-reload"], true)
+}
+
+pub fn soloist_unit_present(paths: &Paths) -> bool {
+    if paths.is_test() {
+        return paths.soloist_service.exists();
+    }
+    Command::new("systemctl")
+        .args(["--user", "show", "soloist.service", "--property=LoadState", "--value"])
+        .output()
+        .is_ok_and(|output| {
+            output.status.success()
+                && String::from_utf8_lossy(&output.stdout).trim() == "loaded"
+        })
+}
+
+pub fn start_soloist_existing(paths: &Paths) -> Result<()> {
+    if !soloist_unit_present(paths) {
+        return Err(anyhow!("no existing Soloist systemd unit was found"));
+    }
+    systemctl(paths, &["start", "soloist.service"], false)
+}
+
+enum SavedUnit {
+    Missing,
+    File(Vec<u8>, u32),
+    Symlink(PathBuf),
+}
+
+pub struct SoloistUnitSnapshot {
+    unit: SavedUnit,
+    was_active: bool,
+    was_enabled: bool,
+}
+
+impl SoloistUnitSnapshot {
+    pub fn capture(paths: &Paths) -> Result<Self> {
+        let unit = match fs::symlink_metadata(&paths.soloist_service) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                SavedUnit::Symlink(fs::read_link(&paths.soloist_service)?)
+            }
+            Ok(metadata) if metadata.is_file() => SavedUnit::File(
+                fs::read(&paths.soloist_service)?,
+                metadata.permissions().mode() & 0o777,
+            ),
+            Ok(_) => return Err(anyhow!("unsupported existing Soloist unit file")),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => SavedUnit::Missing,
+            Err(error) => return Err(error.into()),
+        };
+        let was_enabled = !paths.is_test()
+            && Command::new("systemctl")
+                .args(["--user", "is-enabled", "--quiet", "soloist.service"])
+                .status()
+                .is_ok_and(|status| status.success());
+        Ok(Self {
+            unit,
+            was_active: active(paths, "soloist.service") && !paths.is_test(),
+            was_enabled,
+        })
+    }
+
+    pub fn restore(&self, paths: &Paths) -> Result<()> {
+        if fs::symlink_metadata(&paths.soloist_service).is_ok() {
+            fs::remove_file(&paths.soloist_service)?;
+        }
+        match &self.unit {
+            SavedUnit::Missing => {}
+            SavedUnit::File(contents, mode) => {
+                let temporary = paths
+                    .soloist_service
+                    .with_extension(format!("restore.{}", std::process::id()));
+                fs::write(&temporary, contents)?;
+                fs::set_permissions(&temporary, fs::Permissions::from_mode(*mode))?;
+                fs::rename(temporary, &paths.soloist_service)?;
+            }
+            SavedUnit::Symlink(target) => {
+                symlink(target, &paths.soloist_service)?;
+            }
+        }
+        systemctl(paths, &["daemon-reload"], true)?;
+        if self.was_enabled {
+            systemctl(paths, &["enable", "soloist.service"], true)?;
+        } else {
+            systemctl(paths, &["disable", "soloist.service"], true)?;
+        }
+        if self.was_active {
+            systemctl(paths, &["restart", "soloist.service"], true)?;
+        } else {
+            systemctl(paths, &["stop", "soloist.service"], true)?;
+        }
+        Ok(())
+    }
 }
 
 pub fn restart_soloist(paths: &Paths) -> Result<()> {

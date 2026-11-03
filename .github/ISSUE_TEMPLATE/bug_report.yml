@@ -7,7 +7,7 @@ body:
     attributes:
       label: What happened?
       description: Describe the problem in your own words. Screenshots are welcome.
-      placeholder: I tried to... but instead...
+      placeholder: "I tried to... but instead..."
     validations:
       required: true
   - type: textarea
@@ -21,7 +21,14 @@ body:
   - type: input
     id: system
     attributes:
-      label: System and version (optional)
+      label: System and version 
       placeholder: "e.g. Ubuntu 24.04, Soloist Display 1.0.0-alpha.1"
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: `soloist-display doctor` output 
+      placeholder: "If you are able to run the command, please paste its output here"
     validations:
       required: false

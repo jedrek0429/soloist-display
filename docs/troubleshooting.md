@@ -72,6 +72,6 @@ The installer is designed to retain the previous release and restore it if activ
 
 ## Getting more help
 
-When [opening a GitHub issue](https://github.com/jedrek0429/soloist-display/issues), include your Linux distribution and architecture, the Soloist Display version, the exact error, relevant `doctor` output, and sanitized logs. Remove API keys, tokens, and personal details.
+When [opening a GitHub issue](https://github.com/jedrek0429/soloist-display/issues/new?template=bug_report.yml), include your Linux distribution and architecture, the Soloist Display version, the exact error, relevant `doctor` output, and sanitized logs. Remove API keys, tokens, and personal details.
 
 See [advanced installation](advanced-installation.md) for release channels, downgrades, and unattended setup, or [installer architecture](installer.md) for implementation details.

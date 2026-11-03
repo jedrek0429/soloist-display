@@ -6,6 +6,7 @@ mod paths;
 mod platform;
 mod process;
 mod release;
+mod renewal;
 mod service;
 mod soloist;
 mod state;
@@ -81,6 +82,11 @@ enum Command {
         version: Option<String>,
         #[arg(long)]
         allow_downgrade: bool,
+    },
+    /// Renew the installer-owned Spotify Soloist binary from Spotify's CDN.
+    RenewSoloist {
+        #[arg(long)]
+        force: bool,
     },
     /// Show installed version and latest available release on each channel.
     CheckUpdates,
@@ -165,6 +171,10 @@ fn run() -> Result<i32> {
                     allow_downgrade,
                 )
             })?;
+        }
+        Command::RenewSoloist { force } => {
+            let platform = Platform::detect()?;
+            locked(&paths, || renewal::renew(&paths, &platform, force))?;
         }
         Command::CheckUpdates => manager::update_status(&paths)?,
         Command::Notifications { setting } => {

@@ -35,6 +35,8 @@ struct RenewalPending {
     previous_record: Option<Vec<u8>>,
     #[serde(default)]
     new_build: Option<std::path::PathBuf>,
+    #[serde(default)]
+    committed: bool,
 }
 
 fn remove_staged_build(paths: &Paths, path: &Path) -> Result<()> {
@@ -98,6 +100,11 @@ pub fn recover(paths: &Paths) -> Result<()> {
         return Ok(());
     }
     let pending: RenewalPending = serde_json::from_slice(&fs::read(&path)?)?;
+    if pending.committed {
+        fs::remove_file(&path)?;
+        fs::File::open(&paths.state)?.sync_all()?;
+        return Ok(());
+    }
     if pending.previous_state.soloist.ownership != SoloistOwnership::Installer {
         bail!("refusing to restore a renewal not owned by Soloist Display");
     }
@@ -135,6 +142,7 @@ pub fn recover(paths: &Paths) -> Result<()> {
         remove_staged_build(paths, new_build)?;
     }
     fs::remove_file(path)?;
+    fs::File::open(&paths.state)?.sync_all()?;
     Ok(())
 }
 
@@ -312,6 +320,7 @@ pub fn renew(paths: &Paths, platform: &Platform, force: bool) -> Result<()> {
                 previous_state: previous_state.clone(),
                 previous_record: previous_record.clone(),
                 new_build: fresh_build.then(|| final_dir.clone()),
+                committed: false,
             },
             Some(0o600),
         )?;
@@ -361,7 +370,19 @@ pub fn renew(paths: &Paths, platform: &Platform, force: bool) -> Result<()> {
             recover(paths).context("renewal failed and previous Soloist could not be restored")?;
             return Err(error.context("renewal failed; previous Soloist restored"));
         }
+        atomic_json(
+            &pending_path(paths),
+            &RenewalPending {
+                previous_link: previous.clone(),
+                previous_state,
+                previous_record,
+                new_build: fresh_build.then(|| final_dir.clone()),
+                committed: true,
+            },
+            Some(0o600),
+        )?;
         fs::remove_file(pending_path(paths))?;
+        fs::File::open(&paths.state)?.sync_all()?;
         if let Err(error) = cleanup_obsolete_builds(paths, &final_dir, &previous) {
             eprintln!("warning: could not remove obsolete Soloist builds: {error:#}");
         }
@@ -437,6 +458,7 @@ mod tests {
                 previous_state: state,
                 previous_record: None,
                 new_build: Some(current_dir.clone()),
+                committed: false,
             },
             Some(0o600),
         )
@@ -449,6 +471,60 @@ mod tests {
         assert!(!pending_path(&paths).exists());
         assert!(!current_dir.exists());
         assert!(InstallState::load(&paths).unwrap().is_some());
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
+    #[serial]
+    fn finished_renewal_is_not_rolled_back_by_stale_journal() {
+        let directory = tempfile::tempdir().unwrap();
+        std::env::set_var("HOME", directory.path());
+        std::env::set_var("SOLOIST_DISPLAY_TEST_ROOT", directory.path().join("root"));
+        let paths = Paths::discover().unwrap();
+        paths.ensure_management_dirs().unwrap();
+        let previous_dir = paths.managed_soloist.join("build-previous");
+        let current_dir = paths.managed_soloist.join("build-current");
+        fs::create_dir_all(&previous_dir).unwrap();
+        fs::create_dir_all(&current_dir).unwrap();
+        fs::write(current_dir.join("soloist"), b"current").unwrap();
+        symlink(&current_dir, &paths.managed_soloist_current).unwrap();
+        let state = InstallState {
+            schema: STATE_SCHEMA,
+            version: "1.0.0".into(),
+            channel: None,
+            suppress_updates: false,
+            target: "test".into(),
+            active_release: paths.releases.join("1.0.0"),
+            previous_release: None,
+            installed_at: now(),
+            soloist: SoloistState {
+                ownership: SoloistOwnership::Installer,
+                executable: Some(current_dir.join("soloist")),
+                service_owned: true,
+                data_owned: false,
+                websocket_url: Some("ws://127.0.0.1:9090/".into()),
+                version: Some("current".into()),
+            },
+            managed_paths: vec![],
+            dependency_packages: vec![],
+        };
+        state.save(&paths).unwrap();
+        atomic_json(
+            &pending_path(&paths),
+            &RenewalPending {
+                previous_link: previous_dir,
+                previous_state: state,
+                previous_record: None,
+                new_build: Some(current_dir.clone()),
+                committed: true,
+            },
+            Some(0o600),
+        )
+        .unwrap();
+        recover(&paths).unwrap();
+        assert!(current_dir.exists());
+        assert_eq!(fs::read_link(&paths.managed_soloist_current).unwrap(), current_dir);
+        assert!(!pending_path(&paths).exists());
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
 

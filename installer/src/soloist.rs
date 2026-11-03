@@ -130,7 +130,9 @@ fn executable_from_service() -> Option<PathBuf> {
 }
 
 pub fn discover(paths: &Paths, installed: Option<&SoloistState>) -> SoloistState {
-    let websocket_url = Some(DEFAULT_WS.to_owned());
+    let websocket_url = installed
+        .and_then(|state| state.websocket_url.clone())
+        .or_else(|| Some(DEFAULT_WS.to_owned()));
     let candidates = [
         installed.and_then(|state| state.executable.clone()),
         paths
@@ -150,7 +152,7 @@ pub fn discover(paths: &Paths, installed: Option<&SoloistState>) -> SoloistState
         && executable
             .as_ref()
             .is_some_and(|path| path.starts_with(&paths.managed_soloist));
-    let running = websocket_healthy(DEFAULT_WS);
+    let running = websocket_url.as_deref().is_some_and(websocket_healthy);
     let independent_service_exists =
         paths.soloist_service.exists() && !installed.is_some_and(|state| state.service_owned);
     SoloistState {
@@ -163,7 +165,7 @@ pub fn discover(paths: &Paths, installed: Option<&SoloistState>) -> SoloistState
         },
         executable,
         service_owned: owned && paths.soloist_service.exists(),
-        data_owned: owned,
+        data_owned: owned && installed.is_some_and(|state| state.data_owned),
         websocket_url,
         version: installed.and_then(|state| state.version.clone()),
     }

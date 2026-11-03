@@ -596,7 +596,6 @@ pub fn start_existing(paths: &Paths, state: &SoloistState) -> Result<()> {
     }
     if state.ownership == SoloistOwnership::Installer {
         service::install_soloist(paths, &paths.managed_soloist_current.join("soloist"))?;
-        service::restart_soloist(paths)?;
         for _ in 0..20 {
             if healthy(state) {
                 return Ok(());
@@ -607,9 +606,7 @@ pub fn start_existing(paths: &Paths, state: &SoloistState) -> Result<()> {
     }
     if state.ownership == SoloistOwnership::Independent {
         if !paths.is_test() {
-            let _ = Command::new("systemctl")
-                .args(["--user", "start", "soloist.service"])
-                .status();
+            service::start_soloist_existing(paths)?;
         }
         for _ in 0..20 {
             if healthy(state) {

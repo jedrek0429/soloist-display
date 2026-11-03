@@ -1,6 +1,6 @@
 mod dependencies;
-mod lock;
 mod legacy;
+mod lock;
 mod manager;
 mod migrations;
 mod paths;

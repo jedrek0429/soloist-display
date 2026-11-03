@@ -441,7 +441,7 @@ fn wait_for_install_health(
     }
     wait_http(paths)?;
     for _ in 0..30 {
-        if soloist::healthy(soloist_state)
+        if soloist::external_healthy(soloist_state)
             && TcpStream::connect_timeout(
                 &"127.0.0.1:9091".parse().unwrap(),
                 Duration::from_millis(150),
@@ -452,7 +452,7 @@ fn wait_for_install_health(
         }
         thread::sleep(Duration::from_millis(200));
     }
-    if !soloist::healthy(soloist_state) {
+    if !soloist::external_healthy(soloist_state) {
         bail!(
             "Soloist health check failed: WebSocket {} is unavailable",
             soloist_state
@@ -1525,12 +1525,7 @@ pub fn doctor(paths: &Paths) -> Result<bool> {
         println!("{:<22} {}", "Soloist endpoint", endpoint);
         check!(
             "Soloist WebSocket",
-            paths.is_test()
-                || if state.soloist.ownership == SoloistOwnership::Independent {
-                    soloist::external_healthy(&state.soloist)
-                } else {
-                    soloist::healthy(&state.soloist)
-                },
+            paths.is_test() || soloist::external_healthy(&state.soloist),
             format!(
                 "No valid Soloist WebSocket response at {endpoint}; check its listener and service."
             )

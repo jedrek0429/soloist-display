@@ -318,6 +318,10 @@ impl SoloistUnitSnapshot {
         })
     }
 
+    pub fn has_previous(&self) -> bool {
+        !matches!(self.unit, SavedUnit::Missing) || self.was_active || self.was_enabled
+    }
+
     pub fn restore(&self, paths: &Paths) -> Result<()> {
         if !paths.is_test() && active(paths, "soloist.service") {
             systemctl(paths, &["stop", "soloist.service"], true)?;

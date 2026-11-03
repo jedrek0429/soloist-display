@@ -300,7 +300,10 @@ mod tests {
         let parsed = parse_unit(&paths, &unit).unwrap();
         assert_eq!(parsed.runtime.data_dir, temp.path().join("session"));
         assert_eq!(parsed.runtime.cache_size_mb, Some(500));
-        assert_eq!(parsed.runtime.pipewire_device.as_deref(), Some("alsa_output.usb"));
+        assert_eq!(
+            parsed.runtime.pipewire_device.as_deref(),
+            Some("alsa_output.usb")
+        );
         assert_eq!(parsed.runtime.initial_volume, Some(36));
         assert!(parsed.runtime.verbose);
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
@@ -316,7 +319,8 @@ mod tests {
         assert!(parse_unit(
             &paths,
             "[Service]\nExecStart=/usr/bin/soloist -n %H -k secret\n"
-        ).is_err());
+        )
+        .is_err());
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
     #[test]

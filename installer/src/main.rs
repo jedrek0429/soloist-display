@@ -17,6 +17,7 @@ use clap_complete::{generate, Shell};
 use lock::InstallLock;
 use manager::RemoveMode;
 use paths::Paths;
+use release::ReleaseChannel;
 use platform::Platform;
 use std::{
     fs,
@@ -66,8 +67,13 @@ enum Command {
     Launch,
     /// Open display settings.
     Settings,
-    /// Install the latest signed release.
-    Update,
+    /// Update to the latest release on the selected channel or a specific version.
+    Update {
+        #[arg(long, value_enum, conflicts_with = "version")]
+        channel: Option<ReleaseChannel>,
+        #[arg(long, conflicts_with = "channel")]
+        version: Option<String>,
+    },
     /// Restore installer-owned files and services.
     Repair,
     /// Check installation, services, ports, and audio.
@@ -128,9 +134,9 @@ fn run() -> Result<i32> {
         Command::Launch => manager::launch(&paths, false)?,
         Command::Settings => manager::launch(&paths, true)?,
         Command::Completions { .. } => unreachable!("handled before path discovery"),
-        Command::Update => {
+        Command::Update { channel, version } => {
             let platform = Platform::detect()?;
-            locked(&paths, || manager::update(&paths, &platform, cli.quiet))?;
+            locked(&paths, || manager::update(&paths, &platform, cli.quiet, channel, version.as_deref()))?;
         }
         Command::Repair => {
             let platform = Platform::detect()?;

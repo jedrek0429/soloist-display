@@ -188,7 +188,12 @@ pub fn enabled(paths: &Paths, unit: &str) -> bool {
             .is_ok_and(|status| status.success())
 }
 
-pub fn restore_unit_state(paths: &Paths, unit: &str, was_enabled: bool, was_active: bool) -> Result<()> {
+pub fn restore_unit_state(
+    paths: &Paths,
+    unit: &str,
+    was_enabled: bool,
+    was_active: bool,
+) -> Result<()> {
     if paths.is_test() {
         return Ok(());
     }

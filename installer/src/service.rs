@@ -233,7 +233,11 @@ fn service_pid(paths: &Paths, unit: &str) -> Option<u32> {
     if !result.status.success() {
         return None;
     }
-    let pid = String::from_utf8(result.stdout).ok()?.trim().parse::<u32>().ok()?;
+    let pid = String::from_utf8(result.stdout)
+        .ok()?
+        .trim()
+        .parse::<u32>()
+        .ok()?;
     (pid > 0).then_some(pid)
 }
 
@@ -276,7 +280,9 @@ fn owns_listener(pid: u32, endpoint: &str) -> bool {
                 continue;
             };
             if u16::from_str_radix(hex_port, 16).ok() == Some(port)
-                && cols[9].parse::<u64>().is_ok_and(|inode| sockets.contains(&inode))
+                && cols[9]
+                    .parse::<u64>()
+                    .is_ok_and(|inode| sockets.contains(&inode))
             {
                 return true;
             }
@@ -312,7 +318,8 @@ pub fn managed_process_healthy(
     if !owns_listener(pid, endpoint) {
         return false;
     }
-    websocket_healthy() && active(paths, "soloist.service")
+    websocket_healthy()
+        && active(paths, "soloist.service")
         && service_pid(paths, "soloist.service") == Some(pid)
 }
 

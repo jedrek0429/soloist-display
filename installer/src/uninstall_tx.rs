@@ -150,7 +150,10 @@ impl UninstallTransaction {
         while let Some(directory) = ancestor {
             match fs::symlink_metadata(directory) {
                 Ok(metadata) if metadata.file_type().is_symlink() => {
-                    bail!("refusing to traverse symlinked directory {}", directory.display());
+                    bail!(
+                        "refusing to traverse symlinked directory {}",
+                        directory.display()
+                    );
                 }
                 Err(error) if error.kind() == io::ErrorKind::NotFound => {
                     bail!("uninstall directory disappeared: {}", directory.display());

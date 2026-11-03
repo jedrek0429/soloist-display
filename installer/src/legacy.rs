@@ -100,7 +100,10 @@ fn parse_unit(paths: &Paths, unit: &str) -> Result<ExistingSettings> {
                     for dependency in value.split_whitespace() {
                         if !matches!(
                             dependency,
-                            "sound.target" | "pipewire.service" | "pipewire-pulse.service" | "pulseaudio.service"
+                            "sound.target"
+                                | "pipewire.service"
+                                | "pipewire-pulse.service"
+                                | "pulseaudio.service"
                         ) {
                             bail!("existing Soloist depends on {dependency}; use external mode");
                         }

@@ -158,9 +158,13 @@ pub fn recover(paths: &Paths) -> Result<()> {
     if !paths.is_test() {
         let mut healthy = false;
         for _ in 0..24 {
-            if pending.previous_state.soloist.executable.as_ref().is_some_and(
-                |binary| managed_healthy(paths, &pending.previous_state, binary),
-            ) {
+            if pending
+                .previous_state
+                .soloist
+                .executable
+                .as_ref()
+                .is_some_and(|binary| managed_healthy(paths, &pending.previous_state, binary))
+            {
                 healthy = true;
                 break;
             }
@@ -183,7 +187,8 @@ fn local_build_matches(paths: &Paths, state: &InstallState, sha256: &str) -> boo
         return false;
     };
     let linked = paths.managed_soloist_current.join("soloist");
-    if !linked.is_file() || !binary.is_file()
+    if !linked.is_file()
+        || !binary.is_file()
         || fs::canonicalize(&linked).ok() != fs::canonicalize(binary).ok()
     {
         return false;
@@ -313,12 +318,14 @@ pub fn renew(paths: &Paths, platform: &Platform, force: bool) -> Result<()> {
                     && last_modified == record.last_modified
                     && length == record.content_length)
         })
-        && old.as_ref().is_some_and(|record| {
-            local_build_matches(paths, &state, &record.sha256)
-        })
-        && state.soloist.executable.as_ref().is_some_and(|binary| {
-            managed_healthy(paths, &state, binary)
-        })
+        && old
+            .as_ref()
+            .is_some_and(|record| local_build_matches(paths, &state, &record.sha256))
+        && state
+            .soloist
+            .executable
+            .as_ref()
+            .is_some_and(|binary| managed_healthy(paths, &state, binary))
     {
         return Ok(());
     }

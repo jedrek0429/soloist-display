@@ -3,7 +3,7 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::{
     fs, io,
-    os::unix::fs::{OpenOptionsExt, PermissionsExt},
+    os::unix::fs::OpenOptionsExt,
     path::{Path, PathBuf},
 };
 
@@ -308,6 +308,7 @@ pub fn recover(paths: &Paths) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::os::unix::fs::PermissionsExt;
     use serial_test::serial;
 
     fn setup() -> (tempfile::TempDir, Paths) {

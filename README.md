@@ -34,6 +34,6 @@ soloist-display uninstall --mode display
 
 This keeps your settings and Spotify Soloist. To remove display settings too, use `--mode data`. To also remove Soloist when it was installed by Soloist Display, use `--mode all`.
 
-For [prerelease or specific-version installations](docs/advanced-installation.md), [unattended setup](docs/advanced-installation.md#unattended-setup), or [troubleshooting](docs/installer.md), see the guides.
+For [prerelease or specific-version installations](docs/advanced-installation.md), [unattended setup](docs/advanced-installation.md#unattended-setup), or [troubleshooting](docs/troubleshooting.md), see the guides.
 
 MIT

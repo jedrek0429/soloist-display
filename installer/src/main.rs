@@ -120,6 +120,8 @@ enum Command {
 fn locked<T>(paths: &Paths, operation: impl FnOnce() -> Result<T>) -> Result<T> {
     paths.ensure_management_dirs()?;
     let _lock = InstallLock::acquire(&paths.lock, Duration::from_secs(15))?;
+    manager::recover(paths)?;
+    renewal::recover(paths)?;
     operation()
 }
 

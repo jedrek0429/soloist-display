@@ -37,6 +37,54 @@ fn unit_quote(path: &Path) -> String {
     )
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ManagedRuntime {
+    pub data_dir: PathBuf,
+    pub cache_dir: PathBuf,
+    pub websocket_url: String,
+}
+
+impl ManagedRuntime {
+    pub fn default_for(paths: &Paths) -> Self {
+        Self {
+            data_dir: paths.soloist_data.clone(),
+            cache_dir: paths.soloist_cache.clone(),
+            websocket_url: "ws://127.0.0.1:9090/".into(),
+        }
+    }
+
+    fn path(paths: &Paths) -> PathBuf {
+        paths.state.join("soloist-runtime.json")
+    }
+
+    pub fn load(paths: &Paths) -> Result<Self> {
+        let path = Self::path(paths);
+        if !path.exists() {
+            return Ok(Self::default_for(paths));
+        }
+        Ok(serde_json::from_slice(&fs::read(path)?)?)
+    }
+
+    pub fn save(&self, paths: &Paths) -> Result<()> {
+        if !self.data_dir.is_absolute() || !self.cache_dir.is_absolute() {
+            anyhow::bail!("Soloist runtime paths must be absolute");
+        }
+        crate::soloist::validate_websocket_url(&self.websocket_url)?;
+        crate::state::atomic_json(&Self::path(paths), self, Some(0o600))
+    }
+
+    fn websocket_bind(&self) -> Result<String> {
+        let url = url::Url::parse(&self.websocket_url)?;
+        let host = url.host_str().context("missing WebSocket hostname")?;
+        let port = url.port().context("missing WebSocket port")?;
+        Ok(if host.contains(':') {
+            format!("[{host}]:{port}")
+        } else {
+            format!("{host}:{port}")
+        })
+    }
+}
+
 const SOLOIST_UNIT: &str = r#"[Unit]
 Description=Spotify Soloist playback
 After=sound.target pipewire.service pipewire-pulse.service pulseaudio.service
@@ -44,7 +92,7 @@ After=sound.target pipewire.service pipewire-pulse.service pulseaudio.service
 [Service]
 Type=simple
 EnvironmentFile=__ENV__
-ExecStart=__SOLOIST__ --device-name ${SOLOIST_NAME} --api-key ${SOLOIST_API_KEY} --ws 127.0.0.1:9090 --data-dir __DATA__ --cache-dir __CACHE__
+ExecStart=__SOLOIST__ --device-name ${SOLOIST_NAME} --api-key ${SOLOIST_API_KEY} --ws __WS__ --data-dir __DATA__ --cache-dir __CACHE__
 Restart=on-failure
 RestartSec=5
 StartLimitIntervalSec=60
@@ -104,11 +152,13 @@ pub fn install_display(paths: &Paths) -> Result<()> {
 }
 
 pub fn install_soloist(paths: &Paths, executable: &Path) -> Result<()> {
+    let runtime = ManagedRuntime::load(paths)?;
     let unit = SOLOIST_UNIT
         .replace("__ENV__", &unit_quote(&paths.soloist_env))
         .replace("__SOLOIST__", &unit_quote(executable))
-        .replace("__DATA__", &unit_quote(&paths.soloist_data))
-        .replace("__CACHE__", &unit_quote(&paths.soloist_cache));
+        .replace("__WS__", &unit_quote(Path::new(&runtime.websocket_bind()?)))
+        .replace("__DATA__", &unit_quote(&runtime.data_dir))
+        .replace("__CACHE__", &unit_quote(&runtime.cache_dir));
     let changed = write_if_changed(&paths.soloist_service, &unit, 0o644)?;
     systemctl(paths, &["daemon-reload"], true)?;
     systemctl(paths, &["enable", "--now", "soloist.service"], false)?;

@@ -84,7 +84,7 @@ fn protocol_healthy(endpoint: &str) -> bool {
     };
     if ws
         .send(tungstenite::Message::Text(
-            r#"{"type":"command","command":"get_state"}"#.into(),
+            r#"{"type":"command","command":"get_auth_state"}"#.into(),
         ))
         .is_err()
     {
@@ -101,7 +101,7 @@ fn protocol_healthy(endpoint: &str) -> bool {
                     value.as_object().is_some_and(|obj| {
                         obj.get("type")
                             .and_then(serde_json::Value::as_str)
-                            .is_some()
+                            == Some("auth_state")
                     })
                 })
             {
@@ -575,7 +575,7 @@ mod tests {
                 let _ = socket.read().unwrap();
                 socket
                     .send(tungstenite::Message::Text(
-                        r#"{"type":"state","status":"stopped"}"#.into(),
+                        r#"{"type":"auth_state","logged_in":false}"#.into(),
                     ))
                     .unwrap();
             }

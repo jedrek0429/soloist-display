@@ -1702,7 +1702,8 @@ fn choose_uninstall_options(
 
 pub fn uninstall(paths: &Paths, options: UninstallOptions, quiet: bool) -> Result<()> {
     let Some(state) = InstallState::load(paths)? else {
-        if !paths.display_service.exists() && !paths.current.exists() && !paths.current.is_symlink() {
+        if !paths.display_service.exists() && !paths.current.exists() && !paths.current.is_symlink()
+        {
             return Ok(());
         }
         bail!("Soloist Display metadata is missing; recover or repair before uninstalling");
@@ -1713,7 +1714,9 @@ pub fn uninstall(paths: &Paths, options: UninstallOptions, quiet: bool) -> Resul
     } else {
         None
     };
-    let has_previous = previous.as_ref().is_some_and(|snapshot| snapshot.has_previous());
+    let has_previous = previous
+        .as_ref()
+        .is_some_and(|snapshot| snapshot.has_previous());
     let (soloist_action, data_action) = choose_uninstall_options(options, managed, has_previous)?;
     let progress = Progress::new(quiet, "Removing Soloist Display");
     let mut transaction = crate::uninstall_tx::UninstallTransaction::begin(paths, managed)?;
@@ -1764,7 +1767,9 @@ pub fn uninstall(paths: &Paths, options: UninstallOptions, quiet: bool) -> Resul
         progress.step(3, "Checking services");
         service::daemon_reload(paths)?;
         if matches!(soloist_action, Some(SoloistRemoval::Restore))
-            && previous.as_ref().is_some_and(|snapshot| snapshot.was_active())
+            && previous
+                .as_ref()
+                .is_some_and(|snapshot| snapshot.was_active())
             && !service::active(paths, "soloist.service")
         {
             bail!("restored Soloist service is not active; uninstall was cancelled");
@@ -2091,21 +2096,28 @@ mod tests {
             let managed_dir = paths.managed_soloist.join("current-build");
             fs::create_dir_all(&managed_dir)?;
             fs::write(managed_dir.join("soloist"), b"owned")?;
-            let state = installed_state(&paths, SoloistState {
-                ownership: SoloistOwnership::Installer,
-                executable: Some(managed_dir.join("soloist")),
-                service_owned: true,
-                data_owned: false,
-                websocket_url: Some("ws://127.0.0.1:9090/".into()),
-                version: Some("build".into()),
-            });
+            let state = installed_state(
+                &paths,
+                SoloistState {
+                    ownership: SoloistOwnership::Installer,
+                    executable: Some(managed_dir.join("soloist")),
+                    service_owned: true,
+                    data_owned: false,
+                    websocket_url: Some("ws://127.0.0.1:9090/".into()),
+                    version: Some("build".into()),
+                },
+            );
             atomic_link(&state.active_release, &paths.current)?;
             state.save(&paths)?;
-            uninstall(&paths, UninstallOptions {
-                soloist: Some(SoloistRemoval::Restore),
-                data: Some(DisplayDataRemoval::Keep),
-                yes: true,
-            }, true)?;
+            uninstall(
+                &paths,
+                UninstallOptions {
+                    soloist: Some(SoloistRemoval::Restore),
+                    data: Some(DisplayDataRemoval::Keep),
+                    yes: true,
+                },
+                true,
+            )?;
             assert_eq!(fs::read_to_string(&paths.soloist_service)?, original);
             assert!(service::active(&paths, "soloist.service"));
             assert!(!paths.managed_soloist.exists());

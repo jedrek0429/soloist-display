@@ -1,10 +1,10 @@
 use crate::platform::Platform;
 use anyhow::{anyhow, bail, Context, Result};
 use base64::{engine::general_purpose::STANDARD, Engine};
+use clap::ValueEnum;
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use reqwest::blocking::Client;
 use semver::Version;
-use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
@@ -75,24 +75,39 @@ pub enum ReleaseChannel {
 
 impl ReleaseChannel {
     pub fn for_version(version: &Version) -> Self {
-        if version.pre.is_empty() { Self::Stable } else { Self::Prerelease }
+        if version.pre.is_empty() {
+            Self::Stable
+        } else {
+            Self::Prerelease
+        }
     }
 }
 
-pub fn select_release_tag(releases: &[serde_json::Value], channel: Option<ReleaseChannel>) -> Result<String> {
+pub fn select_release_tag(
+    releases: &[serde_json::Value],
+    channel: Option<ReleaseChannel>,
+) -> Result<String> {
     let versions = releases.iter().filter_map(|release| {
-        if release["draft"].as_bool() != Some(false) { return None; }
+        if release["draft"].as_bool() != Some(false) {
+            return None;
+        }
         let tag = release["tag_name"].as_str()?;
         let parsed = Version::parse(tag.strip_prefix('v')?).ok()?;
-        if format!("v{parsed}") != tag || !parsed.build.is_empty() { return None; }
+        if format!("v{parsed}") != tag || !parsed.build.is_empty() {
+            return None;
+        }
         Some((parsed, tag))
     });
     let mut available: Vec<_> = versions.collect();
     let stable_exists = available.iter().any(|(v, _)| v.pre.is_empty());
-    let stable_only = channel == Some(ReleaseChannel::Stable)
-        || (channel.is_none() && stable_exists);
-    if stable_only { available.retain(|(v, _)| v.pre.is_empty()); }
-    available.into_iter().max_by(|a, b| a.0.cmp(&b.0))
+    let stable_only =
+        channel == Some(ReleaseChannel::Stable) || (channel.is_none() && stable_exists);
+    if stable_only {
+        available.retain(|(v, _)| v.pre.is_empty());
+    }
+    available
+        .into_iter()
+        .max_by(|a, b| a.0.cmp(&b.0))
         .map(|(_, tag)| tag.to_owned())
         .ok_or_else(|| anyhow!("no published release for selected channel"))
 }
@@ -130,7 +145,9 @@ impl ReleaseClient {
             let bytes = fs::read(&path)
                 .with_context(|| format!("read manifest {}", Path::new(&path).display()))?;
             let signature_path = std::env::var_os("SOLOIST_DISPLAY_MANIFEST_SIGNATURE")
-                .ok_or_else(|| anyhow!("SOLOIST_DISPLAY_MANIFEST_SIGNATURE is required with a local manifest"))?;
+                .ok_or_else(|| {
+                    anyhow!("SOLOIST_DISPLAY_MANIFEST_SIGNATURE is required with a local manifest")
+                })?;
             let signature = fs::read(signature_path)?;
             return self.verify_manifest(bytes, signature);
         }
@@ -162,8 +179,12 @@ impl ReleaseClient {
         };
         let manifest_url = format!("{}/release-manifest.json", base.trim_end_matches('/'));
         let signature_url = format!("{}/release-manifest.sig", base.trim_end_matches('/'));
-        let bytes = self.get_bytes(&manifest_url).context("download release manifest")?;
-        let signature = self.get_bytes(&signature_url).context("download release signature")?;
+        let bytes = self
+            .get_bytes(&manifest_url)
+            .context("download release manifest")?;
+        let signature = self
+            .get_bytes(&signature_url)
+            .context("download release signature")?;
         let verified = self.verify_manifest(bytes, signature)?;
         if requested != "latest" && verified.0.version.to_string() != requested {
             bail!(
@@ -171,8 +192,10 @@ impl ReleaseClient {
                 verified.0.version
             );
         }
-        if requested == "latest" && selected_channel == Some(ReleaseChannel::Stable)
-            && !verified.0.version.pre.is_empty() {
+        if requested == "latest"
+            && selected_channel == Some(ReleaseChannel::Stable)
+            && !verified.0.version.pre.is_empty()
+        {
             bail!("stable channel cannot install a prerelease");
         }
         Ok(verified)
@@ -180,8 +203,13 @@ impl ReleaseClient {
 
     fn find_release_tag(&self, channel: Option<ReleaseChannel>) -> Result<String> {
         let url = "https://api.github.com/repos/jedrek0429/soloist-display/releases?per_page=100";
-        let releases: Vec<serde_json::Value> = self.client.get(url).send()?
-            .error_for_status()?.json().context("parse GitHub releases")?;
+        let releases: Vec<serde_json::Value> = self
+            .client
+            .get(url)
+            .send()?
+            .error_for_status()?
+            .json()
+            .context("parse GitHub releases")?;
         select_release_tag(&releases, channel)
     }
 
@@ -424,14 +452,23 @@ mod channel_tests {
             json!({"draft":true,"tag_name":"v9.0.0"}),
         ];
         assert_eq!(select_release_tag(&releases, None).unwrap(), "v1.0.0");
-        assert_eq!(select_release_tag(&releases, Some(ReleaseChannel::Stable)).unwrap(), "v1.0.0");
-        assert_eq!(select_release_tag(&releases, Some(ReleaseChannel::Prerelease)).unwrap(), "v1.2.0-rc.3");
+        assert_eq!(
+            select_release_tag(&releases, Some(ReleaseChannel::Stable)).unwrap(),
+            "v1.0.0"
+        );
+        assert_eq!(
+            select_release_tag(&releases, Some(ReleaseChannel::Prerelease)).unwrap(),
+            "v1.2.0-rc.3"
+        );
     }
 
     #[test]
     fn first_public_release_can_be_alpha() {
         let releases = vec![json!({"draft":false,"tag_name":"v1.0.0-alpha.1"})];
-        assert_eq!(select_release_tag(&releases, None).unwrap(), "v1.0.0-alpha.1");
+        assert_eq!(
+            select_release_tag(&releases, None).unwrap(),
+            "v1.0.0-alpha.1"
+        );
         assert!(select_release_tag(&releases, Some(ReleaseChannel::Stable)).is_err());
     }
 }

@@ -17,8 +17,8 @@ use clap_complete::{generate, Shell};
 use lock::InstallLock;
 use manager::RemoveMode;
 use paths::Paths;
-use release::ReleaseChannel;
 use platform::Platform;
+use release::ReleaseChannel;
 use std::{
     fs,
     io::{IsTerminal, Write},
@@ -53,7 +53,10 @@ struct Cli {
 }
 
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
-enum NotificationSetting { On, Off }
+enum NotificationSetting {
+    On,
+    Off,
+}
 
 #[derive(Subcommand, Debug)]
 enum Command {
@@ -146,13 +149,31 @@ fn run() -> Result<i32> {
         Command::Launch => manager::launch(&paths, false)?,
         Command::Settings => manager::launch(&paths, true)?,
         Command::Completions { .. } => unreachable!("handled before path discovery"),
-        Command::Update { channel, version, allow_downgrade } => {
+        Command::Update {
+            channel,
+            version,
+            allow_downgrade,
+        } => {
             let platform = Platform::detect()?;
-            locked(&paths, || manager::update(&paths, &platform, cli.quiet, channel, version.as_deref(), allow_downgrade))?;
+            locked(&paths, || {
+                manager::update(
+                    &paths,
+                    &platform,
+                    cli.quiet,
+                    channel,
+                    version.as_deref(),
+                    allow_downgrade,
+                )
+            })?;
         }
         Command::CheckUpdates => manager::update_status(&paths)?,
         Command::Notifications { setting } => {
-            locked(&paths, || manager::set_update_notifications(&paths, matches!(setting, NotificationSetting::On)))?;
+            locked(&paths, || {
+                manager::set_update_notifications(
+                    &paths,
+                    matches!(setting, NotificationSetting::On),
+                )
+            })?;
         }
         Command::Repair => {
             let platform = Platform::detect()?;

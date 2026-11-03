@@ -87,7 +87,7 @@ case "$target" in
   armv7-*) pinned_sha=$PIN_ARMV7 ;;
 esac
 
-if [ "$version" != latest ] || [ "$RELEASE_BASE" != "$PIN_RELEASE_BASE" ]; then pinned_sha=untrusted; fi
+if [ "$RELEASE_BASE" != "$PIN_RELEASE_BASE" ]; then pinned_sha=untrusted; fi
 case "$pinned_sha" in
 @*|untrusted)
   command -v openssl >/dev/null 2>&1 || fail 'OpenSSL is required to authenticate installer metadata'

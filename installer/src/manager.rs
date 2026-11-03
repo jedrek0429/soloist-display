@@ -861,7 +861,10 @@ pub fn install(
     if !quiet {
         progress.step(1, "Checking dependencies");
     }
-    let packages = match dependencies::install(platform, quiet) {
+    let packages = match {
+        let _pause = (!dependencies::runtime_ready()).then(|| progress.pause());
+        dependencies::install(platform, quiet)
+    } {
         Ok(packages) => packages,
         Err(error) => {
             transaction.fail(&journal_path, error.to_string()).ok();
@@ -907,7 +910,10 @@ pub fn install(
             external.clone()
         } else if discovered_soloist.ownership == SoloistOwnership::Installer {
             let existing = discovered_soloist.clone();
-            soloist::configure(paths, name.clone(), api_key.clone())?;
+            {
+                let _pause = progress.pause();
+                soloist::configure(paths, name.clone(), api_key.clone())?;
+            }
             soloist::start_existing(paths, &existing)?;
             existing
         } else {
@@ -946,21 +952,27 @@ pub fn install(
                 }
                 runtime.save(paths)?;
             }
+            let soloist_name = name.or_else(|| {
+                existing_settings
+                    .as_ref()
+                    .and_then(|settings| settings.name.clone())
+            });
+            let soloist_key = api_key.or_else(|| {
+                existing_settings
+                    .as_ref()
+                    .and_then(|settings| settings.api_key.clone())
+            });
+            {
+                let _pause = progress.pause();
+                soloist::configure(paths, soloist_name.clone(), soloist_key.clone())?;
+            }
             soloist::install(
                 paths,
                 &client,
                 manifest.soloist(platform)?,
                 &manifest.version.to_string(),
-                name.or_else(|| {
-                    existing_settings
-                        .as_ref()
-                        .and_then(|settings| settings.name.clone())
-                }),
-                api_key.or_else(|| {
-                    existing_settings
-                        .as_ref()
-                        .and_then(|settings| settings.api_key.clone())
-                }),
+                soloist_name,
+                soloist_key,
             )?
         };
         save_soloist_websocket(
@@ -1109,6 +1121,10 @@ pub fn update(
                 .as_ref()
                 .is_some_and(|path| path.is_file())
         {
+            {
+                let _pause = progress.pause();
+                soloist::configure(paths, None, None)?;
+            }
             next_soloist = soloist::install(
                 paths,
                 &client,
@@ -1243,6 +1259,10 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
     service::install_display(paths)?;
     match state.soloist.ownership {
         SoloistOwnership::Installer => {
+            {
+                let _pause = progress.pause();
+                soloist::configure(paths, None, None)?;
+            }
             if !paths.managed_soloist_current.join("soloist").is_file() {
                 state.soloist = soloist::install(
                     paths,
@@ -1253,12 +1273,12 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
                     None,
                 )?;
             } else {
-                soloist::configure(paths, None, None)?;
                 service::install_soloist(paths, &paths.managed_soloist_current.join("soloist"))?;
             }
             service::install_renewal_timer(paths)?;
         }
         SoloistOwnership::Independent => {
+            let _pause = progress.pause();
             state.soloist = soloist::verify_external(
                 paths,
                 &state.soloist,

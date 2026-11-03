@@ -206,6 +206,12 @@ mod tests {
             let p = Progress::new(mode == "quiet", "probe");
             p.step(1, "Checking release");
             std::thread::sleep(Duration::from_millis(350));
+            if mode == "prompt" {
+                let _pause = p.pause();
+                eprint!("API key: ");
+                std::thread::sleep(Duration::from_millis(350));
+                eprintln!("[entered]");
+            }
         }
         success("Probe complete.".to_string());
     }
@@ -215,7 +221,7 @@ mod tests {
         let escaped = binary.display().to_string().replace('\'', "'\\''");
         let command =
             format!("'{escaped}' --exact terminal::tests::terminal_pty_probe --nocapture");
-        for mode in ["normal", "quiet"] {
+        for mode in ["normal", "quiet", "prompt"] {
             let result = std::process::Command::new("script")
                 .args(["-q", "-e", "-c", &command, "/dev/null"])
                 .env_remove("CI")
@@ -229,6 +235,9 @@ mod tests {
                 assert!(!output.contains("Checking release"), "{output}");
                 assert!(!output.contains("Probe complete."), "{output}");
             } else {
+                if mode == "prompt" {
+                    assert!(output.contains("API key: [entered]"), "{output:?}");
+                }
                 assert!(output.contains("Checking release"), "{output}");
                 assert!(output.contains("Probe complete."), "{output}");
                 assert!(output.contains("\r\x1b[2K"), "{output:?}");

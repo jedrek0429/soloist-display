@@ -968,7 +968,7 @@ pub fn update(
         next.target = platform.target.clone();
         next.soloist = next_soloist;
         next.save(paths)?;
-        if next_soloist.ownership == SoloistOwnership::Installer {
+        if next.soloist.ownership == SoloistOwnership::Installer {
             service::install_renewal_timer(paths)?;
         }
         tx.set_status(&tx_path, TransactionStatus::Committed)
@@ -1070,19 +1070,46 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
     install_visible_command(paths)?;
     desktop_files(paths)?;
     service::install_display(paths)?;
-    if state.soloist.ownership == SoloistOwnership::Installer {
-        let executable = state
-            .soloist
-            .executable
-            .as_ref()
-            .ok_or_else(|| anyhow!("installer-owned Soloist executable is missing"))?;
-        service::install_soloist(paths, executable)?;
-        service::install_renewal_timer(paths)?;
-    } else {
-        soloist::start_existing(paths, &state.soloist)?;
+    match state.soloist.ownership {
+        SoloistOwnership::Installer => {
+            if !paths.managed_soloist_current.join("soloist").is_file() {
+                state.soloist = soloist::install(
+                    paths,
+                    &client,
+                    manifest.soloist(platform)?,
+                    &manifest.version.to_string(),
+                    None,
+                    None,
+                )?;
+            } else {
+                service::install_soloist(
+                    paths,
+                    &paths.managed_soloist_current.join("soloist"),
+                )?;
+                soloist::start_existing(paths, &state.soloist)?;
+            }
+            service::install_renewal_timer(paths)?;
+        }
+        SoloistOwnership::Independent => {
+            state.soloist = soloist::verify_external(
+                paths,
+                &state.soloist,
+                state.soloist.websocket_url.as_deref(),
+            )?;
+        }
+        SoloistOwnership::None => {
+            bail!("Soloist mode is not configured; reinstall Soloist Display");
+        }
     }
+    save_soloist_websocket(
+        paths,
+        state.soloist.websocket_url.as_deref().ok_or_else(|| {
+            anyhow!("Soloist WebSocket endpoint is missing")
+        })?,
+    )?;
     progress.step(4, "Checking health");
     wait_for_install_health(paths, &state.soloist)?;
+    state.save(paths)?;
     drop(progress);
     if !quiet {
         println!("Repair complete.");

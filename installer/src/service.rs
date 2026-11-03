@@ -152,13 +152,24 @@ const RENEWAL_SERVICE: &str = "[Unit]\nDescription=Check Spotify Soloist binary 
 const RENEWAL_TIMER: &str = "[Unit]\nDescription=Check Spotify Soloist builds every six hours\n\n[Timer]\nOnBootSec=10min\nOnUnitActiveSec=6h\nPersistent=true\n\n[Install]\nWantedBy=timers.target\n";
 
 pub fn install_renewal_timer(paths: &Paths) -> Result<()> {
-    let directory = paths.soloist_service.parent().context("missing systemd user directory")?;
+    let directory = paths
+        .soloist_service
+        .parent()
+        .context("missing systemd user directory")?;
     let service_path = directory.join("soloist-display-renew.service");
     let timer_path = directory.join("soloist-display-renew.timer");
-    write_if_changed(&service_path, &RENEWAL_SERVICE.replace("__MANAGER__", &unit_quote(&paths.visible_command)), 0o644)?;
+    write_if_changed(
+        &service_path,
+        &RENEWAL_SERVICE.replace("__MANAGER__", &unit_quote(&paths.visible_command)),
+        0o644,
+    )?;
     write_if_changed(&timer_path, RENEWAL_TIMER, 0o644)?;
     systemctl(paths, &["daemon-reload"], true)?;
-    systemctl(paths, &["enable", "--now", "soloist-display-renew.timer"], true)
+    systemctl(
+        paths,
+        &["enable", "--now", "soloist-display-renew.timer"],
+        true,
+    )
 }
 
 pub fn remove_renewal_timer(paths: &Paths) -> Result<()> {
@@ -189,11 +200,16 @@ pub fn soloist_unit_present(paths: &Paths) -> bool {
         return paths.soloist_service.exists();
     }
     Command::new("systemctl")
-        .args(["--user", "show", "soloist.service", "--property=LoadState", "--value"])
+        .args([
+            "--user",
+            "show",
+            "soloist.service",
+            "--property=LoadState",
+            "--value",
+        ])
         .output()
         .is_ok_and(|output| {
-            output.status.success()
-                && String::from_utf8_lossy(&output.stdout).trim() == "loaded"
+            output.status.success() && String::from_utf8_lossy(&output.stdout).trim() == "loaded"
         })
 }
 
@@ -311,10 +327,7 @@ impl SoloistUnitSnapshot {
         }
         restore_original(&paths.soloist_service, &self.unit)?;
         systemctl(paths, &["daemon-reload"], true)?;
-        if matches!(self.unit, SavedUnit::Missing)
-            && !self.was_active
-            && !self.was_enabled
-        {
+        if matches!(self.unit, SavedUnit::Missing) && !self.was_active && !self.was_enabled {
             return Ok(());
         }
         if self.was_enabled {
@@ -327,7 +340,6 @@ impl SoloistUnitSnapshot {
         }
         Ok(())
     }
-
 }
 
 pub fn restart_soloist(paths: &Paths) -> Result<()> {

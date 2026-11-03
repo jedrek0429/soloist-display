@@ -1998,6 +1998,40 @@ mod tests {
 
     #[test]
     #[serial]
+    fn external_to_managed_migration_preserves_custom_session_and_restores_unit() {
+        let (_directory, paths) = test_paths();
+        let data = paths.home.join("old soloist data");
+        let cache = paths.home.join("old soloist cache");
+        fs::create_dir_all(&data).unwrap();
+        fs::write(data.join("session"), b"existing session").unwrap();
+        fs::create_dir_all(paths.soloist_service.parent().unwrap()).unwrap();
+        let original_unit = format!(
+            "[Service]\nExecStart=/usr/bin/soloist --device-name Speaker --api-key secret --data-dir '{}' --cache-dir '{}' --ws 127.0.0.1:9190\n",
+            data.display(),
+            cache.display()
+        );
+        fs::write(&paths.soloist_service, &original_unit).unwrap();
+        let snapshot = service::SoloistUnitSnapshot::capture(&paths).unwrap();
+        snapshot.persist(&paths).unwrap();
+        let settings = legacy::inspect(&paths).unwrap().unwrap();
+        assert_eq!(settings.runtime.data_dir, data);
+        settings.runtime.save(&paths).unwrap();
+        soloist::configure(&paths, settings.name, settings.api_key).unwrap();
+        let managed = paths.managed_soloist.join("current");
+        fs::create_dir_all(&managed).unwrap();
+        fs::write(managed.join("soloist"), b"managed").unwrap();
+        service::install_soloist(&paths, &managed.join("soloist")).unwrap();
+        let unit = fs::read_to_string(&paths.soloist_service).unwrap();
+        assert!(unit.contains(&data.to_string_lossy().to_string()));
+        assert!(unit.contains("127.0.0.1:9190"));
+        snapshot.restore(&paths).unwrap();
+        assert_eq!(fs::read_to_string(&paths.soloist_service).unwrap(), original_unit);
+        assert_eq!(fs::read(data.join("session")).unwrap(), b"existing session");
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
+    #[serial]
     fn uninstall_display_preserves_installer_owned_soloist_and_settings() {
         let (_directory, paths) = test_paths();
         fs::create_dir_all(&paths.managed_soloist).unwrap();

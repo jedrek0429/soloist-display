@@ -1,8 +1,4 @@
-use crate::{
-    paths::Paths,
-    service,
-    state::atomic_json,
-};
+use crate::{paths::Paths, service, state::atomic_json};
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -96,21 +92,38 @@ impl UninstallTransaction {
         if journal.exists() {
             bail!("incomplete uninstall; recovery is required before retrying");
         }
-        let unit_dir = paths.soloist_service.parent().context("missing systemd unit directory")?;
+        let unit_dir = paths
+            .soloist_service
+            .parent()
+            .context("missing systemd unit directory")?;
         let zshrc = paths.home.join(".zshrc");
         let result = Self {
             phase: Phase::Preparing,
             moved: Vec::new(),
             previous_display_unit: bytes(&paths.display_service)?,
-            previous_soloist_unit: if managed { bytes(&paths.soloist_service)? } else { None },
-            previous_soloist_env: if managed { bytes(&paths.soloist_env)? } else { None },
+            previous_soloist_unit: if managed {
+                bytes(&paths.soloist_service)?
+            } else {
+                None
+            },
+            previous_soloist_env: if managed {
+                bytes(&paths.soloist_env)?
+            } else {
+                None
+            },
             previous_timer_unit: bytes(&unit_dir.join("soloist-display-renew.timer"))?,
             previous_timer_service: bytes(&unit_dir.join("soloist-display-renew.service"))?,
-            previous_zshrc: if zshrc.is_symlink() { None } else { bytes(&zshrc)? },
+            previous_zshrc: if zshrc.is_symlink() {
+                None
+            } else {
+                bytes(&zshrc)?
+            },
             managed,
             display_active: !paths.is_test() && service::active(paths, "soloist-display.service"),
             display_enabled: service::enabled(paths, "soloist-display.service"),
-            soloist_active: managed && !paths.is_test() && service::active(paths, "soloist.service"),
+            soloist_active: managed
+                && !paths.is_test()
+                && service::active(paths, "soloist.service"),
             soloist_enabled: managed && service::enabled(paths, "soloist.service"),
             timer_active: !paths.is_test() && service::active(paths, "soloist-display-renew.timer"),
             timer_enabled: service::enabled(paths, "soloist-display-renew.timer"),
@@ -129,7 +142,10 @@ impl UninstallTransaction {
             &paths.data_home,
             &paths.cache_home,
             &paths.bin_dir,
-        ].iter().any(|root| original.starts_with(root)) {
+        ]
+        .iter()
+        .any(|root| original.starts_with(root))
+        {
             bail!("refusing to remove unowned path {}", original.display());
         }
         match fs::symlink_metadata(original) {
@@ -139,7 +155,10 @@ impl UninstallTransaction {
         }
         let staged = staged_name(original)?;
         if fs::symlink_metadata(&staged).is_ok() {
-            bail!("uninstall staging location already exists: {}", staged.display());
+            bail!(
+                "uninstall staging location already exists: {}",
+                staged.display()
+            );
         }
         self.moved.push(MovedPath {
             original: original.to_owned(),
@@ -163,23 +182,40 @@ fn restore_moved(tx: &UninstallTransaction) -> Result<()> {
         let staged = fs::symlink_metadata(&moved.staged).is_ok();
         let original = fs::symlink_metadata(&moved.original).is_ok();
         if staged && original {
-            bail!("uninstall recovery found conflicting paths: {}", moved.original.display());
+            bail!(
+                "uninstall recovery found conflicting paths: {}",
+                moved.original.display()
+            );
         }
         if staged {
             fs::rename(&moved.staged, &moved.original)?;
             fs::File::open(moved.original.parent().context("missing parent")?)?.sync_all()?;
         } else if !original {
-            bail!("both original and staged path are missing: {}", moved.original.display());
+            bail!(
+                "both original and staged path are missing: {}",
+                moved.original.display()
+            );
         }
     }
     Ok(())
 }
 
 fn restore_services(paths: &Paths, tx: &UninstallTransaction) -> Result<()> {
-    let unit_dir = paths.soloist_service.parent().context("missing systemd unit directory")?;
+    let unit_dir = paths
+        .soloist_service
+        .parent()
+        .context("missing systemd unit directory")?;
     if tx.managed {
-        restore_file(&paths.soloist_service, tx.previous_soloist_unit.as_deref(), 0o644)?;
-        restore_file(&paths.soloist_env, tx.previous_soloist_env.as_deref(), 0o600)?;
+        restore_file(
+            &paths.soloist_service,
+            tx.previous_soloist_unit.as_deref(),
+            0o644,
+        )?;
+        restore_file(
+            &paths.soloist_env,
+            tx.previous_soloist_env.as_deref(),
+            0o600,
+        )?;
     }
     restore_file(
         &unit_dir.join("soloist-display-renew.timer"),
@@ -254,8 +290,8 @@ pub fn recover(paths: &Paths) -> Result<()> {
     if !path.exists() {
         return Ok(());
     }
-    let tx: UninstallTransaction = serde_json::from_slice(&fs::read(&path)?)
-        .context("read interrupted uninstall journal")?;
+    let tx: UninstallTransaction =
+        serde_json::from_slice(&fs::read(&path)?).context("read interrupted uninstall journal")?;
     if tx.phase == Phase::Committed {
         return finish_cleanup(paths, &tx);
     }

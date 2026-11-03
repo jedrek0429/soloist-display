@@ -364,9 +364,11 @@ pub fn renew(paths: &Paths, platform: &Platform, force: bool) -> Result<()> {
             && old.as_ref().is_some_and(|record| {
                 record.sha256 == digest && local_build_matches(paths, &state, &digest)
             })
-            && state.soloist.executable.as_ref().is_some_and(|binary| {
-                managed_healthy(paths, &state, binary)
-            })
+            && state
+                .soloist
+                .executable
+                .as_ref()
+                .is_some_and(|binary| managed_healthy(paths, &state, binary))
         {
             return Ok(());
         }

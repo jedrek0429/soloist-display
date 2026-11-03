@@ -354,7 +354,10 @@ pub fn install(
 /// Never replace an existing endpoint: independent Soloist installations may
 /// have their own configuration, which the installer must not take over.
 pub fn ensure_cli_discovery(paths: &Paths, state: &SoloistState) -> Result<()> {
-    if paths.is_test() || !healthy(state) {
+    if paths.is_test()
+        || state.ownership != SoloistOwnership::Installer
+        || !healthy(state)
+    {
         return Ok(());
     }
     let Some(url) = state.websocket_url.as_deref() else {

@@ -25,8 +25,188 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/pages/src"
           cp site/index.html "$RUNNER_TEMP/pages/index.html"
-          # Choose the newest published release (including prereleases).
-          RELEASE_TAG="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq '[.[] | select(.draft == false)][0].tag_name // empty')"
+          # Prefer the highest stable release; before the first stable, use the highest prerelease.
+          TAGS="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq '.[] | select(.draft == false) | .tag_name' | grep -E '^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?
+          if [ -n "$RELEASE_TAG" ]; then
+            printf '%s\n' "$RELEASE_TAG" | grep -Eq '^v[0-9A-Za-z.-]+$'
+            case "$RELEASE_TAG" in
+              *-alpha.*) RELEASE_LABEL=" · Alpha" ;;
+              *-*) RELEASE_LABEL=" · Pre-release" ;;
+              *) RELEASE_LABEL="" ;;
+            esac
+            sed -i "s@<!-- release-version -->@<a class=\"version\" href=\"https://github.com/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}\">${RELEASE_TAG}${RELEASE_LABEL}</a>@" "$RUNNER_TEMP/pages/index.html"
+          fi
+          cp styles.css "$RUNNER_TEMP/pages/styles.css"
+          cp src/motion.js src/spectrum.js "$RUNNER_TEMP/pages/src/"
+          cp site/demo.js "$RUNNER_TEMP/pages/src/demo.js"
+          # Bundle the album art at publish time, never fetch it during page load.
+          if ! curl --fail --location --retry 3 --silent --show-error \
+            "https://cdn-p.smehost.net/sites/c5d2b1a28fd246bfafed3b8dbafc1352/wp-content/uploads/2021/05/cover-45.jpg" \
+            -o "$RUNNER_TEMP/pages/kind-of-blue.jpg"; then
+            echo "::warning::Artwork CDN unavailable; restoring the last published image"
+            git fetch origin gh-pages:refs/remotes/origin/gh-pages
+            git show origin/gh-pages:kind-of-blue.jpg > "$RUNNER_TEMP/pages/kind-of-blue.jpg"
+            test -s "$RUNNER_TEMP/pages/kind-of-blue.jpg"
+          fi
+          # Use production display markup; replace only its live websocket entrypoint.
+          sed 's@src="./src/main.js"@src="./src/demo.js"@' index.html > "$RUNNER_TEMP/pages/preview.html"
+          if [ -n "$RELEASE_TAG" ]; then
+            curl --fail --location --silent --show-error \
+              "https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/install.sh" \
+              -o "$RUNNER_TEMP/pages/install.sh"
+            ! grep -q '@SOLOIST_DISPLAY_' "$RUNNER_TEMP/pages/install.sh"
+            sh -n "$RUNNER_TEMP/pages/install.sh"
+          else
+            echo "::notice::No published release yet; preserve the previously deployed installer"
+            git fetch origin gh-pages:refs/remotes/origin/gh-pages
+            git show origin/gh-pages:install.sh > "$RUNNER_TEMP/pages/install.sh"
+            test -s "$RUNNER_TEMP/pages/install.sh"
+          fi
+          touch "$RUNNER_TEMP/pages/.nojekyll"
+      - name: Publish gh-pages branch
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git fetch origin gh-pages:refs/remotes/origin/gh-pages || true
+          if git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
+            git switch --track origin/gh-pages
+          else
+            git switch --orphan gh-pages
+          fi
+          cp "$RUNNER_TEMP/pages/index.html" index.html
+          cp "$RUNNER_TEMP/pages/preview.html" preview.html
+          cp "$RUNNER_TEMP/pages/styles.css" styles.css
+          cp "$RUNNER_TEMP/pages/kind-of-blue.jpg" kind-of-blue.jpg
+          mkdir -p src
+          cp "$RUNNER_TEMP/pages/src/"*.js src/
+          cp "$RUNNER_TEMP/pages/install.sh" install.sh
+          cp "$RUNNER_TEMP/pages/.nojekyll" .nojekyll
+          git add index.html preview.html kind-of-blue.jpg styles.css src/motion.js src/spectrum.js src/demo.js install.sh .nojekyll
+          git commit -m "Publish Soloist Display landing page" || true
+          git push origin HEAD:gh-pages
+ || true)"
+          STABLE_TAGS="$(printf '%s\\n' "$TAGS" | grep -E '^v[0-9]+\\.[0-9]+\\.[0-9]+
+          if [ -n "$RELEASE_TAG" ]; then
+            printf '%s\n' "$RELEASE_TAG" | grep -Eq '^v[0-9A-Za-z.-]+$'
+            case "$RELEASE_TAG" in
+              *-alpha.*) RELEASE_LABEL=" · Alpha" ;;
+              *-*) RELEASE_LABEL=" · Pre-release" ;;
+              *) RELEASE_LABEL="" ;;
+            esac
+            sed -i "s@<!-- release-version -->@<a class=\"version\" href=\"https://github.com/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}\">${RELEASE_TAG}${RELEASE_LABEL}</a>@" "$RUNNER_TEMP/pages/index.html"
+          fi
+          cp styles.css "$RUNNER_TEMP/pages/styles.css"
+          cp src/motion.js src/spectrum.js "$RUNNER_TEMP/pages/src/"
+          cp site/demo.js "$RUNNER_TEMP/pages/src/demo.js"
+          # Bundle the album art at publish time, never fetch it during page load.
+          if ! curl --fail --location --retry 3 --silent --show-error \
+            "https://cdn-p.smehost.net/sites/c5d2b1a28fd246bfafed3b8dbafc1352/wp-content/uploads/2021/05/cover-45.jpg" \
+            -o "$RUNNER_TEMP/pages/kind-of-blue.jpg"; then
+            echo "::warning::Artwork CDN unavailable; restoring the last published image"
+            git fetch origin gh-pages:refs/remotes/origin/gh-pages
+            git show origin/gh-pages:kind-of-blue.jpg > "$RUNNER_TEMP/pages/kind-of-blue.jpg"
+            test -s "$RUNNER_TEMP/pages/kind-of-blue.jpg"
+          fi
+          # Use production display markup; replace only its live websocket entrypoint.
+          sed 's@src="./src/main.js"@src="./src/demo.js"@' index.html > "$RUNNER_TEMP/pages/preview.html"
+          if [ -n "$RELEASE_TAG" ]; then
+            curl --fail --location --silent --show-error \
+              "https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/install.sh" \
+              -o "$RUNNER_TEMP/pages/install.sh"
+            ! grep -q '@SOLOIST_DISPLAY_' "$RUNNER_TEMP/pages/install.sh"
+            sh -n "$RUNNER_TEMP/pages/install.sh"
+          else
+            echo "::notice::No published release yet; preserve the previously deployed installer"
+            git fetch origin gh-pages:refs/remotes/origin/gh-pages
+            git show origin/gh-pages:install.sh > "$RUNNER_TEMP/pages/install.sh"
+            test -s "$RUNNER_TEMP/pages/install.sh"
+          fi
+          touch "$RUNNER_TEMP/pages/.nojekyll"
+      - name: Publish gh-pages branch
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git fetch origin gh-pages:refs/remotes/origin/gh-pages || true
+          if git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
+            git switch --track origin/gh-pages
+          else
+            git switch --orphan gh-pages
+          fi
+          cp "$RUNNER_TEMP/pages/index.html" index.html
+          cp "$RUNNER_TEMP/pages/preview.html" preview.html
+          cp "$RUNNER_TEMP/pages/styles.css" styles.css
+          cp "$RUNNER_TEMP/pages/kind-of-blue.jpg" kind-of-blue.jpg
+          mkdir -p src
+          cp "$RUNNER_TEMP/pages/src/"*.js src/
+          cp "$RUNNER_TEMP/pages/install.sh" install.sh
+          cp "$RUNNER_TEMP/pages/.nojekyll" .nojekyll
+          git add index.html preview.html kind-of-blue.jpg styles.css src/motion.js src/spectrum.js src/demo.js install.sh .nojekyll
+          git commit -m "Publish Soloist Display landing page" || true
+          git push origin HEAD:gh-pages
+ || true)"
+          if [ -n "$STABLE_TAGS" ]; then
+            RELEASE_TAG="$(printf '%s\\n' "$STABLE_TAGS" | sort -V | tail -n 1)"
+          else
+            RELEASE_TAG="$(printf '%s\\n' "$TAGS" | grep -v '^
+          if [ -n "$RELEASE_TAG" ]; then
+            printf '%s\n' "$RELEASE_TAG" | grep -Eq '^v[0-9A-Za-z.-]+$'
+            case "$RELEASE_TAG" in
+              *-alpha.*) RELEASE_LABEL=" · Alpha" ;;
+              *-*) RELEASE_LABEL=" · Pre-release" ;;
+              *) RELEASE_LABEL="" ;;
+            esac
+            sed -i "s@<!-- release-version -->@<a class=\"version\" href=\"https://github.com/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}\">${RELEASE_TAG}${RELEASE_LABEL}</a>@" "$RUNNER_TEMP/pages/index.html"
+          fi
+          cp styles.css "$RUNNER_TEMP/pages/styles.css"
+          cp src/motion.js src/spectrum.js "$RUNNER_TEMP/pages/src/"
+          cp site/demo.js "$RUNNER_TEMP/pages/src/demo.js"
+          # Bundle the album art at publish time, never fetch it during page load.
+          if ! curl --fail --location --retry 3 --silent --show-error \
+            "https://cdn-p.smehost.net/sites/c5d2b1a28fd246bfafed3b8dbafc1352/wp-content/uploads/2021/05/cover-45.jpg" \
+            -o "$RUNNER_TEMP/pages/kind-of-blue.jpg"; then
+            echo "::warning::Artwork CDN unavailable; restoring the last published image"
+            git fetch origin gh-pages:refs/remotes/origin/gh-pages
+            git show origin/gh-pages:kind-of-blue.jpg > "$RUNNER_TEMP/pages/kind-of-blue.jpg"
+            test -s "$RUNNER_TEMP/pages/kind-of-blue.jpg"
+          fi
+          # Use production display markup; replace only its live websocket entrypoint.
+          sed 's@src="./src/main.js"@src="./src/demo.js"@' index.html > "$RUNNER_TEMP/pages/preview.html"
+          if [ -n "$RELEASE_TAG" ]; then
+            curl --fail --location --silent --show-error \
+              "https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/install.sh" \
+              -o "$RUNNER_TEMP/pages/install.sh"
+            ! grep -q '@SOLOIST_DISPLAY_' "$RUNNER_TEMP/pages/install.sh"
+            sh -n "$RUNNER_TEMP/pages/install.sh"
+          else
+            echo "::notice::No published release yet; preserve the previously deployed installer"
+            git fetch origin gh-pages:refs/remotes/origin/gh-pages
+            git show origin/gh-pages:install.sh > "$RUNNER_TEMP/pages/install.sh"
+            test -s "$RUNNER_TEMP/pages/install.sh"
+          fi
+          touch "$RUNNER_TEMP/pages/.nojekyll"
+      - name: Publish gh-pages branch
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git fetch origin gh-pages:refs/remotes/origin/gh-pages || true
+          if git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
+            git switch --track origin/gh-pages
+          else
+            git switch --orphan gh-pages
+          fi
+          cp "$RUNNER_TEMP/pages/index.html" index.html
+          cp "$RUNNER_TEMP/pages/preview.html" preview.html
+          cp "$RUNNER_TEMP/pages/styles.css" styles.css
+          cp "$RUNNER_TEMP/pages/kind-of-blue.jpg" kind-of-blue.jpg
+          mkdir -p src
+          cp "$RUNNER_TEMP/pages/src/"*.js src/
+          cp "$RUNNER_TEMP/pages/install.sh" install.sh
+          cp "$RUNNER_TEMP/pages/.nojekyll" .nojekyll
+          git add index.html preview.html kind-of-blue.jpg styles.css src/motion.js src/spectrum.js src/demo.js install.sh .nojekyll
+          git commit -m "Publish Soloist Display landing page" || true
+          git push origin HEAD:gh-pages
+ | sort -V | tail -n 1)"
+          fi
           if [ -n "$RELEASE_TAG" ]; then
             printf '%s\n' "$RELEASE_TAG" | grep -Eq '^v[0-9A-Za-z.-]+$'
             case "$RELEASE_TAG" in

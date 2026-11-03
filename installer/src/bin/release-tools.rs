@@ -2,7 +2,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use semver::Version;
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
-use std::{collections::{BTreeMap, BTreeSet}, env, fs, io::{self, Read}, path::{Path, PathBuf}, process::Command};
+use std::{collections::{BTreeMap, BTreeSet}, env, fs, io::Read, path::Path, process::Command};
 
 const TARGETS: [&str; 3] = [
     "x86_64-unknown-linux-musl",

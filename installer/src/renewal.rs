@@ -30,6 +30,58 @@ struct BuildRecord {
     sha256: String,
 }
 
+#[derive(Serialize, Deserialize)]
+struct RenewalPending {
+    previous_link: std::path::PathBuf,
+    previous_state: InstallState,
+    previous_record: Option<Vec<u8>>,
+}
+
+fn pending_path(paths: &Paths) -> std::path::PathBuf {
+    paths.state.join("soloist-renew-pending.json")
+}
+
+pub fn recover(paths: &Paths) -> Result<()> {
+    let path = pending_path(paths);
+    if !path.exists() {
+        return Ok(());
+    }
+    let pending: RenewalPending = serde_json::from_slice(&fs::read(&path)?)?;
+    if pending.previous_state.soloist.ownership != SoloistOwnership::Installer {
+        bail!("refusing to restore a renewal not owned by Soloist Display");
+    }
+    let rollback = paths.managed_soloist.join(format!(".rollback-{}", std::process::id()));
+    symlink(&pending.previous_link, &rollback)?;
+    fs::rename(&rollback, &paths.managed_soloist_current)?;
+    pending.previous_state.save(paths)?;
+    let record_path = paths.state.join("soloist-build.json");
+    match pending.previous_record {
+        Some(bytes) => {
+            let record: BuildRecord = serde_json::from_slice(&bytes)?;
+            atomic_json(&record_path, &record, Some(0o600))?;
+        }
+        None if record_path.exists() => fs::remove_file(&record_path)?,
+        None => {}
+    }
+    service::install_soloist(paths, &paths.managed_soloist_current.join("soloist"))?;
+    service::restart_soloist(paths)?;
+    if !paths.is_test() {
+        let mut healthy = false;
+        for _ in 0..24 {
+            if soloist::healthy(&pending.previous_state.soloist) {
+                healthy = true;
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(250));
+        }
+        if !healthy {
+            bail!("previous Soloist is not healthy; renewal recovery remains pending");
+        }
+    }
+    fs::remove_file(path)?;
+    Ok(())
+}
+
 fn archive_name(platform: &Platform) -> &'static str {
     match platform.soloist_archive() {
         "x86_64" => "soloist_release_x86_64.tar.gz",
@@ -204,6 +256,15 @@ pub fn renew(paths: &Paths, platform: &Platform, force: bool) -> Result<()> {
             .context("managed Soloist has no previous version to restore")?;
         let previous_state = state.clone();
         let previous_record = fs::read(&record_path).ok();
+        atomic_json(
+            &pending_path(paths),
+            &RenewalPending {
+                previous_link: previous.clone(),
+                previous_state: previous_state.clone(),
+                previous_record: previous_record.clone(),
+            },
+            Some(0o600),
+        )?;
         let tmp_link = paths
             .managed_soloist
             .join(format!(".current-renew-{}", std::process::id()));
@@ -258,8 +319,10 @@ pub fn renew(paths: &Paths, platform: &Platform, force: bool) -> Result<()> {
             if !paths.is_test() && !soloist::healthy(&previous_state.soloist) {
                 bail!("renewal failed: {error:#}; previous Soloist restored but WebSocket is unhealthy");
             }
+            fs::remove_file(pending_path(paths))?;
             return Err(error.context("renewal failed; previous Soloist restored"));
         }
+        fs::remove_file(pending_path(paths))?;
         Ok(())
     })();
     fs::remove_dir_all(stage).ok();

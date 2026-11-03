@@ -47,6 +47,8 @@ pub struct InstallState {
     pub version: String,
     #[serde(default)]
     pub channel: Option<ReleaseChannel>,
+    #[serde(default)]
+    pub suppress_updates: bool,
     pub target: String,
     pub active_release: PathBuf,
     pub previous_release: Option<PathBuf>,

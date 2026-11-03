@@ -52,6 +52,9 @@ struct Cli {
     settings: bool,
 }
 
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+enum NotificationSetting { On, Off }
+
 #[derive(Subcommand, Debug)]
 enum Command {
     /// Generate shell completion script (e.g. `soloist-display completions zsh`).
@@ -73,6 +76,15 @@ enum Command {
         channel: Option<ReleaseChannel>,
         #[arg(long, conflicts_with = "channel")]
         version: Option<String>,
+        #[arg(long)]
+        allow_downgrade: bool,
+    },
+    /// Show installed version and latest available release on each channel.
+    CheckUpdates,
+    /// Enable or suppress update notifications without disabling manual updates.
+    Notifications {
+        #[arg(value_enum)]
+        setting: NotificationSetting,
     },
     /// Restore installer-owned files and services.
     Repair,
@@ -134,9 +146,13 @@ fn run() -> Result<i32> {
         Command::Launch => manager::launch(&paths, false)?,
         Command::Settings => manager::launch(&paths, true)?,
         Command::Completions { .. } => unreachable!("handled before path discovery"),
-        Command::Update { channel, version } => {
+        Command::Update { channel, version, allow_downgrade } => {
             let platform = Platform::detect()?;
-            locked(&paths, || manager::update(&paths, &platform, cli.quiet, channel, version.as_deref()))?;
+            locked(&paths, || manager::update(&paths, &platform, cli.quiet, channel, version.as_deref(), allow_downgrade))?;
+        }
+        Command::CheckUpdates => manager::update_status(&paths)?,
+        Command::Notifications { setting } => {
+            locked(&paths, || manager::set_update_notifications(&paths, matches!(setting, NotificationSetting::On)))?;
         }
         Command::Repair => {
             let platform = Platform::detect()?;

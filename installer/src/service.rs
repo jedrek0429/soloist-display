@@ -42,6 +42,14 @@ pub struct ManagedRuntime {
     pub data_dir: PathBuf,
     pub cache_dir: PathBuf,
     pub websocket_url: String,
+    #[serde(default)]
+    pub cache_size_mb: Option<u64>,
+    #[serde(default)]
+    pub pipewire_device: Option<String>,
+    #[serde(default)]
+    pub initial_volume: Option<u8>,
+    #[serde(default)]
+    pub verbose: bool,
 }
 
 impl ManagedRuntime {
@@ -50,6 +58,10 @@ impl ManagedRuntime {
             data_dir: paths.soloist_data.clone(),
             cache_dir: paths.soloist_cache.clone(),
             websocket_url: "ws://127.0.0.1:9090/".into(),
+            cache_size_mb: None,
+            pipewire_device: None,
+            initial_volume: None,
+            verbose: false,
         }
     }
 
@@ -70,7 +82,34 @@ impl ManagedRuntime {
             anyhow::bail!("Soloist runtime paths must be absolute");
         }
         crate::soloist::validate_websocket_url(&self.websocket_url)?;
+        self.extra_arguments()?;
         crate::state::atomic_json(&Self::path(paths), self, Some(0o600))
+    }
+
+    fn extra_arguments(&self) -> Result<String> {
+        let mut args = String::new();
+        if let Some(size) = self.cache_size_mb {
+            if size != 0 && size < 100 {
+                bail!("Soloist cache size must be zero or at least 100 MB");
+            }
+            args.push_str(&format!(" --cache-size {size}"));
+        }
+        if let Some(device) = &self.pipewire_device {
+            if device.trim().is_empty() || device.contains(['\n', '\r', '\0']) {
+                bail!("invalid PipeWire device name");
+            }
+            args.push_str(&format!(" --pipewire-device {}", unit_quote(Path::new(device))));
+        }
+        if let Some(volume) = self.initial_volume {
+            if volume > 100 {
+                bail!("Soloist initial volume must be between 0 and 100");
+            }
+            args.push_str(&format!(" --initial-volume {volume}"));
+        }
+        if self.verbose {
+            args.push_str(" --verbose");
+        }
+        Ok(args)
     }
 
     fn websocket_bind(&self) -> Result<String> {
@@ -92,7 +131,7 @@ After=sound.target pipewire.service pipewire-pulse.service pulseaudio.service
 [Service]
 Type=simple
 EnvironmentFile=__ENV__
-ExecStart=__SOLOIST__ --device-name ${SOLOIST_NAME} --api-key ${SOLOIST_API_KEY} --ws __WS__ --data-dir __DATA__ --cache-dir __CACHE__
+ExecStart=__SOLOIST__ --device-name ${SOLOIST_NAME} --api-key ${SOLOIST_API_KEY} --ws __WS__ --data-dir __DATA__ --cache-dir __CACHE____EXTRA__
 Restart=on-failure
 RestartSec=5
 StartLimitIntervalSec=60
@@ -157,7 +196,8 @@ pub fn install_soloist(paths: &Paths, executable: &Path) -> Result<()> {
         .replace("__SOLOIST__", &unit_quote(executable))
         .replace("__WS__", &unit_quote(Path::new(&runtime.websocket_bind()?)))
         .replace("__DATA__", &unit_quote(&runtime.data_dir))
-        .replace("__CACHE__", &unit_quote(&runtime.cache_dir));
+        .replace("__CACHE__", &unit_quote(&runtime.cache_dir))
+        .replace("__EXTRA__", &runtime.extra_arguments()?);
     let changed = write_if_changed(&paths.soloist_service, &unit, 0o644)?;
     systemctl(paths, &["daemon-reload"], true)?;
     systemctl(paths, &["enable", "--now", "soloist.service"], false)?;

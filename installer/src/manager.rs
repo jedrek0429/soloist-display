@@ -1740,7 +1740,6 @@ pub fn uninstall(paths: &Paths, options: UninstallOptions, quiet: bool) -> Resul
         service::remove_renewal_timer(paths)?;
         progress.step(2, "Removing files");
         transaction.stage(paths, &completion_directory(paths).join("_soloist-display"))?;
-        remove_completion(paths)?;
         for path in [
             &paths.display_service,
             &paths.visible_command,
@@ -1782,6 +1781,9 @@ pub fn uninstall(paths: &Paths, options: UninstallOptions, quiet: bool) -> Resul
         crate::uninstall_tx::recover(paths)
             .context("uninstall failed and recovery could not complete")?;
         return Err(error.context("uninstall did not complete"));
+    }
+    if let Err(error) = remove_completion(paths) {
+        eprintln!("warning: could not remove Zsh completion integration: {error:#}");
     }
     drop(progress);
     if !quiet {

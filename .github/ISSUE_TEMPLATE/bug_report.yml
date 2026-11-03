@@ -1,0 +1,28 @@
+name: Report an issue
+description: Something not working? Tell us what happened.
+title: ""
+labels: ["bug"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the problem in your own words. Screenshots are welcome.
+      placeholder: I tried to... but instead...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How can we reproduce it?
+      description: Optional, but helpful if you know the steps.
+      placeholder: "1. Open ...\n2. Click ...\n3. See ..."
+    validations:
+      required: false
+  - type: input
+    id: system
+    attributes:
+      label: System and version (optional)
+      placeholder: "e.g. Ubuntu 24.04, Soloist Display 1.0.0-alpha.1"
+    validations:
+      required: false

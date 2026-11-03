@@ -2,6 +2,7 @@ use crate::{
     paths::Paths,
     platform::Platform,
     service,
+    soloist,
     state::{atomic_json, InstallState, SoloistOwnership},
 };
 use anyhow::{anyhow, bail, Context, Result};
@@ -138,6 +139,7 @@ pub fn renew(paths: &Paths, platform: &Platform, force: bool) -> Result<()> {
                     && last_modified == record.last_modified
                     && length == record.content_length)
         })
+        && (paths.is_test() || soloist::healthy(&state.soloist))
         && state
             .soloist
             .executable
@@ -198,40 +200,66 @@ pub fn renew(paths: &Paths, platform: &Platform, force: bool) -> Result<()> {
             fs::create_dir(&final_dir)?;
             fs::rename(&executable, final_dir.join("soloist"))?;
         }
-        let previous = fs::read_link(&paths.managed_soloist_current).ok();
+        let previous = fs::read_link(&paths.managed_soloist_current)
+            .context("managed Soloist has no previous version to restore")?;
+        let previous_state = state.clone();
+        let previous_record = fs::read(&record_path).ok();
         let tmp_link = paths
             .managed_soloist
             .join(format!(".current-renew-{}", std::process::id()));
         symlink(&final_dir, &tmp_link)?;
         fs::rename(&tmp_link, &paths.managed_soloist_current)?;
-        let updated =
-            service::install_soloist(paths, &paths.managed_soloist_current.join("soloist"))
-                .and_then(|_| service::restart_soloist(paths));
-        if let Err(error) = updated {
-            if let Some(previous) = previous {
-                let rollback = paths
-                    .managed_soloist
-                    .join(format!(".rollback-{}", std::process::id()));
-                symlink(previous, &rollback)?;
-                fs::rename(rollback, &paths.managed_soloist_current)?;
-                let _ =
-                    service::install_soloist(paths, &paths.managed_soloist_current.join("soloist"));
+        let activated = (|| -> Result<()> {
+            service::install_soloist(paths, &paths.managed_soloist_current.join("soloist"))?;
+            service::restart_soloist(paths)?;
+            if !paths.is_test() {
+                let mut ready = false;
+                for _ in 0..24 {
+                    if soloist::healthy(&state.soloist) {
+                        ready = true;
+                        break;
+                    }
+                    std::thread::sleep(Duration::from_millis(250));
+                }
+                if !ready {
+                    bail!("renewed Soloist did not expose a working WebSocket");
+                }
             }
-            return Err(error.context("renewal failed; restored previous Soloist"));
+            state.soloist.executable = Some(final_dir.join("soloist"));
+            state.soloist.version = Some(format!("build-{}", &digest[..16]));
+            atomic_json(
+                &record_path,
+                &BuildRecord {
+                    etag,
+                    last_modified,
+                    content_length: length,
+                    sha256: digest,
+                },
+                Some(0o600),
+            )?;
+            state.save(paths)?;
+            Ok(())
+        })();
+        if let Err(error) = activated {
+            let rollback = paths
+                .managed_soloist
+                .join(format!(".rollback-{}", std::process::id()));
+            symlink(&previous, &rollback)?;
+            fs::rename(rollback, &paths.managed_soloist_current)?;
+            previous_state.save(paths)?;
+            match previous_record {
+                Some(bytes) => fs::write(&record_path, bytes)?,
+                None if record_path.exists() => fs::remove_file(&record_path)?,
+                None => {}
+            }
+            service::install_soloist(paths, &paths.managed_soloist_current.join("soloist"))
+                .context("restore previous Soloist service")?;
+            service::restart_soloist(paths).context("restart previous Soloist")?;
+            if !paths.is_test() && !soloist::healthy(&previous_state.soloist) {
+                bail!("renewal failed: {error:#}; previous Soloist restored but WebSocket is unhealthy");
+            }
+            return Err(error.context("renewal failed; previous Soloist restored"));
         }
-        state.soloist.executable = Some(final_dir.join("soloist"));
-        state.soloist.version = Some(format!("build-{}", &digest[..16]));
-        state.save(paths)?;
-        atomic_json(
-            &record_path,
-            &BuildRecord {
-                etag,
-                last_modified,
-                content_length: length,
-                sha256: digest,
-            },
-            Some(0o600),
-        )?;
         Ok(())
     })();
     fs::remove_dir_all(stage).ok();

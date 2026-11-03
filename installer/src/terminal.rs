@@ -110,11 +110,7 @@ impl Progress {
                     {
                         let _guard = output_lock().lock().unwrap_or_else(|e| e.into_inner());
                         if suspended.load(Ordering::Acquire) {
-                            if drawn {
-                                eprint!("\r\x1b[2K");
-                                let _ = io::stderr().flush();
-                                drawn = false;
-                            }
+                            drawn = false;
                         } else if number > 0 {
                             let bar = format!(
                                 "{}{}",
@@ -152,9 +148,9 @@ impl Progress {
         }
     }
     pub fn pause(&self) -> ProgressPause<'_> {
+        let _guard = output_lock().lock().unwrap_or_else(|e| e.into_inner());
         self.paused.store(true, Ordering::Release);
         if self.worker.is_some() {
-            let _guard = output_lock().lock().unwrap_or_else(|e| e.into_inner());
             eprint!("\r\x1b[2K");
             let _ = io::stderr().flush();
         }

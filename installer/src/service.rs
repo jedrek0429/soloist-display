@@ -176,8 +176,8 @@ pub fn user_manager_available(paths: &Paths) -> bool {
     paths.is_test()
         || Command::new("systemctl")
             .args(["--user", "show-environment"])
-            .status()
-            .is_ok_and(|s| s.success())
+            .output()
+            .is_ok_and(|output| output.status.success())
 }
 
 pub fn install_display(paths: &Paths) -> Result<()> {
@@ -201,13 +201,14 @@ pub fn install_soloist(paths: &Paths, executable: &Path) -> Result<()> {
         .replace("__DATA__", &unit_quote(&runtime.data_dir))
         .replace("__CACHE__", &unit_quote(&runtime.cache_dir))
         .replace("__EXTRA__", &runtime.extra_arguments()?);
-    let changed = write_if_changed(&paths.soloist_service, &unit, 0o644)?;
-    systemctl(paths, &["daemon-reload"], true)?;
-    systemctl(paths, &["enable", "--now", "soloist.service"], false)?;
-    if changed {
-        systemctl(paths, &["restart", "soloist.service"], true)?;
+    if !paths.is_test() && !paths.soloist_env.is_file() {
+        bail!("Soloist credentials are missing; run the installer interactively to configure them");
     }
-    Ok(())
+    write_if_changed(&paths.soloist_service, &unit, 0o644)?;
+    systemctl(paths, &["daemon-reload"], true)?;
+    systemctl(paths, &["enable", "soloist.service"], true)?;
+    systemctl(paths, &["reset-failed", "soloist.service"], true)?;
+    systemctl(paths, &["restart", "soloist.service"], true)
 }
 
 pub fn start_display(paths: &Paths) -> Result<()> {
@@ -437,7 +438,7 @@ pub fn soloist_unit_present(paths: &Paths) -> bool {
 }
 
 pub fn stop_soloist_existing(paths: &Paths) -> Result<()> {
-    if soloist_unit_present(paths) && active(paths, "soloist.service") {
+    if soloist_unit_present(paths) {
         systemctl(paths, &["stop", "soloist.service"], true)?;
     }
     Ok(())

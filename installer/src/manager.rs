@@ -6,7 +6,9 @@ use crate::{
     process,
     release::{Artifact, ReleaseChannel, ReleaseClient, ReleaseManifest},
     service, soloist,
-    state::{now, InstallRecovery, InstallState, SoloistOwnership, TransactionJournal, TransactionStatus},
+    state::{
+        now, InstallRecovery, InstallState, SoloistOwnership, TransactionJournal, TransactionStatus,
+    },
 };
 use anyhow::{anyhow, bail, Context, Result};
 use serde::{Deserialize, Serialize};
@@ -503,7 +505,10 @@ fn restore_snapshot_file(path: &Path, previous: Option<&[u8]>, mode: u32) -> Res
 }
 
 fn recover_install(paths: &Paths, previous: &InstallRecovery) -> Result<()> {
-    let service_dir = paths.soloist_service.parent().context("missing systemd directory")?;
+    let service_dir = paths
+        .soloist_service
+        .parent()
+        .context("missing systemd directory")?;
     if !paths.is_test() {
         service::disable_owned(paths, "soloist-display.service")?;
     }
@@ -546,11 +551,7 @@ fn recover_install(paths: &Paths, previous: &InstallRecovery) -> Result<()> {
             service::SoloistUnitSnapshot::remove_backup(paths)?;
         }
     } else {
-        restore_snapshot_file(
-            &paths.soloist_env,
-            previous.previous_env.as_deref(),
-            0o600,
-        )?;
+        restore_snapshot_file(&paths.soloist_env, previous.previous_env.as_deref(), 0o600)?;
         if let Some(state) = InstallState::load(paths)? {
             if state.soloist.ownership == SoloistOwnership::Installer {
                 let binary = paths.managed_soloist_current.join("soloist");
@@ -739,13 +740,12 @@ pub fn install(
         } else {
             Some(service::SoloistUnitSnapshot::capture(paths)?)
         };
-    let existing_settings = if !use_external
-        && discovered_soloist.ownership == SoloistOwnership::Independent
-    {
-        legacy::inspect(paths)?
-    } else {
-        None
-    };
+    let existing_settings =
+        if !use_external && discovered_soloist.ownership == SoloistOwnership::Independent {
+            legacy::inspect(paths)?
+        } else {
+            None
+        };
     let original_runtime = fs::read(paths.state.join("soloist-runtime.json")).ok();
     let original_current = fs::read_link(&paths.managed_soloist_current).ok();
     let original_settings = fs::read(paths.config.join("config.json")).ok();
@@ -826,8 +826,10 @@ pub fn install(
         previous_renewal_service: fs::read(service_dir.join("soloist-display-renew.service")).ok(),
         previous_renewal_timer: fs::read(service_dir.join("soloist-display-renew.timer")).ok(),
         previous_soloist_link: original_current.clone(),
-        previous_display_active: !paths.is_test() && service::active(paths, "soloist-display.service"),
-        previous_timer_active: !paths.is_test() && service::active(paths, "soloist-display-renew.timer"),
+        previous_display_active: !paths.is_test()
+            && service::active(paths, "soloist-display.service"),
+        previous_timer_active: !paths.is_test()
+            && service::active(paths, "soloist-display-renew.timer"),
         restore_existing_service: existing_unit.is_some(),
         unit_backup_existed: original_unit_backup_exists,
     });
@@ -902,8 +904,16 @@ pub fn install(
                 &client,
                 manifest.soloist(platform)?,
                 &manifest.version.to_string(),
-                name.or_else(|| existing_settings.as_ref().and_then(|settings| settings.name.clone())),
-                api_key.or_else(|| existing_settings.as_ref().and_then(|settings| settings.api_key.clone())),
+                name.or_else(|| {
+                    existing_settings
+                        .as_ref()
+                        .and_then(|settings| settings.name.clone())
+                }),
+                api_key.or_else(|| {
+                    existing_settings
+                        .as_ref()
+                        .and_then(|settings| settings.api_key.clone())
+                }),
             )?
         };
         save_soloist_websocket(
@@ -1610,7 +1620,9 @@ fn choose_uninstall_options(
         bail!("cannot restore Soloist: there is no usable previous service snapshot");
     }
     if matches!(soloist, Some(SoloistRemoval::Remove)) && previous {
-        bail!("a previous Soloist installation exists; choose --soloist restore to avoid losing it");
+        bail!(
+            "a previous Soloist installation exists; choose --soloist restore to avoid losing it"
+        );
     }
     let data = if let Some(action) = options.data {
         action
@@ -1648,7 +1660,8 @@ fn safe_remove(path: &Path, allowed: &[&Path]) -> Result<()> {
 
 pub fn uninstall(paths: &Paths, options: UninstallOptions, quiet: bool) -> Result<()> {
     let Some(state) = InstallState::load(paths)? else {
-        if !paths.display_service.exists() && !paths.current.exists() && !paths.current.is_symlink() {
+        if !paths.display_service.exists() && !paths.current.exists() && !paths.current.is_symlink()
+        {
             return Ok(());
         }
         bail!("Soloist Display metadata is missing; repair or recover before uninstalling");
@@ -1659,9 +1672,10 @@ pub fn uninstall(paths: &Paths, options: UninstallOptions, quiet: bool) -> Resul
     } else {
         None
     };
-    let has_previous = previous.as_ref().is_some_and(|snapshot| snapshot.has_previous());
-    let (soloist_action, data_action) =
-        choose_uninstall_options(options, managed, has_previous)?;
+    let has_previous = previous
+        .as_ref()
+        .is_some_and(|snapshot| snapshot.has_previous());
+    let (soloist_action, data_action) = choose_uninstall_options(options, managed, has_previous)?;
     let progress = Progress::new(quiet, "Removing Soloist Display");
     progress.step(1, "Stopping services");
     if matches!(soloist_action, Some(SoloistRemoval::Keep)) && !quiet {
@@ -1877,10 +1891,15 @@ mod tests {
             yes: true,
         };
         assert!(choose_uninstall_options(
-            UninstallOptions { soloist: keep.soloist, data: keep.data, yes: true },
+            UninstallOptions {
+                soloist: keep.soloist,
+                data: keep.data,
+                yes: true
+            },
             false,
             false
-        ).is_err());
+        )
+        .is_err());
         assert!(choose_uninstall_options(
             UninstallOptions {
                 soloist: Some(SoloistRemoval::Restore),
@@ -1889,7 +1908,8 @@ mod tests {
             },
             true,
             false
-        ).is_err());
+        )
+        .is_err());
         assert!(choose_uninstall_options(
             UninstallOptions {
                 soloist: Some(SoloistRemoval::Remove),
@@ -1898,7 +1918,8 @@ mod tests {
             },
             true,
             true
-        ).is_err());
+        )
+        .is_err());
     }
 
     #[test]
@@ -1939,7 +1960,16 @@ mod tests {
         };
         installed_state(&paths, soloist_state).save(&paths).unwrap();
         atomic_link(&paths.releases.join("1.0.0-test"), &paths.current).unwrap();
-        uninstall(&paths, UninstallOptions { soloist: Some(SoloistRemoval::Keep), data: Some(DisplayDataRemoval::Keep), yes: true }, false).unwrap();
+        uninstall(
+            &paths,
+            UninstallOptions {
+                soloist: Some(SoloistRemoval::Keep),
+                data: Some(DisplayDataRemoval::Keep),
+                yes: true,
+            },
+            false,
+        )
+        .unwrap();
         assert!(paths.managed_soloist.join("soloist").exists());
         assert!(paths.config.join("config.json").exists());
         assert!(!paths.releases.exists());
@@ -1985,7 +2015,16 @@ mod tests {
         .unwrap();
         atomic_link(&paths.releases.join("1.0.0-test"), &paths.current).unwrap();
 
-        uninstall(&paths, UninstallOptions { soloist: Some(SoloistRemoval::Restore), data: Some(DisplayDataRemoval::Remove), yes: true }, true).unwrap();
+        uninstall(
+            &paths,
+            UninstallOptions {
+                soloist: Some(SoloistRemoval::Restore),
+                data: Some(DisplayDataRemoval::Remove),
+                yes: true,
+            },
+            true,
+        )
+        .unwrap();
         assert_eq!(fs::read(&paths.soloist_service).unwrap(), original_service);
         assert_eq!(fs::read(&paths.soloist_env).unwrap(), original_credentials);
         assert_eq!(
@@ -2012,7 +2051,16 @@ mod tests {
         };
         installed_state(&paths, soloist_state).save(&paths).unwrap();
         atomic_link(&paths.releases.join("1.0.0-test"), &paths.current).unwrap();
-        uninstall(&paths, UninstallOptions { soloist: None, data: Some(DisplayDataRemoval::Remove), yes: true }, false).unwrap();
+        uninstall(
+            &paths,
+            UninstallOptions {
+                soloist: None,
+                data: Some(DisplayDataRemoval::Remove),
+                yes: true,
+            },
+            false,
+        )
+        .unwrap();
         assert_eq!(fs::read(independent).unwrap(), b"independent");
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
@@ -2036,7 +2084,16 @@ mod tests {
         };
         installed_state(&paths, soloist_state).save(&paths).unwrap();
         atomic_link(&paths.releases.join("1.0.0-test"), &paths.current).unwrap();
-        uninstall(&paths, UninstallOptions { soloist: None, data: Some(DisplayDataRemoval::Remove), yes: true }, false).unwrap();
+        uninstall(
+            &paths,
+            UninstallOptions {
+                soloist: None,
+                data: Some(DisplayDataRemoval::Remove),
+                yes: true,
+            },
+            false,
+        )
+        .unwrap();
         assert!(!paths.config.join("config.json").exists());
         assert!(paths.soloist_env.exists());
         assert!(independent.exists());

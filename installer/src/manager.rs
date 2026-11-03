@@ -913,7 +913,12 @@ pub fn install(
         } else {
             if let Some(settings) = &existing_settings {
                 service::stop_soloist_existing(paths)?;
-                settings.runtime.save(paths)?;
+                let cloned_data = paths.managed_soloist.join("session");
+                transaction.record_created(&journal_path, cloned_data.clone())?;
+                let cloned_data = soloist::copy_existing_session(paths, &settings.runtime.data_dir)?;
+                let mut runtime = settings.runtime.clone();
+                runtime.data_dir = cloned_data;
+                runtime.save(paths)?;
             }
             soloist::install(
                 paths,

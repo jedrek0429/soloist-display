@@ -565,16 +565,26 @@ fn save_soloist_websocket(paths: &Paths, endpoint: &str) -> Result<()> {
     crate::state::atomic_json(&config_path, &settings, Some(0o600))
 }
 
+pub struct InstallOptions {
+    pub name: Option<String>,
+    pub api_key: Option<String>,
+    pub external_soloist: bool,
+    pub soloist_ws: Option<String>,
+}
+
 pub fn install(
     paths: &Paths,
     platform: &Platform,
     yes: bool,
     quiet: bool,
-    name: Option<String>,
-    api_key: Option<String>,
-    external_soloist: bool,
-    soloist_ws: Option<String>,
+    options: InstallOptions,
 ) -> Result<()> {
+    let InstallOptions {
+        name,
+        api_key,
+        external_soloist,
+        soloist_ws,
+    } = options;
     paths.ensure_management_dirs()?;
     recover(paths)?;
     if !service::user_manager_available(paths) {

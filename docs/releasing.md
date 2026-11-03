@@ -4,38 +4,21 @@ Tags follow [SemVer](https://semver.org/) and match the workspace Cargo version:
 
 Published tags are immutable. Need a fix? Publish a new tag. Don't rewrite history.
 
-## Before tagging
+## Prepare a release
 
-- Merge reviewed changes into `main`; all checks must pass.
-- Set the workspace version and update `Cargo.lock`.
-- Check the protected `RELEASE_SIGNING_KEY` (Ed25519 PEM) matches the public key embedded in `install.sh` and `installer/src/release.rs`. Never print the private key.
-- Check upstream Spotify Soloist archives for x86_64, ARM64 and ARMv7 are available.
-- Check supported Linux distributions and known limitations.
+Open **Actions → Prepare release → Run workflow** on `main`. Enter a SemVer version such as `1.0.0-beta.1`, `1.0.0-rc.1` or `1.0.0` (the `v` prefix is optional).
 
-```sh
-git switch main && git pull --ff-only
-cargo fmt --all -- --check
-cargo check --workspace --locked
-cargo test --workspace --all-targets --locked
-cargo clippy --workspace --all-targets --locked -- -D warnings
-sh -n install.sh
-cargo run --quiet -p soloist-display-installer --bin release-tools -- check-settings .
-cargo run --quiet -p soloist-display-installer --bin release-tools -- validate-tag v1.0.0-alpha.1
-```
+The workflow validates the version, updates `Cargo.toml` and `Cargo.lock`, and opens `chore: bump vX.Y.Z`. It also dispatches the build and distribution checks on that branch. GitHub suppresses ordinary workflow triggers from changes made using `GITHUB_TOKEN`.
 
-Run [installer tests](testing.md) in isolation. Verify Managed and External, migration, renewal, `repair`, `doctor`, rollback and all uninstall choices. Test a real Spotify session where possible. CI cross-builds do not prove native ARM playback.
+Review the PR and its checks before merging. Merging the version PR into `main` creates an annotated tag for the merged commit and dispatches **Signed release**. That workflow builds binaries, signs manifests and publishes the release.
 
-## Publish
+If automatic publication fails after the tag was created, rerun **Signed release** with its `vX.Y.Z` tag as the ref. Do not move a published tag or silently replace release assets.
 
-```sh
-git status --short
-git tag -a v1.0.0-alpha.1 -m "Soloist Display v1.0.0-alpha.1"
-git push origin v1.0.0-alpha.1
-```
+## Manual fallback
 
-The `Signed release` workflow builds the application for x86_64, ARM64 and ARMv7, verifies release artefacts, signs the release and bootstrap manifests with Ed25519, and publishes the GitHub Release. Prereleases are marked as such and are not set as the latest stable release.
+Publish manually only if the automation cannot run. Use the version in `Cargo.toml`, update `Cargo.lock`, merge the change and push a new annotated `vX.Y.Z` tag. A manually pushed tag triggers **Signed release**.
 
-Never publish if signing or any build failed.
+Before any release, verify the signing key matches the public keys embedded in `install.sh` and `installer/src/release.rs`, check that Spotify Soloist archives are available, and review supported Linux distributions and known limitations. CI cross-builds do not prove native ARM playback. See [installer tests](testing.md) for the manual hardware and migration checks.
 
 ## Check the release
 

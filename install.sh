@@ -33,7 +33,14 @@ if [ -t 2 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-}" != dumb ]; then
   red=$(printf '\033[31m')
 else reset=; red=; fi
 say() { [ "${quiet:-0}" -eq 1 ] || printf '  %s%s%s\n' "$color" "$*" "$reset" >&2; }
-fail() { printf '  %serror%s  %s\n' "$red" "$reset" "$*" >&2; exit 1; }
+fail() {
+  if [ -n "$red" ]; then
+    printf '  %s✗%s %s\n' "$red" "$reset" "$*" >&2
+  else
+    printf '  error  %s\n' "$*" >&2
+  fi
+  exit 1
+}
 cleanup() { [ -z "$tmp_dir" ] || rm -rf "$tmp_dir"; }
 trap 'cleanup' EXIT HUP INT TERM
 
@@ -134,7 +141,7 @@ if [ "$version" = latest ]; then
   esac
 fi
 say 'Installing'
-if [ -t 0 ] && [ -r /dev/tty ] && [ -w /dev/tty ]; then
+if [ -r /dev/tty ] && [ -w /dev/tty ] && ( : </dev/tty ) 2>/dev/null; then
   "$installer" install "$@" </dev/tty
 else
   "$installer" install "$@"

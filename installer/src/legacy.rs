@@ -6,7 +6,7 @@ use crate::{
 use anyhow::{anyhow, bail, Context, Result};
 use std::{
     collections::HashMap,
-    fs,
+    fs, io,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -161,11 +161,12 @@ fn parse_unit(paths: &Paths, unit: &str) -> Result<ExistingSettings> {
         if optional && !path.exists() {
             continue;
         }
-        for line in fs::read_to_string(&path)
-            .with_context(|| format!("read {}", path.display()))?
-            .lines()
-            .map(str::trim)
-        {
+        let contents = match fs::read_to_string(&path) {
+            Ok(contents) => contents,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error).with_context(|| format!("read {}", path.display())),
+        };
+        for line in contents.lines().map(str::trim) {
             if line.is_empty() || line.starts_with('#') {
                 continue;
             }
@@ -186,6 +187,9 @@ fn parse_unit(paths: &Paths, unit: &str) -> Result<ExistingSettings> {
         ) {
             bail!("existing Soloist uses an unsupported environment variable: {key}");
         }
+    }
+    for key in ["SOLOIST_NAME", "SOLOIST_API_KEY"] {
+        env.entry(key.to_owned()).or_default();
     }
     if exec_count != 1 {
         bail!("existing Soloist has multiple ExecStart commands; use external mode");
@@ -331,6 +335,25 @@ mod tests {
         assert_eq!(parsed.api_key.as_deref(), Some("secret"));
         assert_eq!(parsed.runtime.websocket_url, "ws://127.0.0.1:9190/");
         assert_eq!(parsed.runtime.data_dir, temp.path().join("data"));
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
+    #[serial]
+    fn missing_legacy_credentials_can_be_reentered() {
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("HOME", temp.path());
+        std::env::set_var("SOLOIST_DISPLAY_TEST_ROOT", temp.path().join("root"));
+        let paths = Paths::discover().unwrap();
+        let missing = temp.path().join("missing.env");
+        let unit = format!(
+            "[Service]\nEnvironmentFile={}\nExecStart=/usr/bin/soloist --device-name ${SOLOIST_NAME} --api-key ${SOLOIST_API_KEY} --ws 127.0.0.1:9090\n",
+            missing.display()
+        );
+        let settings = parse_unit(&paths, &unit).unwrap();
+        assert_eq!(settings.name.as_deref(), Some(""));
+        assert_eq!(settings.api_key.as_deref(), Some(""));
+        assert!(!missing.exists());
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
 

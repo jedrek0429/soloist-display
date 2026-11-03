@@ -424,6 +424,9 @@ pub fn install(
 ) -> Result<SoloistState> {
     configure(paths, name, api_key)?;
     let runtime = service::ManagedRuntime::load(paths)?;
+    if !paths.state.join("soloist-runtime.json").exists() {
+        runtime.save(paths)?;
+    }
     let data_owned = !runtime.data_dir.exists();
     let version_dir = paths.managed_soloist.join(version);
     fs::create_dir_all(&version_dir)?;

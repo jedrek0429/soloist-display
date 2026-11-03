@@ -2,7 +2,7 @@ use crate::{
     paths::{path_string, Paths},
     process,
 };
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::{
     fs,

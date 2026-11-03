@@ -58,7 +58,15 @@ fn words(input: &str) -> Result<Vec<String>> {
 }
 
 fn expand(value: &str, env: &HashMap<String, String>) -> Result<String> {
-    let prefix = format!("{}{}", '
+    if let Some(raw) = value.strip_prefix(char::from(36)) {
+        let key = raw.trim_start_matches('{').trim_end_matches('}');
+        return env
+            .get(key)
+            .cloned()
+            .ok_or_else(|| anyhow!("unset environment variable in existing Soloist service"));
+    }
+    if value.contains(char::from(36)) || value.contains('%') {
+        bail!("unsupported expansion in existing Soloist service; use external mode");
     }
     Ok(value.to_owned())
 }

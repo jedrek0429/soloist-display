@@ -1014,8 +1014,20 @@ pub fn launch(paths: &Paths, settings: bool) -> Result<()> {
     let mut browser_update_notice = None;
     if let Some(latest) = check_update_briefly(paths, &state) {
         eprintln!("Soloist Display {latest} is available on the {:?} channel.", state.effective_channel());
-        eprintln!("Run `soloist-display update` to install it.");
-        browser_update_notice = Some(latest);
+        if io::stdin().is_terminal() {
+            eprint!("Update now? [y/N] ");
+            io::stderr().flush()?;
+            let mut answer = String::new();
+            io::stdin().read_line(&mut answer)?;
+            if matches!(answer.trim().to_ascii_lowercase().as_str(), "y" | "yes") {
+                let platform = Platform::detect()?;
+                let _lock = crate::lock::InstallLock::acquire(&paths.lock, Duration::from_secs(15))?;
+                update(paths, &platform, false, None, None, false)?;
+            }
+        } else {
+            eprintln!("Run `soloist-display update` to install it.");
+            browser_update_notice = Some(latest);
+        }
     }
     let mut url = if settings {
         "http://127.0.0.1:8080/settings".to_owned()

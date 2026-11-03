@@ -792,11 +792,11 @@ pub fn install(
                     && unit.contains(&paths.current.display().to_string())
             });
         if owned_unit && !paths.is_test() {
-            let status = Command::new("systemctl")
+            let output = Command::new("systemctl")
                 .args(["--user", "stop", "soloist-display.service"])
-                .status()
+                .output()
                 .context("stop orphaned Soloist Display service")?;
-            if !status.success() {
+            if !output.status.success() {
                 bail!("could not stop the orphaned Soloist Display service");
             }
             // Wait briefly for the bridge to release its listeners.
@@ -908,6 +908,9 @@ pub fn install(
             external.clone()
         } else if discovered_soloist.ownership == SoloistOwnership::Installer {
             let existing = discovered_soloist.clone();
+            if !soloist::healthy(&existing) {
+                soloist::configure(paths, name.clone(), api_key.clone())?;
+            }
             soloist::start_existing(paths, &existing)?;
             existing
         } else {
@@ -1011,11 +1014,12 @@ pub fn install(
         Ok::<_, anyhow::Error>(())
     })();
     if let Err(error) = result {
+        drop(progress);
         let mut rollback_errors = Vec::new();
         if previous_state.is_none() && !paths.is_test() {
             let _ = Command::new("systemctl")
                 .args(["--user", "stop", "soloist-display.service"])
-                .status();
+                .output();
         }
         if let Some(unit) = &existing_unit {
             if let Err(failure) = unit.restore(paths) {
@@ -1078,7 +1082,7 @@ pub fn install(
                 rollback_errors.join("; ")
             ));
         }
-        return Err(error.context("installation failed; the previous state was restored"));
+        return Err(error.context("installation failed; changes were rolled back"));
     }
     drop(progress);
     if !quiet {
@@ -1197,6 +1201,7 @@ pub fn update(
         tx.set_status(&tx_path, TransactionStatus::Committed)
     })();
     if let Err(error) = result {
+        drop(progress);
         atomic_link(&state.active_release, &paths.current).ok();
         if state.soloist.ownership == SoloistOwnership::Installer {
             if let Some(previous_executable) = &state.soloist.executable {
@@ -1307,7 +1312,7 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
                     None,
                 )?;
             } else {
-                service::install_soloist(paths, &paths.managed_soloist_current.join("soloist"))?;
+                soloist::configure(paths, None, None)?;
                 soloist::start_existing(paths, &state.soloist)?;
             }
             service::install_renewal_timer(paths)?;

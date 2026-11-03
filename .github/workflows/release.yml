@@ -24,6 +24,9 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           actual="$(cargo metadata --no-deps --format-version 1 | python3 -c 'import json,sys; print(next(p["version"] for p in json.load(sys.stdin)["packages"] if p["name"] == "soloist-display-installer"))')"
           test "$actual" = "$version"
+      - name: Validate tag syntax
+        run: |
+          python3 scripts/validate-release-tag.py "$GITHUB_REF_NAME"
       - name: Build static executables
         run: |
           mkdir dist
@@ -109,4 +112,9 @@ jobs:
       - name: Publish immutable release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag --title "Soloist Display $GITHUB_REF_NAME" --generate-notes
+        run: |
+          args=(--repo "$GITHUB_REPOSITORY" --verify-tag --title "Soloist Display $GITHUB_REF_NAME" --generate-notes)
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            args+=(--prerelease --latest=false)
+          fi
+          gh release create "$GITHUB_REF_NAME" dist/* "${args[@]}"

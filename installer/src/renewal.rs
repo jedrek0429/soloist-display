@@ -13,7 +13,6 @@ use std::{
     io::{self, Read},
     os::unix::fs::{symlink, OpenOptionsExt, PermissionsExt},
     path::{Component, Path},
-    process::Command,
     time::Duration,
 };
 
@@ -34,6 +33,54 @@ struct RenewalPending {
     previous_link: std::path::PathBuf,
     previous_state: InstallState,
     previous_record: Option<Vec<u8>>,
+    #[serde(default)]
+    new_build: Option<std::path::PathBuf>,
+}
+
+fn remove_staged_build(paths: &Paths, path: &Path) -> Result<()> {
+    if path.parent() != Some(paths.managed_soloist.as_path())
+        || !path.file_name().and_then(|name| name.to_str())
+            .is_some_and(|name| name.starts_with("build-"))
+    {
+        bail!("refusing to clean up a build outside managed Soloist");
+    }
+    if fs::symlink_metadata(path)
+        .is_ok_and(|meta| meta.file_type().is_symlink())
+    {
+        bail!("refusing to follow a staged build symlink");
+    }
+    if path.is_dir() {
+        fs::remove_dir_all(path)?;
+        fs::File::open(&paths.managed_soloist)?.sync_all()?;
+    }
+    Ok(())
+}
+
+fn cleanup_obsolete_builds(paths: &Paths, active: &Path, previous: &Path) -> Result<()> {
+    for entry in fs::read_dir(&paths.managed_soloist)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path == active || path == previous {
+            continue;
+        }
+        if path.file_name().and_then(|name| name.to_str())
+            .is_some_and(|name| name.starts_with("build-"))
+            && entry.file_type()?.is_dir()
+        {
+            remove_staged_build(paths, &path)?;
+        }
+    }
+    Ok(())
+}
+
+fn ensure_official_response(response: reqwest::blocking::Response) -> Result<reqwest::blocking::Response> {
+    if !response.status().is_success() {
+        bail!("Spotify Soloist CDN returned HTTP {}", response.status());
+    }
+    if response.url().scheme() != "https" || response.url().host_str() != Some("soloist-builds.spotifycdn.com") {
+        bail!("unexpected Soloist archive origin");
+    }
+    Ok(response)
 }
 
 fn pending_path(paths: &Paths) -> std::path::PathBuf {
@@ -56,9 +103,9 @@ pub fn recover(paths: &Paths) -> Result<()> {
     fs::rename(&rollback, &paths.managed_soloist_current)?;
     pending.previous_state.save(paths)?;
     let record_path = paths.state.join("soloist-build.json");
-    match pending.previous_record {
+    match &pending.previous_record {
         Some(bytes) => {
-            let record: BuildRecord = serde_json::from_slice(&bytes)?;
+            let record: BuildRecord = serde_json::from_slice(bytes)?;
             atomic_json(&record_path, &record, Some(0o600))?;
         }
         None if record_path.exists() => fs::remove_file(&record_path)?,
@@ -78,6 +125,9 @@ pub fn recover(paths: &Paths) -> Result<()> {
         if !healthy {
             bail!("previous Soloist is not healthy; renewal recovery remains pending");
         }
+    }
+    if let Some(new_build) = pending.new_build.as_deref() {
+        remove_staged_build(paths, new_build)?;
     }
     fs::remove_file(path)?;
     Ok(())
@@ -167,9 +217,10 @@ pub fn renew(paths: &Paths, platform: &Platform, force: bool) -> Result<()> {
     let client = reqwest::blocking::Client::builder()
         .connect_timeout(Duration::from_secs(10))
         .timeout(Duration::from_secs(180))
+        .redirect(reqwest::redirect::Policy::none())
         .build()?;
     let url = format!("{CDN}/{}", archive_name(platform));
-    let head = client.head(&url).send()?.error_for_status()?;
+    let head = ensure_official_response(client.head(&url).send()?)?;
     let etag = head
         .headers()
         .get(reqwest::header::ETAG)
@@ -209,7 +260,7 @@ pub fn renew(paths: &Paths, platform: &Platform, force: bool) -> Result<()> {
     fs::create_dir(&stage)?;
     let result = (|| -> Result<()> {
         let archive_path = stage.join("soloist.tar.gz");
-        let response = client.get(&url).send()?.error_for_status()?;
+        let response = ensure_official_response(client.get(&url).send()?)?;
         if response.content_length().is_some_and(|n| n > MAX_ARCHIVE) {
             bail!("Soloist archive exceeds size limit");
         }
@@ -226,17 +277,6 @@ pub fn renew(paths: &Paths, platform: &Platform, force: bool) -> Result<()> {
         extract(&archive_path, &executable)?;
         valid_elf(&executable, platform.soloist_archive())?;
         fs::set_permissions(&executable, fs::Permissions::from_mode(0o755))?;
-        let version = Command::new(&executable)
-            .arg("--version")
-            .output()
-            .context("validate Soloist executable")?;
-        if !version.status.success()
-            || !String::from_utf8_lossy(&version.stdout)
-                .to_lowercase()
-                .contains("soloist")
-        {
-            bail!("downloaded Soloist failed version check");
-        }
         let mut hasher = Sha256::new();
         io::copy(
             &mut fs::File::open(&executable)?,
@@ -249,9 +289,12 @@ pub fn renew(paths: &Paths, platform: &Platform, force: bool) -> Result<()> {
         let final_dir = paths
             .managed_soloist
             .join(format!("build-{}", &digest[..16]));
-        if !final_dir.exists() {
-            fs::create_dir(&final_dir)?;
-            fs::rename(&executable, final_dir.join("soloist"))?;
+        let fresh_build = !final_dir.exists();
+        if !fresh_build {
+            let installed = final_dir.join("soloist");
+            if !installed.is_file() || crate::release::sha256_file(&installed)? != digest {
+                bail!("existing managed Soloist build has a checksum mismatch");
+            }
         }
         let previous = fs::read_link(&paths.managed_soloist_current)
             .context("managed Soloist has no previous version to restore")?;
@@ -263,9 +306,16 @@ pub fn renew(paths: &Paths, platform: &Platform, force: bool) -> Result<()> {
                 previous_link: previous.clone(),
                 previous_state: previous_state.clone(),
                 previous_record: previous_record.clone(),
+                new_build: fresh_build.then(|| final_dir.clone()),
             },
             Some(0o600),
         )?;
+        if fresh_build {
+            fs::create_dir(&final_dir)?;
+            fs::rename(&executable, final_dir.join("soloist"))?;
+            fs::File::open(&final_dir)?.sync_all()?;
+            fs::File::open(&paths.managed_soloist)?.sync_all()?;
+        }
         let tmp_link = paths
             .managed_soloist
             .join(format!(".current-renew-{}", std::process::id()));
@@ -303,30 +353,17 @@ pub fn renew(paths: &Paths, platform: &Platform, force: bool) -> Result<()> {
             Ok(())
         })();
         if let Err(error) = activated {
-            let rollback = paths
-                .managed_soloist
-                .join(format!(".rollback-{}", std::process::id()));
-            symlink(&previous, &rollback)?;
-            fs::rename(rollback, &paths.managed_soloist_current)?;
-            previous_state.save(paths)?;
-            match previous_record {
-                Some(bytes) => fs::write(&record_path, bytes)?,
-                None if record_path.exists() => fs::remove_file(&record_path)?,
-                None => {}
-            }
-            service::install_soloist(paths, &paths.managed_soloist_current.join("soloist"))
-                .context("restore previous Soloist service")?;
-            service::restart_soloist(paths).context("restart previous Soloist")?;
-            if !paths.is_test() && !soloist::healthy(&previous_state.soloist) {
-                bail!("renewal failed: {error:#}; previous Soloist restored but WebSocket is unhealthy");
-            }
-            fs::remove_file(pending_path(paths))?;
+            recover(paths).context("renewal failed and previous Soloist could not be restored")?;
             return Err(error.context("renewal failed; previous Soloist restored"));
         }
         fs::remove_file(pending_path(paths))?;
+        cleanup_obsolete_builds(paths, &final_dir, &previous)?;
         Ok(())
     })();
     fs::remove_dir_all(stage).ok();
+    if result.is_err() && pending_path(paths).exists() {
+        recover(paths).context("recover interrupted Soloist renewal")?;
+    }
     result
 }
 
@@ -392,6 +429,7 @@ mod tests {
                 previous_link: previous_dir.clone(),
                 previous_state: state,
                 previous_record: None,
+                new_build: Some(current_dir.clone()),
             },
             Some(0o600),
         )

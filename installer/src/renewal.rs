@@ -66,7 +66,7 @@ fn extract(archive_path: &Path, destination: &Path) -> Result<()> {
     let mut archive = tar::Archive::new(GzDecoder::new(file));
     let mut found = false;
     for entry in archive.entries()? {
-        let mut entry = entry?;
+        let entry = entry?;
         let path = entry.path()?;
         if path.components().any(|component| {
             matches!(
@@ -154,7 +154,7 @@ pub fn renew(paths: &Paths, platform: &Platform, force: bool) -> Result<()> {
     fs::create_dir(&stage)?;
     let result = (|| -> Result<()> {
         let archive_path = stage.join("soloist.tar.gz");
-        let mut response = client.get(&url).send()?.error_for_status()?;
+        let response = client.get(&url).send()?.error_for_status()?;
         if response.content_length().is_some_and(|n| n > MAX_ARCHIVE) {
             bail!("Soloist archive exceeds size limit");
         }

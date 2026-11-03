@@ -7,7 +7,7 @@ soloist-display doctor
 journalctl --user -u soloist-display.service -u soloist.service -n 100 --no-pager
 ```
 
-Don't post API keys, tokens or environment files in an issue. Really.
+Don't post API keys, tokens or environment files in an issue.
 
 ## Command not found
 
@@ -58,12 +58,12 @@ soloist-display doctor
 soloist-display repair
 ```
 
-The next mutating CLI command attempts recovery of interrupted transactions. If recovery itself fails, **keep the state files and journal**. Deleting them makes diagnosis harder, not easier.
+The next mutating CLI command attempts recovery of interrupted transactions. If recovery itself fails, **keep the state files and journal**.
 
 Signed-release verification failures must not be bypassed. Managed Spotify builds use HTTPS to Spotify's official CDN rather than a signed upstream manifest.
 
 ## Report a bug
 
-[Open a bug report](https://github.com/jedrek0429/soloist-display/issues/new?template=bug_report.yml) with your distribution, architecture, version, the exact error and sanitised logs.
+[Open a bug report](https://github.com/jedrek0429/soloist-display/issues/new?template=bug_report.yml) with your distribution, architecture, version, the exact error, `doctor` output and sanitised logs.
 
 See [advanced installation](advanced-installation.md) for install flags and [installer](installer.md) for what the manager actually touches.

@@ -8,7 +8,7 @@ Pick music on your phone. See the artwork, track details and live audio spectrum
 
 ## Install
 
-Requires Spotify Premium, systemd, glibc 2.38+ and Linux on x86_64, ARM64 or hard-float ARMv7 (Ubuntu 24.04+ or Debian 13+, for example).
+Requires **Spotify Premium**, systemd, glibc 2.38+ and Linux on x86_64, ARM64 or hard-float ARMv7 (Ubuntu 24.04+ or Debian 13+, for example).
 
 ```sh
 curl -fsSL https://jedrek0429.github.io/soloist-display/install.sh | sh

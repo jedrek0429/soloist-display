@@ -84,6 +84,7 @@ pub struct Progress {
     quiet: bool,
     latest: Arc<Mutex<(usize, &'static str)>>,
     active: Arc<AtomicBool>,
+    paused: Arc<AtomicBool>,
     highest: AtomicUsize,
     worker: Option<thread::JoinHandle<()>>,
 }
@@ -93,9 +94,11 @@ impl Progress {
         let quiet = quiet || QUIET.load(Ordering::Relaxed);
         let latest = Arc::new(Mutex::new((0, "")));
         let active = Arc::new(AtomicBool::new(true));
+        let paused = Arc::new(AtomicBool::new(false));
         let worker = if !quiet && interactive() && !verbose() {
             let state = latest.clone();
             let running = active.clone();
+            let suspended = paused.clone();
             Some(thread::spawn(move || {
                 // Do not flash a progress bar for operations completed immediately.
                 thread::sleep(Duration::from_millis(180));
@@ -104,13 +107,19 @@ impl Progress {
                 let mut drawn = false;
                 while running.load(Ordering::Acquire) {
                     let (number, label) = *state.lock().unwrap_or_else(|e| e.into_inner());
-                    if number > 0 {
+                    let _guard = output_lock().lock().unwrap_or_else(|e| e.into_inner());
+                    if suspended.load(Ordering::Acquire) {
+                        if drawn {
+                            eprint!("\r\x1b[2K");
+                            let _ = io::stderr().flush();
+                            drawn = false;
+                        }
+                    } else if number > 0 {
                         let bar = format!(
                             "{}{}",
                             "=".repeat(number * 20 / 4),
                             "-".repeat(20 - number * 20 / 4)
                         );
-                        let _guard = output_lock().lock().unwrap_or_else(|e| e.into_inner());
                         eprint!(
                             "\r\x1b[2K  {} [{}]  {number}/4  {label}",
                             frames[tick % 4],
@@ -135,10 +144,21 @@ impl Progress {
             quiet,
             latest,
             active,
+            paused,
             highest: AtomicUsize::new(0),
             worker,
         }
     }
+    pub fn pause(&self) -> ProgressPause<'_> {
+        self.paused.store(true, Ordering::Release);
+        if self.worker.is_some() {
+            let _guard = output_lock().lock().unwrap_or_else(|e| e.into_inner());
+            eprint!("\r\x1b[2K");
+            let _ = io::stderr().flush();
+        }
+        ProgressPause { progress: self }
+    }
+
     pub fn step(&self, number: usize, label: &'static str) {
         if number == 0 || number > 4 {
             return;
@@ -154,6 +174,16 @@ impl Progress {
         }
     }
 }
+pub struct ProgressPause<'a> {
+    progress: &'a Progress,
+}
+
+impl Drop for ProgressPause<'_> {
+    fn drop(&mut self) {
+        self.progress.paused.store(false, Ordering::Release);
+    }
+}
+
 impl Drop for Progress {
     fn drop(&mut self) {
         self.active.store(false, Ordering::Release);
@@ -176,59 +206,56 @@ mod tests {
             let p = Progress::new(mode == "quiet", "probe");
             p.step(1, "Checking release");
             std::thread::sleep(Duration::from_millis(350));
+            if mode == "prompt" {
+                let _pause = p.pause();
+                eprint!("API key: ");
+                std::thread::sleep(Duration::from_millis(350));
+                eprintln!("[entered]");
+            }
         }
         success("Probe complete.".to_string());
     }
     #[test]
     fn terminal_pty_integration() {
-        // A real pseudoterminal catches output races hidden by pipe-based tests.
-        let script = r#"
-import os, pty, re, select, subprocess, sys, time
-master, slave = pty.openpty()
-env = os.environ.copy()
-env.pop("CI", None)
-env["TERM"] = "xterm"
-env["SOLOIST_DISPLAY_PTY_PROBE"] = sys.argv[2]
-p = subprocess.Popen([sys.argv[1], "--exact", "terminal::tests::terminal_pty_probe", "--nocapture"],
-                     stdin=slave, stdout=slave, stderr=slave, env=env)
-os.close(slave)
-raw = b""
-deadline = time.monotonic() + 10
-while time.monotonic() < deadline:
-    readable, _, _ = select.select([master], [], [], .1)
-    if readable:
-        try:
-            chunk = os.read(master, 8192)
-            if not chunk: break
-            raw += chunk
-        except OSError: break
-    if p.poll() is not None and not readable: break
-p.wait(timeout=2)
-os.close(master)
-assert p.returncode == 0, raw
-text = raw.decode("utf-8", "replace")
-if sys.argv[2] == "quiet":
-    assert "Checking release" not in text, text
-    assert "Probe complete." not in text, text
-else:
-    assert "Probe complete." in text, text
-    assert "\r\x1b[2K" in text, repr(text)
-    assert text.index("Checking release") < text.index("Probe complete."), text
-    assert re.search(r"\r\x1b\[2K(?:\r?\n)?Probe complete\.", text), repr(text)
-"#;
-        for mode in ["normal", "quiet"] {
-            let result = std::process::Command::new("python3")
-                .arg("-c")
-                .arg(script)
-                .arg(std::env::current_exe().unwrap())
-                .arg(mode)
+        let binary = std::env::current_exe().unwrap();
+        let escaped = binary.display().to_string().replace('\'', "'\\''");
+        let command =
+            format!("'{escaped}' --exact terminal::tests::terminal_pty_probe --nocapture");
+        for mode in ["normal", "quiet", "prompt"] {
+            let result = std::process::Command::new("timeout")
+                .args([
+                    "--kill-after=2s",
+                    "8s",
+                    "script",
+                    "-q",
+                    "-e",
+                    "-c",
+                    &command,
+                    "/dev/null",
+                ])
+                .stdin(std::process::Stdio::null())
+                .env_remove("CI")
+                .env("TERM", "xterm")
+                .env("SOLOIST_DISPLAY_PTY_PROBE", mode)
                 .output()
-                .expect("python3 is required for PTY tests");
-            assert!(
-                result.status.success(),
-                "PTY {mode}: {}",
-                String::from_utf8_lossy(&result.stderr)
-            );
+                .expect("coreutils timeout and util-linux script are required for PTY tests");
+            let output = String::from_utf8_lossy(&result.stdout);
+            assert!(result.status.success(), "PTY {mode}: {output}");
+            if mode == "quiet" {
+                assert!(!output.contains("Checking release"), "{output}");
+                assert!(!output.contains("Probe complete."), "{output}");
+            } else {
+                if mode == "prompt" {
+                    assert!(output.contains("API key: [entered]"), "{output:?}");
+                }
+                assert!(output.contains("Checking release"), "{output}");
+                assert!(output.contains("Probe complete."), "{output}");
+                assert!(output.contains("\r\x1b[2K"), "{output:?}");
+                assert!(
+                    output.find("Checking release") < output.find("Probe complete."),
+                    "{output}"
+                );
+            }
         }
     }
     #[test]

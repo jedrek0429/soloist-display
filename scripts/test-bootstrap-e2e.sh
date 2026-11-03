@@ -9,6 +9,7 @@ cat > "$temp/assets/installer" <<'EOF'
 #!/bin/sh
 printf '%s\n' "$*" > "$SOLOIST_TEST_INVOKED"
 printf '%s\n' "${SOLOIST_DISPLAY_VERSION:-unset}" > "$SOLOIST_TEST_VERSION"
+if [ -t 0 ]; then printf 'tty\n' > "$SOLOIST_TEST_STDIN"; else printf 'pipe\n' > "$SOLOIST_TEST_STDIN"; fi
 EOF
 chmod 755 "$temp/assets/installer"
 hash=$(sha256sum "$temp/assets/installer" | cut -d' ' -f1)
@@ -29,9 +30,15 @@ done
 cp "$SOLOIST_TEST_BINARY" "$destination"
 EOF
 chmod +x "$temp/bin/curl"
-export SOLOIST_TEST_BINARY="$temp/assets/installer" SOLOIST_TEST_INVOKED="$temp/invoked" SOLOIST_TEST_VERSION="$temp/version"
+export SOLOIST_TEST_BINARY="$temp/assets/installer" SOLOIST_TEST_INVOKED="$temp/invoked" SOLOIST_TEST_VERSION="$temp/version" SOLOIST_TEST_STDIN="$temp/stdin"
 PATH="$temp/bin:$PATH" sh "$temp/bootstrap.sh" --yes
 grep -Fxq 'install --yes' "$temp/invoked"
+grep -Fxq 'pipe' "$temp/stdin"
+# A piped bootstrap must pass the controlling terminal to the manager.
+command -v script >/dev/null 2>&1 || { echo 'util-linux script is required' >&2; exit 1; }
+PATH="$temp/bin:$PATH" script -q -e -c "printf 'piped input\n' | sh '$temp/bootstrap.sh'" /dev/null </dev/null >"$temp/pty.log" 2>&1
+grep -Fxq 'install' "$temp/invoked"
+grep -Fxq 'tty' "$temp/stdin"
 # A rendered alpha bootstrap must pin its matching signed release by default.
 sed 's@/v0.0.0/@/v1.0.0-alpha.1/@g' "$temp/manifest" > "$temp/alpha-manifest"
 "$root/target/debug/release-tools" render-bootstrap "$root/install.sh" "$temp/alpha-manifest" \

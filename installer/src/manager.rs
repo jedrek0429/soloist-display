@@ -761,7 +761,6 @@ pub fn install(
     let original_current = fs::read_link(&paths.managed_soloist_current).ok();
     let original_settings = fs::read(paths.config.join("config.json")).ok();
     let original_metadata = fs::read(&paths.install_state).ok();
-    let original_env_exists = paths.soloist_env.exists();
     let original_unit_backup_exists = service::SoloistUnitSnapshot::load(paths)?.is_some();
     let progress = Progress::new(quiet, "Installing Soloist Display");
     if !quiet && !io::stderr().is_terminal() {
@@ -792,11 +791,11 @@ pub fn install(
                     && unit.contains(&paths.current.display().to_string())
             });
         if owned_unit && !paths.is_test() {
-            let status = Command::new("systemctl")
+            let output = Command::new("systemctl")
                 .args(["--user", "stop", "soloist-display.service"])
-                .status()
+                .output()
                 .context("stop orphaned Soloist Display service")?;
-            if !status.success() {
+            if !output.status.success() {
                 bail!("could not stop the orphaned Soloist Display service");
             }
             // Wait briefly for the bridge to release its listeners.
@@ -862,7 +861,11 @@ pub fn install(
     if !quiet {
         progress.step(1, "Checking dependencies");
     }
-    let packages = match dependencies::install(platform, quiet) {
+    let package_result = {
+        let _pause = (!dependencies::runtime_ready()).then(|| progress.pause());
+        dependencies::install(platform, quiet)
+    };
+    let packages = match package_result {
         Ok(packages) => packages,
         Err(error) => {
             transaction.fail(&journal_path, error.to_string()).ok();
@@ -908,6 +911,10 @@ pub fn install(
             external.clone()
         } else if discovered_soloist.ownership == SoloistOwnership::Installer {
             let existing = discovered_soloist.clone();
+            {
+                let _pause = progress.pause();
+                soloist::configure(paths, name.clone(), api_key.clone())?;
+            }
             soloist::start_existing(paths, &existing)?;
             existing
         } else {
@@ -930,29 +937,43 @@ pub fn install(
                         bail!("previous Soloist did not release its WebSocket listener; refusing to copy a potentially live session");
                     }
                 }
-                let cloned_data = paths.managed_soloist.join("session");
-                transaction.record_created(&journal_path, cloned_data.clone())?;
-                let cloned_data =
-                    soloist::copy_existing_session(paths, &settings.runtime.data_dir)?;
                 let mut runtime = settings.runtime.clone();
-                runtime.data_dir = cloned_data;
+                if settings.runtime.data_dir.exists() {
+                    let cloned_data = paths.managed_soloist.join("session");
+                    transaction.record_created(&journal_path, cloned_data.clone())?;
+                    runtime.data_dir =
+                        soloist::copy_existing_session(paths, &settings.runtime.data_dir)?;
+                } else {
+                    crate::terminal::log_event(
+                        "migration",
+                        "warning",
+                        "existing Soloist session directory is missing; a new session will be created",
+                    );
+                    runtime.data_dir = paths.soloist_data.clone();
+                }
                 runtime.save(paths)?;
+            }
+            let soloist_name = name.or_else(|| {
+                existing_settings
+                    .as_ref()
+                    .and_then(|settings| settings.name.clone())
+            });
+            let soloist_key = api_key.or_else(|| {
+                existing_settings
+                    .as_ref()
+                    .and_then(|settings| settings.api_key.clone())
+            });
+            {
+                let _pause = progress.pause();
+                soloist::configure(paths, soloist_name.clone(), soloist_key.clone())?;
             }
             soloist::install(
                 paths,
                 &client,
                 manifest.soloist(platform)?,
                 &manifest.version.to_string(),
-                name.or_else(|| {
-                    existing_settings
-                        .as_ref()
-                        .and_then(|settings| settings.name.clone())
-                }),
-                api_key.or_else(|| {
-                    existing_settings
-                        .as_ref()
-                        .and_then(|settings| settings.api_key.clone())
-                }),
+                soloist_name,
+                soloist_key,
             )?
         };
         save_soloist_websocket(
@@ -1011,74 +1032,11 @@ pub fn install(
         Ok::<_, anyhow::Error>(())
     })();
     if let Err(error) = result {
-        let mut rollback_errors = Vec::new();
-        if previous_state.is_none() && !paths.is_test() {
-            let _ = Command::new("systemctl")
-                .args(["--user", "stop", "soloist-display.service"])
-                .status();
-        }
-        if let Some(unit) = &existing_unit {
-            if let Err(failure) = unit.restore(paths) {
-                rollback_errors.push(format!("restore Soloist service: {failure:#}"));
-            }
-            let link = &paths.managed_soloist_current;
-            if let Some(previous) = original_current {
-                if let Err(failure) = atomic_link(&previous, link) {
-                    rollback_errors.push(format!("restore Soloist binary: {failure:#}"));
-                }
-            } else if link.is_symlink() {
-                if let Err(failure) = fs::remove_file(link) {
-                    rollback_errors.push(format!("remove new Soloist link: {failure:#}"));
-                }
-            }
-            if !original_env_exists && paths.soloist_env.exists() {
-                if let Err(failure) = fs::remove_file(&paths.soloist_env) {
-                    rollback_errors.push(format!("remove new credentials: {failure:#}"));
-                }
-            }
-        }
-        let runtime_path = paths.state.join("soloist-runtime.json");
-        let restore_runtime = match original_runtime {
-            Some(bytes) => fs::write(&runtime_path, bytes),
-            None if runtime_path.exists() => fs::remove_file(&runtime_path),
-            None => Ok(()),
-        };
-        if let Err(failure) = restore_runtime {
-            rollback_errors.push(format!("restore Soloist runtime: {failure:#}"));
-        }
-        let settings = paths.config.join("config.json");
-        let restore_settings = match original_settings {
-            Some(bytes) => fs::write(&settings, bytes),
-            None if settings.exists() => fs::remove_file(&settings),
-            None => Ok(()),
-        };
-        if let Err(failure) = restore_settings {
-            rollback_errors.push(format!("restore display settings: {failure:#}"));
-        }
-        let restore_metadata = match original_metadata {
-            Some(bytes) => fs::write(&paths.install_state, bytes),
-            None if paths.install_state.exists() => fs::remove_file(&paths.install_state),
-            None => Ok(()),
-        };
-        if let Err(failure) = restore_metadata {
-            rollback_errors.push(format!("restore install metadata: {failure:#}"));
-        }
-        if let Some(previous) = transaction.previous_current.as_ref() {
-            if let Err(failure) = atomic_link(previous, &paths.current) {
-                rollback_errors.push(format!("restore Display executable: {failure:#}"));
-            }
-        }
+        drop(progress);
         transaction.fail(&journal_path, error.to_string()).ok();
-        if let Err(failure) = recover(paths) {
-            rollback_errors.push(format!("recover installation: {failure:#}"));
-        }
-        if !rollback_errors.is_empty() {
-            return Err(anyhow!(
-                "installation failed: {error:#}; rollback incomplete: {}",
-                rollback_errors.join("; ")
-            ));
-        }
-        return Err(error.context("installation failed; the previous state was restored"));
+        recover(paths)
+            .with_context(|| format!("installation failed: {error:#}; rollback incomplete"))?;
+        return Err(error.context("installation failed; changes were rolled back"));
     }
     drop(progress);
     if !quiet {
@@ -1164,6 +1122,10 @@ pub fn update(
                 .as_ref()
                 .is_some_and(|path| path.is_file())
         {
+            {
+                let _pause = progress.pause();
+                soloist::configure(paths, None, None)?;
+            }
             next_soloist = soloist::install(
                 paths,
                 &client,
@@ -1197,6 +1159,7 @@ pub fn update(
         tx.set_status(&tx_path, TransactionStatus::Committed)
     })();
     if let Err(error) = result {
+        drop(progress);
         atomic_link(&state.active_release, &paths.current).ok();
         if state.soloist.ownership == SoloistOwnership::Installer {
             if let Some(previous_executable) = &state.soloist.executable {
@@ -1297,6 +1260,10 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
     service::install_display(paths)?;
     match state.soloist.ownership {
         SoloistOwnership::Installer => {
+            {
+                let _pause = progress.pause();
+                soloist::configure(paths, None, None)?;
+            }
             if !paths.managed_soloist_current.join("soloist").is_file() {
                 state.soloist = soloist::install(
                     paths,
@@ -1308,11 +1275,11 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
                 )?;
             } else {
                 service::install_soloist(paths, &paths.managed_soloist_current.join("soloist"))?;
-                soloist::start_existing(paths, &state.soloist)?;
             }
             service::install_renewal_timer(paths)?;
         }
         SoloistOwnership::Independent => {
+            let _pause = progress.pause();
             state.soloist = soloist::verify_external(
                 paths,
                 &state.soloist,
@@ -1990,6 +1957,51 @@ mod tests {
         assert!(service::SoloistUnitSnapshot::load(&paths)
             .unwrap()
             .is_none());
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
+    #[serial]
+    fn interrupted_migration_restores_missing_credentials_as_missing() {
+        let (_directory, paths) = test_paths();
+        fs::create_dir_all(paths.soloist_service.parent().unwrap()).unwrap();
+        let original_unit =
+            b"[Service]\nEnvironmentFile=/missing/soloist.env\nExecStart=/usr/bin/soloist\n";
+        fs::write(&paths.soloist_service, original_unit).unwrap();
+        assert!(!paths.soloist_env.exists());
+        let snapshot = service::SoloistUnitSnapshot::capture(&paths).unwrap();
+        snapshot.persist(&paths).unwrap();
+
+        let (mut transaction, journal) = TransactionJournal::begin(&paths, "install").unwrap();
+        transaction.install_recovery = Some(InstallRecovery {
+            previous_settings: None,
+            previous_config_schema: None,
+            previous_metadata: None,
+            previous_env: None,
+            previous_runtime: None,
+            previous_display_unit: None,
+            previous_soloist_unit: Some(original_unit.to_vec()),
+            previous_renewal_service: None,
+            previous_renewal_timer: None,
+            previous_soloist_link: None,
+            previous_display_active: false,
+            previous_display_enabled: false,
+            previous_soloist_active: false,
+            previous_soloist_enabled: false,
+            previous_timer_active: false,
+            previous_timer_enabled: false,
+            restore_existing_service: true,
+            unit_backup_existed: false,
+        });
+        transaction.status = TransactionStatus::Services;
+        transaction.persist(&journal).unwrap();
+
+        fs::write(&paths.soloist_service, b"new managed service").unwrap();
+        fs::write(&paths.soloist_env, b"SOLOIST_API_KEY=temporary\n").unwrap();
+        recover(&paths).unwrap();
+        assert_eq!(fs::read(&paths.soloist_service).unwrap(), original_unit);
+        assert!(!paths.soloist_env.exists());
+        recover(&paths).unwrap();
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
 

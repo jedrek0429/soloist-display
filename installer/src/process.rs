@@ -26,11 +26,15 @@ pub fn run(command: &mut Command, description: &str, _quiet: bool) -> Result<()>
     );
     crate::terminal::log_command(description, &output.stdout, &output.stderr);
     if !output.status.success() {
-        let reason = diagnostic.trim();
-        if reason.is_empty() {
-            bail!("{description} failed with {}", output.status);
+        let reason = diagnostic
+            .lines()
+            .map(str::trim)
+            .find(|line| !line.is_empty());
+        if let Some(reason) = reason {
+            let summary: String = reason.chars().take(200).collect();
+            bail!("{description} failed ({}): {summary}", output.status);
         }
-        bail!("{description} failed with {}: {}", output.status, reason);
+        bail!("{description} failed ({})", output.status);
     }
     Ok(())
 }

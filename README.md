@@ -16,10 +16,18 @@ Requires Spotify Premium and a systemd-based Linux installation with glibc 2.38 
 curl -fsSL https://jedrek0429.github.io/soloist-display/install.sh | sh
 ```
 
-To select a signed release, set `SOLOIST_DISPLAY_VERSION` (defaults to `latest`):
+For an **alpha release**, select the exact signed version (prereleases are not included in GitHub's `latest` endpoint):
 
 ```sh
-curl -fsSL https://jedrek0429.github.io/soloist-display/install.sh | SOLOIST_DISPLAY_VERSION=0.2.0 sh
+curl -fsSL https://github.com/jedrek0429/soloist-display/releases/download/v1.0.0-alpha.1/install.sh | SOLOIST_DISPLAY_VERSION=1.0.0-alpha.1 sh
+```
+
+An installed alpha follows published prereleases when you run `soloist-display update`. Stable installations remain on the stable channel. Set `SOLOIST_DISPLAY_CHANNEL=stable` or `SOLOIST_DISPLAY_CHANNEL=prerelease` to override channel selection for a command. For exact-version operations use `SOLOIST_DISPLAY_VERSION`; this overrides channel selection.
+
+To select a signed release, set `SOLOIST_DISPLAY_VERSION` (defaults to `latest` (stable unless using a release-pinned bootstrap)):
+
+```sh
+curl -fsSL https://jedrek0429.github.io/soloist-display/install.sh | SOLOIST_DISPLAY_VERSION=1.0.0-alpha.1 sh
 ```
 
 The installer verifies signed release files, installs required runtime packages, and configures user services. If Soloist is already working on `127.0.0.1:9090`, it is preserved and reused. Otherwise, have a [Soloist API key](https://developer.spotify.com/dashboard/soloist) ready; setup asks only for the Spotify Connect device name and API key.

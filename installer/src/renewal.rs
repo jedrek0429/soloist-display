@@ -364,6 +364,9 @@ pub fn renew(paths: &Paths, platform: &Platform, force: bool) -> Result<()> {
             && old.as_ref().is_some_and(|record| {
                 record.sha256 == digest && local_build_matches(paths, &state, &digest)
             })
+            && state.soloist.executable.as_ref().is_some_and(|binary| {
+                managed_healthy(paths, &state, binary)
+            })
         {
             return Ok(());
         }
@@ -538,7 +541,11 @@ mod tests {
         );
         assert!(!pending_path(&paths).exists());
         assert!(!current_dir.exists());
-        assert!(InstallState::load(&paths).unwrap().is_some());
+        let restored = InstallState::load(&paths).unwrap().unwrap();
+        let original_hash = crate::release::sha256_file(&previous_dir.join("soloist")).unwrap();
+        assert!(local_build_matches(&paths, &restored, &original_hash));
+        fs::write(previous_dir.join("soloist"), b"corrupted").unwrap();
+        assert!(!local_build_matches(&paths, &restored, &original_hash));
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
 

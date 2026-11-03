@@ -138,7 +138,8 @@ pub fn renew(paths: &Paths, platform: &Platform, force: bool) -> Result<()> {
         let tmp_link = paths.managed_soloist.join(format!(".current-renew-{}", std::process::id()));
         symlink(&final_dir, &tmp_link)?;
         fs::rename(&tmp_link, &paths.managed_soloist_current)?;
-        let updated = service::install_soloist(paths, &paths.managed_soloist_current.join("soloist"));
+        let updated = service::install_soloist(paths, &paths.managed_soloist_current.join("soloist"))
+            .and_then(|_| service::restart_soloist(paths));
         if let Err(error) = updated {
             if let Some(previous) = previous {
                 let rollback = paths.managed_soloist.join(format!(".rollback-{}", std::process::id()));

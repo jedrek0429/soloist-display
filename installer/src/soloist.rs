@@ -457,7 +457,10 @@ mod tests {
         });
         let state = verify_external(&paths, &SoloistState::default(), Some(&url)).unwrap();
         assert_eq!(state.ownership, SoloistOwnership::Independent);
-        assert_eq!(state.websocket_url.as_deref(), Some(url.as_str()));
+        assert_eq!(
+            state.websocket_url.as_deref(),
+            Some(format!("{url}/").as_str())
+        );
         assert!(!state.service_owned);
         assert!(!state.data_owned);
         assert!(!paths.soloist_service.exists());

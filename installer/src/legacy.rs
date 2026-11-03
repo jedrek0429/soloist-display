@@ -75,6 +75,7 @@ fn parse_unit(paths: &Paths, unit: &str) -> Result<ExistingSettings> {
     let mut env = HashMap::new();
     let mut env_files = Vec::new();
     let mut exec = None;
+    let mut exec_count = 0;
     let mut service_section = false;
     for line in unit.lines().map(str::trim) {
         if line.starts_with('[') {
@@ -91,13 +92,19 @@ fn parse_unit(paths: &Paths, unit: &str) -> Result<ExistingSettings> {
                 env.insert(key.to_owned(), value.to_owned());
             }
         } else if let Some(line) = line.strip_prefix("EnvironmentFile=") {
-            env_files.extend(words(line)?);
-        } else if let Some(line) = line.strip_prefix("ExecStart=") {
-            exec = if line.is_empty() {
-                None
+            if line.is_empty() {
+                env_files.clear();
             } else {
-                Some(line.to_owned())
-            };
+                env_files.extend(words(line)?);
+            }
+        } else if let Some(line) = line.strip_prefix("ExecStart=") {
+            if line.is_empty() {
+                exec = None;
+                exec_count = 0;
+            } else {
+                exec = Some(line.to_owned());
+                exec_count += 1;
+            }
         }
     }
     for env_file in env_files {
@@ -126,6 +133,9 @@ fn parse_unit(paths: &Paths, unit: &str) -> Result<ExistingSettings> {
             }
             env.insert(key.trim().to_owned(), values[0].clone());
         }
+    }
+    if exec_count != 1 {
+        bail!("existing Soloist has multiple ExecStart commands; use external mode");
     }
     let exec = exec.context("existing Soloist has no recognizable ExecStart")?;
     let args = words(&exec)?;

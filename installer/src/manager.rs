@@ -610,6 +610,7 @@ pub fn install(
     let original_settings = fs::read(paths.config.join("config.json")).ok();
     let original_metadata = fs::read(&paths.install_state).ok();
     let original_env_exists = paths.soloist_env.exists();
+    let original_unit_backup_exists = service::SoloistUnitSnapshot::load(paths)?.is_some();
     let progress = Progress::new(quiet, "Installing Soloist Display");
     if !quiet && !io::stderr().is_terminal() {
         let status = match (
@@ -713,6 +714,9 @@ pub fn install(
         }
     }
     let result = (|| {
+        if let Some(unit) = &existing_unit {
+            unit.persist(paths)?;
+        }
         let release = install_artifacts(
             paths,
             platform,
@@ -806,6 +810,11 @@ pub fn install(
         if let Some(unit) = &existing_unit {
             if let Err(failure) = unit.restore(paths) {
                 rollback_errors.push(format!("restore Soloist service: {failure:#}"));
+            }
+            if !original_unit_backup_exists {
+                if let Err(failure) = service::SoloistUnitSnapshot::remove_backup(paths) {
+                    rollback_errors.push(format!("remove migration backup: {failure:#}"));
+                }
             }
             let link = &paths.managed_soloist_current;
             if let Some(previous) = original_current {
@@ -1358,6 +1367,7 @@ pub fn uninstall(paths: &Paths, requested: Option<RemoveMode>, quiet: bool) -> R
         }
     }
     if matches!(mode, RemoveMode::All) && state.soloist.ownership == SoloistOwnership::Installer {
+        let previous_unit = service::SoloistUnitSnapshot::load(paths)?;
         service::disable_owned(paths, "soloist.service")?;
         for path in [
             &paths.soloist_service,
@@ -1370,6 +1380,9 @@ pub fn uninstall(paths: &Paths, requested: Option<RemoveMode>, quiet: bool) -> R
                     &[&paths.config_home, &paths.data_home, &paths.cache_home],
                 )?;
             }
+        }
+        if let Some(unit) = previous_unit {
+            unit.restore(paths)?;
         }
     }
     progress.step(3, "Cleaning up");

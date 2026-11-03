@@ -1434,6 +1434,14 @@ pub fn uninstall(paths: &Paths, requested: Option<RemoveMode>, quiet: bool) -> R
     progress.step(1, "Stopping services");
     service::disable_owned(paths, "soloist-display.service")?;
     service::remove_renewal_timer(paths)?;
+    if state.soloist.ownership == SoloistOwnership::Installer
+        && !matches!(mode, RemoveMode::All)
+        && !quiet
+    {
+        eprintln!(
+            "  Managed Soloist will remain installed, but automatic renewal is disabled because Soloist Display is being removed."
+        );
+    }
     progress.step(2, "Removing files");
     remove_completion(paths)?;
     for path in [

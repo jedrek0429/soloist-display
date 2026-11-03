@@ -41,14 +41,14 @@ struct RenewalPending {
 
 fn remove_staged_build(paths: &Paths, path: &Path) -> Result<()> {
     if path.parent() != Some(paths.managed_soloist.as_path())
-        || !path.file_name().and_then(|name| name.to_str())
+        || !path
+            .file_name()
+            .and_then(|name| name.to_str())
             .is_some_and(|name| name.starts_with("build-"))
     {
         bail!("refusing to clean up a build outside managed Soloist");
     }
-    if fs::symlink_metadata(path)
-        .is_ok_and(|meta| meta.file_type().is_symlink())
-    {
+    if fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_symlink()) {
         bail!("refusing to follow a staged build symlink");
     }
     if path.is_dir() {
@@ -70,7 +70,9 @@ fn cleanup_obsolete_builds(paths: &Paths, active: &Path, previous: &Path) -> Res
         if path == active || path == previous {
             continue;
         }
-        if path.file_name().and_then(|name| name.to_str())
+        if path
+            .file_name()
+            .and_then(|name| name.to_str())
             .is_some_and(|name| name.starts_with("build-"))
             && entry.file_type()?.is_dir()
         {
@@ -80,11 +82,15 @@ fn cleanup_obsolete_builds(paths: &Paths, active: &Path, previous: &Path) -> Res
     Ok(())
 }
 
-fn ensure_official_response(response: reqwest::blocking::Response) -> Result<reqwest::blocking::Response> {
+fn ensure_official_response(
+    response: reqwest::blocking::Response,
+) -> Result<reqwest::blocking::Response> {
     if !response.status().is_success() {
         bail!("Spotify Soloist CDN returned HTTP {}", response.status());
     }
-    if response.url().scheme() != "https" || response.url().host_str() != Some("soloist-builds.spotifycdn.com") {
+    if response.url().scheme() != "https"
+        || response.url().host_str() != Some("soloist-builds.spotifycdn.com")
+    {
         bail!("unexpected Soloist archive origin");
     }
     Ok(response)
@@ -523,7 +529,10 @@ mod tests {
         .unwrap();
         recover(&paths).unwrap();
         assert!(current_dir.exists());
-        assert_eq!(fs::read_link(&paths.managed_soloist_current).unwrap(), current_dir);
+        assert_eq!(
+            fs::read_link(&paths.managed_soloist_current).unwrap(),
+            current_dir
+        );
         assert!(!pending_path(&paths).exists());
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }

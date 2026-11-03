@@ -245,7 +245,11 @@ fn restore_services(paths: &Paths, tx: &UninstallTransaction) -> Result<()> {
     let zshrc = paths.home.join(".zshrc");
     if !zshrc.is_symlink() {
         if let Some(content) = &tx.previous_zshrc {
-            restore_file(&zshrc, Some(content), tx.previous_zshrc_mode.unwrap_or(0o600))?;
+            restore_file(
+                &zshrc,
+                Some(content),
+                tx.previous_zshrc_mode.unwrap_or(0o600),
+            )?;
         }
     }
     service::daemon_reload(paths)?;
@@ -372,7 +376,10 @@ mod tests {
         fs::write(&zshrc, b"partial uninstall").unwrap();
         recover(&paths).unwrap();
         assert_eq!(fs::read(&zshrc).unwrap(), b"original shell settings");
-        assert_eq!(fs::metadata(&zshrc).unwrap().permissions().mode() & 0o777, 0o644);
+        assert_eq!(
+            fs::metadata(&zshrc).unwrap().permissions().mode() & 0o777,
+            0o644
+        );
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
 

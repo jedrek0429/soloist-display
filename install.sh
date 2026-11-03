@@ -21,8 +21,9 @@ case "$version" in
   *) RELEASE_BASE="https://github.com/jedrek0429/soloist-display/releases/download/v$version" ;;
 esac
 if [ "$version" != latest ]; then
-  # Canonical SemVer: reject whitespace, shell metacharacters and URL escapes.
-  printf '%s\n' "$version" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?
+  printf '%s\n' "$version" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$' ||
+    { printf '%s\n' 'Invalid SOLOIST_DISPLAY_VERSION (expected X.Y.Z[-prerelease] or latest)' >&2; exit 1; }
+fi
 # Legacy release-base override is reserved for local development and tests.
 if [ -n "${SOLOIST_DISPLAY_RELEASE_BASE:-}" ]; then RELEASE_BASE=$SOLOIST_DISPLAY_RELEASE_BASE; fi
 tmp_dir=
@@ -135,6 +136,15 @@ if [ "$version" = latest ]; then
       ;;
   esac
 fi
+# Pin the manager to the same signed prerelease as this bootstrap.
+if [ "$version" = latest ]; then
+  case "$PIN_RELEASE_BASE" in
+    https://github.com/jedrek0429/soloist-display/releases/download/v*-*)
+      pinned_tag=${PIN_RELEASE_BASE##*/v}
+      export SOLOIST_DISPLAY_VERSION="$pinned_tag"
+      ;;
+  esac
+fi
 say 'Installing'
 if [ -t 0 ] && [ -r /dev/tty ] && [ -w /dev/tty ]; then
   "$installer" install "$@" </dev/tty
@@ -171,7 +181,7 @@ Downloads and verifies the Soloist Display installer, then runs it.
   --quiet       show only errors
   --verbose     show additional diagnostics
   --help        show this help
-  SOLOIST_DISPLAY_VERSION=X.Y.Z  select signed release (default: latest)
+  SOLOIST_DISPLAY_VERSION=X.Y.Z[-alpha.N]  select signed release (default: latest)
   --version     show bootstrap version
 EOF
     exit 0

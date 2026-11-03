@@ -703,6 +703,9 @@ pub fn install(
             dependency_packages: packages,
         }
         .save(paths)?;
+        if soloist_state.ownership == SoloistOwnership::Installer {
+            service::install_renewal_timer(paths)?;
+        }
         transaction.set_status(&journal_path, TransactionStatus::Committed)?;
         Ok::<_, anyhow::Error>(())
     })();
@@ -797,7 +800,7 @@ pub fn update(
         atomic_link(&release, &paths.current)?;
         migrations::migrate(paths)?;
         let mut next_soloist = state.soloist.clone();
-        if state.soloist.ownership == SoloistOwnership::Installer {
+        if state.soloist.ownership == SoloistOwnership::Installer && !state.soloist.executable.as_ref().is_some_and(|path| path.is_file()) {
             next_soloist = soloist::install(
                 paths,
                 &client,
@@ -825,6 +828,9 @@ pub fn update(
         next.target = platform.target.clone();
         next.soloist = next_soloist;
         next.save(paths)?;
+        if next_soloist.ownership == SoloistOwnership::Installer {
+            service::install_renewal_timer(paths)?;
+        }
         tx.set_status(&tx_path, TransactionStatus::Committed)
     })();
     if let Err(error) = result {
@@ -931,6 +937,7 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
             .as_ref()
             .ok_or_else(|| anyhow!("installer-owned Soloist executable is missing"))?;
         service::install_soloist(paths, executable)?;
+        service::install_renewal_timer(paths)?;
     } else {
         soloist::start_existing(paths, &state.soloist)?;
     }
@@ -1203,6 +1210,7 @@ pub fn uninstall(paths: &Paths, requested: Option<RemoveMode>, quiet: bool) -> R
     let progress = Progress::new(quiet, "Removing Soloist Display");
     progress.step(1, "Stopping services");
     service::disable_owned(paths, "soloist-display.service")?;
+    service::remove_renewal_timer(paths)?;
     progress.step(2, "Removing files");
     remove_completion(paths)?;
     for path in [

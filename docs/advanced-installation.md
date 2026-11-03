@@ -42,7 +42,7 @@ soloist-display install --external-soloist --soloist-ws ws://127.0.0.1:9090/
 
 The WebSocket must respond to Soloist's protocol. If the service is stopped, interactive setup asks before starting it. For unattended setup, `--start-external` gives explicit permission to start it.
 
-Choosing Managed with an existing Soloist takes a snapshot of its unit and copies its session data. The original remains in place. Unsupported systemd settings, drop-ins or startup flags stop migration rather than being guessed at.
+For a supported existing user service, Managed saves its unit and clones its session. The original stays put. Unsupported systemd settings, drop-ins and startup flags stop migration. Guesswork is not a migration strategy.
 
 ## Unattended setup
 

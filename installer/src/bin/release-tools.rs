@@ -46,7 +46,7 @@ fn digest(path: &Path) -> Result<String> {
         }
         hasher.update(&buffer[..n]);
     }
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(hasher.finalize().iter().map(|byte| format!("{byte:02x}")).collect())
 }
 
 fn timestamp() -> Result<String> {

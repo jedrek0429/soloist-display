@@ -913,6 +913,22 @@ pub fn install(
         } else {
             if let Some(settings) = &existing_settings {
                 service::stop_soloist_existing(paths)?;
+                if !paths.is_test() {
+                    let endpoint = url::Url::parse(&settings.runtime.websocket_url)?;
+                    let port = endpoint.port_or_known_default()
+                        .ok_or_else(|| anyhow!("previous Soloist WebSocket has no port"))?;
+                    let mut stopped = false;
+                    for _ in 0..30 {
+                        if !service::active(paths, "soloist.service") && port_available(port) {
+                            stopped = true;
+                            break;
+                        }
+                        thread::sleep(Duration::from_millis(100));
+                    }
+                    if !stopped {
+                        bail!("previous Soloist did not release its WebSocket listener; refusing to copy a potentially live session");
+                    }
+                }
                 let cloned_data = paths.managed_soloist.join("session");
                 transaction.record_created(&journal_path, cloned_data.clone())?;
                 let cloned_data =

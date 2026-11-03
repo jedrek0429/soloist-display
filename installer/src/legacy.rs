@@ -248,7 +248,13 @@ pub fn inspect(paths: &Paths) -> Result<Option<ExistingSettings>> {
         fs::read_to_string(&paths.soloist_service)?
     } else {
         let drop_ins = Command::new("systemctl")
-            .args(["--user", "show", "soloist.service", "--property=DropInPaths", "--value"])
+            .args([
+                "--user",
+                "show",
+                "soloist.service",
+                "--property=DropInPaths",
+                "--value",
+            ])
             .output()
             .context("inspect Soloist drop-in configuration")?;
         if !drop_ins.status.success() {

@@ -551,17 +551,23 @@ fn recover_install(paths: &Paths, previous: &InstallRecovery) -> Result<()> {
             service::SoloistUnitSnapshot::remove_backup(paths)?;
         }
     } else {
-        restore_snapshot_file(&paths.soloist_env, previous.previous_env.as_deref(), 0o600)?;
-        if let Some(state) = InstallState::load(paths)? {
-            if state.soloist.ownership == SoloistOwnership::Installer {
-                let binary = paths.managed_soloist_current.join("soloist");
-                if binary.is_file() {
-                    service::install_soloist(paths, &binary)?;
-                }
-            }
-        } else if paths.soloist_service.exists() {
+        if previous.previous_soloist_unit.is_none() && paths.soloist_service.exists() {
             service::disable_owned(paths, "soloist.service")?;
-            fs::remove_file(&paths.soloist_service)?;
+        }
+        restore_snapshot_file(&paths.soloist_env, previous.previous_env.as_deref(), 0o600)?;
+        restore_snapshot_file(
+            &paths.soloist_service,
+            previous.previous_soloist_unit.as_deref(),
+            0o644,
+        )?;
+        if previous.previous_soloist_unit.is_some() {
+            service::daemon_reload(paths)?;
+            service::restore_unit_state(
+                paths,
+                "soloist.service",
+                previous.previous_soloist_enabled,
+                previous.previous_soloist_active,
+            )?;
         }
     }
     restore_snapshot_file(
@@ -575,16 +581,21 @@ fn recover_install(paths: &Paths, previous: &InstallRecovery) -> Result<()> {
         0o644,
     )?;
     service::daemon_reload(paths)?;
-    if previous.previous_timer_active && !paths.is_test() {
-        let status = Command::new("systemctl")
-            .args(["--user", "enable", "--now", "soloist-display-renew.timer"])
-            .status()?;
-        if !status.success() {
-            bail!("could not restore original renewal timer");
-        }
+    if previous.previous_renewal_timer.is_some() {
+        service::restore_unit_state(
+            paths,
+            "soloist-display-renew.timer",
+            previous.previous_timer_enabled,
+            previous.previous_timer_active,
+        )?;
     }
-    if previous.previous_display_active && !paths.is_test() {
-        service::start_display(paths)?;
+    if previous.previous_display_unit.is_some() {
+        service::restore_unit_state(
+            paths,
+            "soloist-display.service",
+            previous.previous_display_enabled,
+            previous.previous_display_active,
+        )?;
     }
     Ok(())
 }
@@ -823,13 +834,18 @@ pub fn install(
         previous_env: fs::read(&paths.soloist_env).ok(),
         previous_runtime: original_runtime.clone(),
         previous_display_unit: fs::read(&paths.display_service).ok(),
+        previous_soloist_unit: fs::read(&paths.soloist_service).ok(),
         previous_renewal_service: fs::read(service_dir.join("soloist-display-renew.service")).ok(),
         previous_renewal_timer: fs::read(service_dir.join("soloist-display-renew.timer")).ok(),
         previous_soloist_link: original_current.clone(),
         previous_display_active: !paths.is_test()
             && service::active(paths, "soloist-display.service"),
+        previous_display_enabled: service::enabled(paths, "soloist-display.service"),
+        previous_soloist_active: !paths.is_test() && service::active(paths, "soloist.service"),
+        previous_soloist_enabled: service::enabled(paths, "soloist.service"),
         previous_timer_active: !paths.is_test()
             && service::active(paths, "soloist-display-renew.timer"),
+        previous_timer_enabled: service::enabled(paths, "soloist-display-renew.timer"),
         restore_existing_service: existing_unit.is_some(),
         unit_backup_existed: original_unit_backup_exists,
     });
@@ -1884,11 +1900,16 @@ mod tests {
             previous_env: None,
             previous_runtime: None,
             previous_display_unit: None,
+            previous_soloist_unit: None,
             previous_renewal_service: None,
             previous_renewal_timer: None,
             previous_soloist_link: None,
             previous_display_active: false,
+            previous_display_enabled: false,
+            previous_soloist_active: false,
+            previous_soloist_enabled: false,
             previous_timer_active: false,
+            previous_timer_enabled: false,
             restore_existing_service: false,
             unit_backup_existed: false,
         });

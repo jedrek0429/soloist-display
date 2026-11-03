@@ -486,6 +486,108 @@ fn wait_for_install_health(
     Ok(())
 }
 
+fn restore_snapshot_file(path: &Path, previous: Option<&[u8]>, mode: u32) -> Result<()> {
+    if path.is_symlink() {
+        fs::remove_file(path)?;
+    }
+    if let Some(bytes) = previous {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(path, bytes)?;
+        fs::set_permissions(path, fs::Permissions::from_mode(mode))?;
+    } else if path.exists() {
+        fs::remove_file(path)?;
+    }
+    Ok(())
+}
+
+fn recover_install(paths: &Paths, previous: &InstallRecovery) -> Result<()> {
+    let service_dir = paths.soloist_service.parent().context("missing systemd directory")?;
+    if !paths.is_test() {
+        service::disable_owned(paths, "soloist-display.service")?;
+    }
+    service::remove_renewal_timer(paths)?;
+    restore_snapshot_file(
+        &paths.config.join("config.json"),
+        previous.previous_settings.as_deref(),
+        0o600,
+    )?;
+    restore_snapshot_file(
+        &paths.state.join("config-schema.json"),
+        previous.previous_config_schema.as_deref(),
+        0o600,
+    )?;
+    restore_snapshot_file(
+        &paths.state.join("soloist-runtime.json"),
+        previous.previous_runtime.as_deref(),
+        0o600,
+    )?;
+    restore_snapshot_file(
+        &paths.install_state,
+        previous.previous_metadata.as_deref(),
+        0o600,
+    )?;
+    restore_snapshot_file(
+        &paths.display_service,
+        previous.previous_display_unit.as_deref(),
+        0o644,
+    )?;
+    if let Some(original) = &previous.previous_soloist_link {
+        atomic_link(original, &paths.managed_soloist_current)?;
+    } else if paths.managed_soloist_current.is_symlink() {
+        fs::remove_file(&paths.managed_soloist_current)?;
+    }
+    if previous.restore_existing_service {
+        let snapshot = service::SoloistUnitSnapshot::load(paths)?
+            .ok_or_else(|| anyhow!("previous Soloist unit snapshot is missing"))?;
+        snapshot.restore(paths)?;
+        if !previous.unit_backup_existed {
+            service::SoloistUnitSnapshot::remove_backup(paths)?;
+        }
+    } else {
+        restore_snapshot_file(
+            &paths.soloist_env,
+            previous.previous_env.as_deref(),
+            0o600,
+        )?;
+        if let Some(state) = InstallState::load(paths)? {
+            if state.soloist.ownership == SoloistOwnership::Installer {
+                let binary = paths.managed_soloist_current.join("soloist");
+                if binary.is_file() {
+                    service::install_soloist(paths, &binary)?;
+                }
+            }
+        } else if paths.soloist_service.exists() {
+            service::disable_owned(paths, "soloist.service")?;
+            fs::remove_file(&paths.soloist_service)?;
+        }
+    }
+    restore_snapshot_file(
+        &service_dir.join("soloist-display-renew.service"),
+        previous.previous_renewal_service.as_deref(),
+        0o644,
+    )?;
+    restore_snapshot_file(
+        &service_dir.join("soloist-display-renew.timer"),
+        previous.previous_renewal_timer.as_deref(),
+        0o644,
+    )?;
+    service::daemon_reload(paths)?;
+    if previous.previous_timer_active && !paths.is_test() {
+        let status = Command::new("systemctl")
+            .args(["--user", "enable", "--now", "soloist-display-renew.timer"])
+            .status()?;
+        if !status.success() {
+            bail!("could not restore original renewal timer");
+        }
+    }
+    if previous.previous_display_active && !paths.is_test() {
+        service::start_display(paths)?;
+    }
+    Ok(())
+}
+
 pub fn recover(paths: &Paths) -> Result<()> {
     if !paths.transactions.exists() {
         return Ok(());
@@ -499,9 +601,7 @@ pub fn recover(paths: &Paths) -> Result<()> {
         let mut transaction: TransactionJournal = serde_json::from_slice(&bytes)?;
         if matches!(
             transaction.status,
-            TransactionStatus::Committed
-                | TransactionStatus::RolledBack
-                | TransactionStatus::Failed
+            TransactionStatus::Committed | TransactionStatus::RolledBack
         ) {
             continue;
         }
@@ -530,6 +630,11 @@ pub fn recover(paths: &Paths) -> Result<()> {
         }
         if let Some(previous) = &transaction.previous_current {
             atomic_link(previous, &paths.current)?;
+        } else if transaction.operation == "install" && paths.current.is_symlink() {
+            fs::remove_file(&paths.current)?;
+        }
+        if let Some(snapshot) = &transaction.install_recovery {
+            recover_install(paths, snapshot)?;
         }
         transaction.status = TransactionStatus::RolledBack;
         transaction.persist(&path)?;

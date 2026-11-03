@@ -1530,9 +1530,14 @@ pub fn doctor(paths: &Paths) -> Result<bool> {
         println!("{:<22} {}", "Soloist endpoint", endpoint);
         check!(
             "Soloist WebSocket",
-            paths.is_test() || soloist::healthy(&state.soloist),
+            paths.is_test()
+                || if state.soloist.ownership == SoloistOwnership::Independent {
+                    soloist::external_healthy(&state.soloist)
+                } else {
+                    soloist::healthy(&state.soloist)
+                },
             format!(
-                "No Soloist WebSocket handshake at {endpoint}; check its listener and service."
+                "No valid Soloist WebSocket response at {endpoint}; check its listener and service."
             )
         );
         match state.soloist.ownership {

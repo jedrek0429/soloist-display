@@ -278,6 +278,12 @@ impl SoloistUnitSnapshot {
             }
         }
         systemctl(paths, &["daemon-reload"], true)?;
+        if matches!(self.unit, SavedUnit::Missing)
+            && !self.was_active
+            && !self.was_enabled
+        {
+            return Ok(());
+        }
         if self.was_enabled {
             systemctl(paths, &["enable", "soloist.service"], true)?;
         } else {

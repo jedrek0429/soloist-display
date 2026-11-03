@@ -158,7 +158,9 @@ pub fn recover(paths: &Paths) -> Result<()> {
     if !paths.is_test() {
         let mut healthy = false;
         for _ in 0..24 {
-            if soloist::external_healthy(&pending.previous_state.soloist) {
+            if pending.previous_state.soloist.executable.as_ref().is_some_and(
+                |binary| managed_healthy(paths, &pending.previous_state, binary),
+            ) {
                 healthy = true;
                 break;
             }
@@ -174,6 +176,31 @@ pub fn recover(paths: &Paths) -> Result<()> {
     fs::remove_file(path)?;
     fs::File::open(&paths.state)?.sync_all()?;
     Ok(())
+}
+
+fn local_build_matches(paths: &Paths, state: &InstallState, sha256: &str) -> bool {
+    let Some(binary) = state.soloist.executable.as_ref() else {
+        return false;
+    };
+    let linked = paths.managed_soloist_current.join("soloist");
+    if !linked.is_file() || !binary.is_file()
+        || fs::canonicalize(&linked).ok() != fs::canonicalize(binary).ok()
+    {
+        return false;
+    }
+    crate::release::sha256_file(binary).is_ok_and(|actual| actual == sha256)
+}
+
+fn managed_healthy(paths: &Paths, state: &InstallState, binary: &Path) -> bool {
+    if paths.is_test() {
+        return true;
+    }
+    let Some(endpoint) = state.soloist.websocket_url.as_deref() else {
+        return false;
+    };
+    service::managed_process_healthy(paths, binary, endpoint, || {
+        soloist::external_healthy(&state.soloist)
+    })
 }
 
 fn archive_name(platform: &Platform) -> &'static str {
@@ -286,12 +313,12 @@ pub fn renew(paths: &Paths, platform: &Platform, force: bool) -> Result<()> {
                     && last_modified == record.last_modified
                     && length == record.content_length)
         })
-        && (paths.is_test() || soloist::external_healthy(&state.soloist))
-        && state
-            .soloist
-            .executable
-            .as_ref()
-            .is_some_and(|p| p.is_file())
+        && old.as_ref().is_some_and(|record| {
+            local_build_matches(paths, &state, &record.sha256)
+        })
+        && state.soloist.executable.as_ref().is_some_and(|binary| {
+            managed_healthy(paths, &state, binary)
+        })
     {
         return Ok(());
     }
@@ -326,7 +353,11 @@ pub fn renew(paths: &Paths, platform: &Platform, force: bool) -> Result<()> {
             &mut hasher_writer(&mut hasher),
         )?;
         let digest = hex::encode(hasher.finalize());
-        if old.as_ref().is_some_and(|record| record.sha256 == digest) && !force {
+        if !force
+            && old.as_ref().is_some_and(|record| {
+                record.sha256 == digest && local_build_matches(paths, &state, &digest)
+            })
+        {
             return Ok(());
         }
         let final_dir = paths
@@ -336,7 +367,7 @@ pub fn renew(paths: &Paths, platform: &Platform, force: bool) -> Result<()> {
         if !fresh_build {
             let installed = final_dir.join("soloist");
             if !installed.is_file() || crate::release::sha256_file(&installed)? != digest {
-                bail!("existing managed Soloist build has a checksum mismatch");
+                bail!("managed Soloist build on disk is corrupted; refusing to restart it or overwrite the active process");
             }
         }
         let previous = fs::read_link(&paths.managed_soloist_current)
@@ -371,7 +402,7 @@ pub fn renew(paths: &Paths, platform: &Platform, force: bool) -> Result<()> {
             if !paths.is_test() {
                 let mut ready = false;
                 for _ in 0..24 {
-                    if soloist::external_healthy(&state.soloist) {
+                    if managed_healthy(paths, &state, &final_dir.join("soloist")) {
                         ready = true;
                         break;
                     }

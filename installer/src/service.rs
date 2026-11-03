@@ -3,6 +3,7 @@ use crate::{
     process,
 };
 use anyhow::{anyhow, Context, Result};
+use serde::{Deserialize, Serialize};
 use std::{
     fs,
     os::unix::fs::{symlink, PermissionsExt},
@@ -190,12 +191,14 @@ pub fn start_soloist_existing(paths: &Paths) -> Result<()> {
     systemctl(paths, &["start", "soloist.service"], false)
 }
 
+#[derive(Serialize, Deserialize)]
 enum SavedUnit {
     Missing,
     File(Vec<u8>, u32),
     Symlink(PathBuf),
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct SoloistUnitSnapshot {
     unit: SavedUnit,
     was_active: bool,
@@ -203,6 +206,34 @@ pub struct SoloistUnitSnapshot {
 }
 
 impl SoloistUnitSnapshot {
+    fn backup_path(paths: &Paths) -> PathBuf {
+        paths.state.join("previous-soloist-unit.json")
+    }
+
+    pub fn persist(&self, paths: &Paths) -> Result<()> {
+        let path = Self::backup_path(paths);
+        if !path.exists() {
+            crate::state::atomic_json(&path, self, Some(0o600))?;
+        }
+        Ok(())
+    }
+
+    pub fn load(paths: &Paths) -> Result<Option<Self>> {
+        match fs::read(Self::backup_path(paths)) {
+            Ok(bytes) => Ok(Some(serde_json::from_slice(&bytes)?)),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error.into()),
+        }
+    }
+
+    pub fn remove_backup(paths: &Paths) -> Result<()> {
+        let path = Self::backup_path(paths);
+        if path.exists() {
+            fs::remove_file(path)?;
+        }
+        Ok(())
+    }
+
     pub fn capture(paths: &Paths) -> Result<Self> {
         let unit = match fs::symlink_metadata(&paths.soloist_service) {
             Ok(metadata) if metadata.file_type().is_symlink() => {

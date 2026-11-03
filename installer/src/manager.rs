@@ -1977,12 +1977,18 @@ mod tests {
         });
         tx.status = TransactionStatus::Failed;
         tx.persist(&journal).unwrap();
-        fs::write(&paths.soloist_service, b"[Service]\nExecStart=/managed/soloist\n").unwrap();
+        fs::write(
+            &paths.soloist_service,
+            b"[Service]\nExecStart=/managed/soloist\n",
+        )
+        .unwrap();
         fs::write(&paths.soloist_env, b"SOLOIST_API_KEY=changed\n").unwrap();
         recover(&paths).unwrap();
         assert_eq!(fs::read(&paths.soloist_service).unwrap(), unit);
         assert_eq!(fs::read(&paths.soloist_env).unwrap(), env);
-        assert!(service::SoloistUnitSnapshot::load(&paths).unwrap().is_none());
+        assert!(service::SoloistUnitSnapshot::load(&paths)
+            .unwrap()
+            .is_none());
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
 

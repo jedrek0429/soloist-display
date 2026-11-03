@@ -34,7 +34,14 @@ jobs:
           cp src/motion.js src/spectrum.js "$RUNNER_TEMP/pages/src/"
           cp site/demo.js "$RUNNER_TEMP/pages/src/demo.js"
           # Bundle the album art at publish time, never fetch it during page load.
-          curl --fail --location --retry 3 --silent --show-error "https://cdn-p.smehost.net/sites/c5d2b1a28fd246bfafed3b8dbafc1352/wp-content/uploads/2021/05/cover-45.jpg" -o "$RUNNER_TEMP/pages/kind-of-blue.jpg"
+          if ! curl --fail --location --retry 3 --silent --show-error \
+            "https://cdn-p.smehost.net/sites/c5d2b1a28fd246bfafed3b8dbafc1352/wp-content/uploads/2021/05/cover-45.jpg" \
+            -o "$RUNNER_TEMP/pages/kind-of-blue.jpg"; then
+            echo "::warning::Artwork CDN unavailable; restoring the last published image"
+            git fetch origin gh-pages:refs/remotes/origin/gh-pages
+            git show origin/gh-pages:kind-of-blue.jpg > "$RUNNER_TEMP/pages/kind-of-blue.jpg"
+            test -s "$RUNNER_TEMP/pages/kind-of-blue.jpg"
+          fi
           # Use production display markup; replace only its live websocket entrypoint.
           sed 's@src="./src/main.js"@src="./src/demo.js"@' index.html > "$RUNNER_TEMP/pages/preview.html"
           if ! curl --fail --location --silent --show-error \

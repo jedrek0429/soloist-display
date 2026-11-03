@@ -230,7 +230,9 @@ function renderSection(){
       const output=document.createElement('output');output.htmlFor=key;
       const refresh=()=>{const value=typeof min[0]==='number'?Number(select.value):select.value;draft[key==='centerHoleColor'?selectedHoleColorKey():selectedFieldKey(key)]=value;output.textContent=String(value);};
       select.addEventListener('change',()=>{refresh();if(['discAppearance','cdCoverSide','timeDisplay','transitionStyle','sleeveTransitionStyle','backdropTransitionStyle','panelTransitionStyle'].includes(key)){if(key==='discAppearance')renderNav();renderSection();}status.textContent='Unsaved changes';});
-      refresh();controls.append(line);continue;
+      // Rendering a select must not change the configuration. Only user input does.
+      output.textContent=select.value;
+      controls.append(line);continue;
     }else if(type==='range'){
       input.type='range';
       input.min=min;

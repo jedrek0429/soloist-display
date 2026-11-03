@@ -15,23 +15,23 @@ concurrency:
 jobs:
   tag:
     if: >-
-      ${ github.event.pull_request.merged == true &&
+      ${{ github.event.pull_request.merged == true &&
          github.event.pull_request.head.repo.full_name == github.repository &&
-         startsWith(github.event.pull_request.head.ref, 'release/v') }
+         startsWith(github.event.pull_request.head.ref, 'release/v') }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${ github.event.pull_request.merge_commit_sha }
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Verify and tag merged version
         env:
-          GH_TOKEN: ${ github.token }
-          BRANCH: ${ github.event.pull_request.head.ref }
-          PR_TITLE: ${ github.event.pull_request.title }
-          MERGE_SHA: ${ github.event.pull_request.merge_commit_sha }
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
         run: |
           set -euo pipefail
           tag="${BRANCH#release/}"

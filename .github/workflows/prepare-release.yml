@@ -29,7 +29,7 @@ jobs:
       - name: Validate version
         id: version
         env:
-          REQUESTED_VERSION: ${ inputs.version }
+          REQUESTED_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
           version="${REQUESTED_VERSION#v}"
@@ -56,8 +56,8 @@ jobs:
 
       - name: Update Cargo version
         env:
-          VERSION: ${ steps.version.outputs.version }
-          BRANCH: ${ steps.version.outputs.branch }
+          VERSION: ${{ steps.version.outputs.version }}
+          BRANCH: ${{ steps.version.outputs.branch }}
         run: |
           set -euo pipefail
           git switch -c "$BRANCH"
@@ -78,9 +78,9 @@ jobs:
 
       - name: Open pull request
         env:
-          GH_TOKEN: ${ secrets.RELEASE_BOT_TOKEN || github.token }
-          VERSION: ${ steps.version.outputs.version }
-          BRANCH: ${ steps.version.outputs.branch }
+          GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN || github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          BRANCH: ${{ steps.version.outputs.branch }}
         run: |
           gh pr create --base main --head "$BRANCH" \
             --title "chore: bump v$VERSION" \
@@ -90,8 +90,8 @@ jobs:
 
       - name: Run branch checks
         env:
-          GH_TOKEN: ${ github.token }
-          BRANCH: ${ steps.version.outputs.branch }
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.version.outputs.branch }}
         run: |
           gh workflow run build.yml --ref "$BRANCH"
           gh workflow run distribution-smoke.yml --ref "$BRANCH"

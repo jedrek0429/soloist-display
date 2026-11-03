@@ -478,7 +478,10 @@ pub fn copy_existing_session(paths: &Paths, source: &Path) -> Result<PathBuf> {
     }
     fs::create_dir_all(&paths.managed_soloist)?;
     let (mut count, mut total) = (0, 0);
-    copy_session_tree(source, &destination, 0, &mut count, &mut total)?;
+    if let Err(error) = copy_session_tree(source, &destination, 0, &mut count, &mut total) {
+        fs::remove_dir_all(&destination).ok();
+        return Err(error.context("copy existing Soloist session"));
+    }
     fs::File::open(&paths.managed_soloist)?.sync_all()?;
     Ok(destination)
 }
@@ -628,6 +631,35 @@ mod tests {
         paths.ensure_management_dirs().unwrap();
         (directory, paths)
     }
+    #[test]
+    #[serial]
+    fn managed_session_copy_cannot_modify_previous_session() {
+        let (_directory, paths) = paths();
+        let original = paths.home.join("existing-data");
+        fs::create_dir_all(&original).unwrap();
+        fs::write(original.join("credentials"), b"existing login").unwrap();
+        fs::write(original.join("soloist.pid"), b"old pid").unwrap();
+        let managed = copy_existing_session(&paths, &original).unwrap();
+        assert_eq!(fs::read(managed.join("credentials")).unwrap(), b"existing login");
+        assert!(!managed.join("soloist.pid").exists());
+        fs::write(managed.join("credentials"), b"new login").unwrap();
+        assert_eq!(fs::read(original.join("credentials")).unwrap(), b"existing login");
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
+    #[serial]
+    fn session_copy_rejects_symlinks_without_touching_source() {
+        let (_directory, paths) = paths();
+        let original = paths.home.join("existing-data");
+        fs::create_dir_all(&original).unwrap();
+        symlink("/etc/passwd", original.join("external")).unwrap();
+        assert!(copy_existing_session(&paths, &original).is_err());
+        assert!(original.join("external").is_symlink());
+        assert!(!paths.managed_soloist.join("session").exists());
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
     #[test]
     #[serial]
     fn verifies_external_websocket_without_requiring_systemd() {

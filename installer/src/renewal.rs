@@ -96,11 +96,33 @@ fn ensure_official_response(
     Ok(response)
 }
 
+fn cleanup_interrupted_stages(paths: &Paths) -> Result<()> {
+    if !paths.managed_soloist.is_dir() {
+        return Ok(());
+    }
+    for entry in fs::read_dir(&paths.managed_soloist)? {
+        let entry = entry?;
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else { continue; };
+        let kind = entry.file_type()?;
+        if name.starts_with(".renew-") && kind.is_dir() {
+            fs::remove_dir_all(entry.path())?;
+        } else if (name.starts_with(".rollback-") || name.starts_with(".current-renew-"))
+            && kind.is_symlink()
+        {
+            fs::remove_file(entry.path())?;
+        }
+    }
+    fs::File::open(&paths.managed_soloist)?.sync_all()?;
+    Ok(())
+}
+
 fn pending_path(paths: &Paths) -> std::path::PathBuf {
     paths.state.join("soloist-renew-pending.json")
 }
 
 pub fn recover(paths: &Paths) -> Result<()> {
+    cleanup_interrupted_stages(paths)?;
     let path = pending_path(paths);
     if !path.exists() {
         return Ok(());
@@ -534,6 +556,26 @@ mod tests {
             current_dir
         );
         assert!(!pending_path(&paths).exists());
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
+    #[serial]
+    fn cleans_interrupted_download_staging_without_touching_active_builds() {
+        let directory = tempfile::tempdir().unwrap();
+        std::env::set_var("HOME", directory.path());
+        std::env::set_var("SOLOIST_DISPLAY_TEST_ROOT", directory.path().join("root"));
+        let paths = Paths::discover().unwrap();
+        paths.ensure_management_dirs().unwrap();
+        fs::create_dir_all(&paths.managed_soloist).unwrap();
+        let stage = paths.managed_soloist.join(".renew-123");
+        let active = paths.managed_soloist.join("build-active");
+        fs::create_dir_all(&stage).unwrap();
+        fs::create_dir_all(&active).unwrap();
+        fs::write(stage.join("archive"), b"incomplete").unwrap();
+        recover(&paths).unwrap();
+        assert!(!stage.exists());
+        assert!(active.exists());
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
 

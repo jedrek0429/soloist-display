@@ -1834,6 +1834,75 @@ mod tests {
 
     #[test]
     #[serial]
+    fn interrupted_install_restores_settings_and_removes_new_service() {
+        let (_directory, paths) = test_paths();
+        fs::create_dir_all(&paths.config).unwrap();
+        let config = paths.config.join("config.json");
+        fs::write(&config, b"original settings").unwrap();
+        let (mut tx, journal) = TransactionJournal::begin(&paths, "install").unwrap();
+        tx.install_recovery = Some(InstallRecovery {
+            previous_settings: Some(b"original settings".to_vec()),
+            previous_config_schema: None,
+            previous_metadata: None,
+            previous_env: None,
+            previous_runtime: None,
+            previous_display_unit: None,
+            previous_renewal_service: None,
+            previous_renewal_timer: None,
+            previous_soloist_link: None,
+            previous_display_active: false,
+            previous_timer_active: false,
+            restore_existing_service: false,
+            unit_backup_existed: false,
+        });
+        tx.status = TransactionStatus::Services;
+        tx.persist(&journal).unwrap();
+        fs::write(&config, b"partial settings").unwrap();
+        fs::create_dir_all(paths.soloist_service.parent().unwrap()).unwrap();
+        fs::write(&paths.soloist_service, b"new managed service").unwrap();
+        fs::write(paths.state.join("soloist-runtime.json"), b"new runtime").unwrap();
+        recover(&paths).unwrap();
+        assert_eq!(fs::read(&config).unwrap(), b"original settings");
+        assert!(!paths.soloist_service.exists());
+        assert!(!paths.state.join("soloist-runtime.json").exists());
+        recover(&paths).unwrap();
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
+    fn uninstall_choices_validate_ownership() {
+        let keep = UninstallOptions {
+            soloist: Some(SoloistRemoval::Keep),
+            data: Some(DisplayDataRemoval::Keep),
+            yes: true,
+        };
+        assert!(choose_uninstall_options(
+            UninstallOptions { soloist: keep.soloist, data: keep.data, yes: true },
+            false,
+            false
+        ).is_err());
+        assert!(choose_uninstall_options(
+            UninstallOptions {
+                soloist: Some(SoloistRemoval::Restore),
+                data: Some(DisplayDataRemoval::Keep),
+                yes: true
+            },
+            true,
+            false
+        ).is_err());
+        assert!(choose_uninstall_options(
+            UninstallOptions {
+                soloist: Some(SoloistRemoval::Remove),
+                data: Some(DisplayDataRemoval::Keep),
+                yes: true
+            },
+            true,
+            true
+        ).is_err());
+    }
+
+    #[test]
+    #[serial]
     fn interrupted_rollback_is_idempotent() {
         let (_directory, paths) = test_paths();
         let previous = paths.releases.join("previous");

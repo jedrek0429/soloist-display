@@ -223,7 +223,16 @@ mod tests {
             format!("'{escaped}' --exact terminal::tests::terminal_pty_probe --nocapture");
         for mode in ["normal", "quiet", "prompt"] {
             let result = std::process::Command::new("timeout")
-                .args(["--kill-after=2s", "8s", "script", "-q", "-e", "-c", &command, "/dev/null"])
+                .args([
+                    "--kill-after=2s",
+                    "8s",
+                    "script",
+                    "-q",
+                    "-e",
+                    "-c",
+                    &command,
+                    "/dev/null",
+                ])
                 .stdin(std::process::Stdio::null())
                 .env_remove("CI")
                 .env("TERM", "xterm")

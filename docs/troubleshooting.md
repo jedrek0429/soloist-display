@@ -1,77 +1,69 @@
 # Troubleshooting
 
-If Soloist Display does not work as expected, start with:
+Start here:
 
 ```sh
 soloist-display doctor
-```
-
-This checks the installation, services, ports, and audio setup. For more detail, inspect the user-service logs:
-
-```sh
 journalctl --user -u soloist-display.service -u soloist.service -n 100 --no-pager
 ```
 
-## The command is not found
+Don't post API keys, tokens or environment files in an issue. Really.
 
-Open a new terminal after installation. If it is still unavailable, check whether the executable exists:
+## Command not found
 
-```sh
-ls -l ~/.local/bin/soloist-display
-```
+Open a new terminal. Check `~/.local/bin/soloist-display` exists and `~/.local/bin` is in `PATH`.
 
-If the file exists, make sure `~/.local/bin` is included in your shell's `PATH`.
-
-## The display will not open
-
-Run `soloist-display doctor`. Check the display service and its logs:
+## Display won't open
 
 ```sh
 systemctl --user status soloist-display.service
 journalctl --user -u soloist-display.service -n 100 --no-pager
 ```
 
-The display normally serves `http://127.0.0.1:8080`. If the address does not respond, inspect the service errors. Do not kill unrelated processes occupying the port.
+Default address: http://127.0.0.1:8080. If the port is taken, find the culprit. Don't kill random processes.
 
-## Spotify Connect device is missing or playback does not work
+## Spotify Connect is missing
 
-Spotify Premium is required. Ensure that Spotify Soloist is running and configured with a valid API key. If Soloist was installed separately, the installer preserves it rather than taking ownership of its service.
+Spotify Premium and a valid Soloist API key are required.
 
 ```sh
 systemctl --user status soloist.service
 journalctl --user -u soloist.service -n 100 --no-pager
 ```
 
-Soloist is expected to serve its local WebSocket at `127.0.0.1:9090`. When troubleshooting, avoid posting API keys or environment files in public issues.
+Managed Soloist is started by Display. External Soloist remains your responsibility; the installer does not silently take it over. Check the configured loopback WebSocket port (normally `9090`).
 
-## Audio visualizer is not moving
+## Managed Soloist won't renew
 
-Ensure that music is playing through the computer running Soloist Display. The visualizer captures audio from the PulseAudio/PipeWire default sink monitor; playback routed to another output may not appear.
+```sh
+systemctl --user status soloist-display-renew.timer
+journalctl --user -u soloist-display-renew.service -n 100 --no-pager
+soloist-display renew-soloist
+```
 
-You may need to increate sensitivity in Soloist Display settings.
+The timer checks every six hours. `renew-soloist` only works for Managed. A failed build should roll back; `doctor` can reveal a broken service. `--force` bypasses the unchanged-build shortcut, not safety checks.
 
-Check `soloist-display doctor` and verify the default audio sink. Advanced users can choose another monitor with `SOLOIST_DISPLAY_MONITOR`.
+An unreachable CDN leaves the existing build installed. A healthy WebSocket alone does not prove the right binary started; the manager also checks the systemd process.
 
-## Installation or update failed
+## Visualiser is flat
 
-Read the error message and check the installer log:
+Play audio through the computer running Display. Increase sensitivity in settings. Check the default PipeWire/PulseAudio output sink; `SOLOIST_DISPLAY_MONITOR` selects another monitor if needed.
+
+## Install, update or uninstall failed
+
+Read the error and its reported log path. Then try:
 
 ```sh
 soloist-display doctor
-```
-
-A failed signed-manifest or checksum verification must not be bypassed. Retry once after checking network connectivity; if it persists, report the failing release and exact error. Do not disable signature verification.
-
-For incomplete or damaged installer-managed files, use:
-
-```sh
 soloist-display repair
 ```
 
-The installer is designed to retain the previous release and restore it if activation or health checks fail.
+The next mutating CLI command attempts recovery of interrupted transactions. If recovery itself fails, **keep the state files and journal**. Deleting them makes diagnosis harder, not easier.
 
-## Getting more help
+Signed-release verification failures must not be bypassed. Managed Spotify builds use HTTPS to Spotify's official CDN rather than a signed upstream manifest.
 
-When [opening a GitHub issue](https://github.com/jedrek0429/soloist-display/issues/new?template=bug_report.yml), include your Linux distribution and architecture, the Soloist Display version, the exact error, relevant `doctor` output, and sanitized logs. Remove API keys, tokens, and personal details.
+## Report a bug
 
-See [advanced installation](advanced-installation.md) for release channels, downgrades, and unattended setup, or [installer architecture](installer.md) for implementation details.
+[Open a bug report](https://github.com/jedrek0429/soloist-display/issues/new?template=bug_report.yml) with your distribution, architecture, version, the exact error and sanitised logs.
+
+See [advanced installation](advanced-installation.md) for install flags and [installer](installer.md) for what the manager actually touches.

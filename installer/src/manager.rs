@@ -6,7 +6,7 @@ use crate::{
     process,
     release::{Artifact, ReleaseChannel, ReleaseClient, ReleaseManifest},
     service, soloist,
-    state::{now, InstallState, SoloistOwnership, TransactionJournal, TransactionStatus},
+    state::{now, InstallRecovery, InstallState, SoloistOwnership, TransactionJournal, TransactionStatus},
 };
 use anyhow::{anyhow, bail, Context, Result};
 use serde::{Deserialize, Serialize};
@@ -704,6 +704,26 @@ pub fn install(
         );
     }
     let (mut transaction, journal_path) = TransactionJournal::begin(paths, "install")?;
+    if let Some(unit) = &existing_unit {
+        unit.persist(paths)?;
+    }
+    let service_dir = paths
+        .soloist_service
+        .parent()
+        .context("missing systemd user unit directory")?;
+    transaction.install_recovery = Some(InstallRecovery {
+        previous_settings: original_settings.clone(),
+        previous_config_schema: fs::read(paths.state.join("config-schema.json")).ok(),
+        previous_metadata: original_metadata.clone(),
+        previous_env: fs::read(&paths.soloist_env).ok(),
+        previous_runtime: original_runtime.clone(),
+        previous_display_unit: fs::read(&paths.display_service).ok(),
+        previous_renewal_service: fs::read(service_dir.join("soloist-display-renew.service")).ok(),
+        previous_renewal_timer: fs::read(service_dir.join("soloist-display-renew.timer")).ok(),
+        previous_soloist_link: original_current.clone(),
+        restore_existing_service: existing_unit.is_some(),
+        unit_backup_existed: original_unit_backup_exists,
+    });
     transaction.previous_current = previous_state
         .as_ref()
         .map(|state| state.active_release.clone());
@@ -747,9 +767,6 @@ pub fn install(
         }
     }
     let result = (|| {
-        if let Some(unit) = &existing_unit {
-            unit.persist(paths)?;
-        }
         let release = install_artifacts(
             paths,
             platform,

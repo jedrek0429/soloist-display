@@ -99,9 +99,7 @@ fn protocol_healthy(endpoint: &str) -> bool {
                 .ok()
                 .is_some_and(|value| {
                     value.as_object().is_some_and(|obj| {
-                        obj.get("type")
-                            .and_then(serde_json::Value::as_str)
-                            == Some("auth_state")
+                        obj.get("type").and_then(serde_json::Value::as_str) == Some("auth_state")
                     })
                 })
             {

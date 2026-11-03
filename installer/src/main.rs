@@ -76,6 +76,8 @@ enum Command {
         /// WebSocket endpoint for an external Soloist instance.
         #[arg(long, requires = "external_soloist")]
         soloist_ws: Option<String>,
+        #[arg(long, requires = "external_soloist")]
+        start_external: bool,
     },
     /// Open the now-playing display.
     Launch,
@@ -151,6 +153,7 @@ fn run() -> Result<i32> {
             api_key: None,
             external_soloist: false,
             soloist_ws: None,
+            start_external: false,
         },
     };
     match command {
@@ -159,6 +162,7 @@ fn run() -> Result<i32> {
             api_key,
             external_soloist,
             soloist_ws,
+            start_external,
         } => {
             let platform = Platform::detect()?;
             locked(&paths, || {
@@ -172,6 +176,7 @@ fn run() -> Result<i32> {
                         api_key,
                         external_soloist,
                         soloist_ws,
+                        start_external,
                     },
                 )
             })?;

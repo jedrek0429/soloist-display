@@ -252,11 +252,47 @@ fn env_quote(value: &str) -> Result<String> {
     ))
 }
 
+fn read_credentials(path: &Path) -> Result<(Option<String>, Option<String>)> {
+    if !path.exists() {
+        return Ok((None, None));
+    }
+    let mut name = None;
+    let mut key = None;
+    for line in fs::read_to_string(path)?.lines().map(str::trim) {
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let (variable, raw) = line.split_once('=')
+            .ok_or_else(|| anyhow!("invalid existing Soloist environment file"))?;
+        if variable != "SOLOIST_NAME" && variable != "SOLOIST_API_KEY" {
+            continue;
+        }
+        let raw = raw.trim();
+        let value = if raw.starts_with('"') {
+            serde_json::from_str::<String>(raw)
+                .context("invalid quoted Soloist environment value")?
+        } else {
+            raw.to_owned()
+        };
+        if variable == "SOLOIST_NAME" {
+            name = Some(value);
+        } else {
+            key = Some(value);
+        }
+    }
+    Ok((name, key))
+}
+
 pub fn configure(paths: &Paths, name: Option<String>, api_key: Option<String>) -> Result<()> {
-    if paths.soloist_env.exists() && name.is_none() && api_key.is_none() {
+    let (previous_name, previous_key) = read_credentials(&paths.soloist_env)?;
+    if name.is_none() && api_key.is_none()
+        && previous_name.as_ref().is_some_and(|value| !value.trim().is_empty())
+        && previous_key.as_ref().is_some_and(|value| !value.trim().is_empty())
+    {
         return Ok(());
     }
     let name = name
+        .or(previous_name)
         .or_else(|| std::env::var("SOLOIST_NAME").ok())
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| {
@@ -268,6 +304,7 @@ pub fn configure(paths: &Paths, name: Option<String>, api_key: Option<String>) -
             }
         });
     let key = api_key
+        .or(previous_key)
         .or_else(|| std::env::var("SOLOIST_API_KEY").ok())
         .filter(|s| !s.trim().is_empty())
         .map(Ok)

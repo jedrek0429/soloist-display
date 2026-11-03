@@ -15,7 +15,7 @@ hash=$(sha256sum "$temp/assets/installer" | cut -d' ' -f1)
 for target in x86_64-unknown-linux-musl aarch64-unknown-linux-musl armv7-unknown-linux-musleabihf; do
   printf '%s %s https://github.com/jedrek0429/soloist-display/releases/download/v0.0.0/soloist-display-%s\n' "$target" "$hash" "$target"
 done > "$temp/manifest"
-python3 "$root/scripts/render-bootstrap.py" "$root/install.sh" "$temp/manifest" \
+"$root/target/debug/release-tools" render-bootstrap "$root/install.sh" "$temp/manifest" \
   https://github.com/jedrek0429/soloist-display/releases/download/v0.0.0 > "$temp/bootstrap.sh"
 cat > "$temp/bin/curl" <<'EOF'
 #!/bin/sh
@@ -34,7 +34,7 @@ PATH="$temp/bin:$PATH" sh "$temp/bootstrap.sh" --yes
 grep -Fxq 'install --yes' "$temp/invoked"
 # A rendered alpha bootstrap must pin its matching signed release by default.
 sed 's@/v0.0.0/@/v1.0.0-alpha.1/@g' "$temp/manifest" > "$temp/alpha-manifest"
-python3 "$root/scripts/render-bootstrap.py" "$root/install.sh" "$temp/alpha-manifest" \
+"$root/target/debug/release-tools" render-bootstrap "$root/install.sh" "$temp/alpha-manifest" \
   https://github.com/jedrek0429/soloist-display/releases/download/v1.0.0-alpha.1 > "$temp/alpha.sh"
 sh -n "$temp/alpha.sh"
 PATH="$temp/bin:$PATH" sh "$temp/alpha.sh" --yes

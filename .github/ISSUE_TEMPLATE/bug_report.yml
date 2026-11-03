@@ -1,6 +1,5 @@
 name: Report an issue
 description: Something not working? Tell us what happened.
-title: ""
 labels: ["bug"]
 body:
   - type: textarea

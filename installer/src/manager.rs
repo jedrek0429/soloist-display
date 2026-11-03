@@ -441,7 +441,10 @@ fn wait_for_install_health(
     if !soloist::healthy(soloist_state) {
         bail!(
             "Soloist health check failed: WebSocket {} is unavailable",
-            soloist_state.websocket_url.as_deref().unwrap_or("not configured")
+            soloist_state
+                .websocket_url
+                .as_deref()
+                .unwrap_or("not configured")
         );
     }
     if TcpStream::connect("127.0.0.1:9091").is_err() {
@@ -583,11 +586,12 @@ pub fn install(
     let previous_state = InstallState::load(paths)?;
     let discovered_soloist =
         soloist::discover(paths, previous_state.as_ref().map(|state| &state.soloist));
-    let use_external = external_soloist
-        || select_external_soloist(&discovered_soloist, yes)?;
-    if use_external && previous_state.as_ref().is_some_and(|state| {
-        state.soloist.ownership == SoloistOwnership::Installer
-    }) {
+    let use_external = external_soloist || select_external_soloist(&discovered_soloist, yes)?;
+    if use_external
+        && previous_state
+            .as_ref()
+            .is_some_and(|state| state.soloist.ownership == SoloistOwnership::Installer)
+    {
         bail!("switching a managed installation to external Soloist requires stopping the managed service first");
     }
     let verified_external = if use_external {
@@ -599,13 +603,12 @@ pub fn install(
     } else {
         None
     };
-    let existing_unit = if use_external
-        || discovered_soloist.ownership == SoloistOwnership::Installer
-    {
-        None
-    } else {
-        Some(service::SoloistUnitSnapshot::capture(paths)?)
-    };
+    let existing_unit =
+        if use_external || discovered_soloist.ownership == SoloistOwnership::Installer {
+            None
+        } else {
+            Some(service::SoloistUnitSnapshot::capture(paths)?)
+        };
     let original_current = fs::read_link(&paths.managed_soloist_current).ok();
     let original_settings = fs::read(paths.config.join("config.json")).ok();
     let original_metadata = fs::read(&paths.install_state).ok();
@@ -662,10 +665,7 @@ pub fn install(
     if !port_available(9091) && previous_state.is_none() {
         bail!("port 9091 is already in use; stop its owner and retry");
     }
-    if !use_external
-        && !port_available(9090)
-        && !service::soloist_unit_present(paths)
-    {
+    if !use_external && !port_available(9090) && !service::soloist_unit_present(paths) {
         bail!(
             "port 9090 belongs to a process outside soloist.service; stop it before switching to managed Soloist"
         );
@@ -940,7 +940,13 @@ pub fn update(
         atomic_link(&release, &paths.current)?;
         migrations::migrate(paths)?;
         let mut next_soloist = state.soloist.clone();
-        if state.soloist.ownership == SoloistOwnership::Installer && !state.soloist.executable.as_ref().is_some_and(|path| path.is_file()) {
+        if state.soloist.ownership == SoloistOwnership::Installer
+            && !state
+                .soloist
+                .executable
+                .as_ref()
+                .is_some_and(|path| path.is_file())
+        {
             next_soloist = soloist::install(
                 paths,
                 &client,
@@ -1082,10 +1088,7 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
                     None,
                 )?;
             } else {
-                service::install_soloist(
-                    paths,
-                    &paths.managed_soloist_current.join("soloist"),
-                )?;
+                service::install_soloist(paths, &paths.managed_soloist_current.join("soloist"))?;
                 soloist::start_existing(paths, &state.soloist)?;
             }
             service::install_renewal_timer(paths)?;
@@ -1103,9 +1106,11 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
     }
     save_soloist_websocket(
         paths,
-        state.soloist.websocket_url.as_deref().ok_or_else(|| {
-            anyhow!("Soloist WebSocket endpoint is missing")
-        })?,
+        state
+            .soloist
+            .websocket_url
+            .as_deref()
+            .ok_or_else(|| anyhow!("Soloist WebSocket endpoint is missing"))?,
     )?;
     progress.step(4, "Checking health");
     wait_for_install_health(paths, &state.soloist)?;
@@ -1309,7 +1314,11 @@ pub fn doctor(paths: &Paths) -> Result<bool> {
         "Port 9091 is unavailable; inspect the display service and check for a conflict."
     );
     if let Some(state) = state {
-        let endpoint = state.soloist.websocket_url.as_deref().unwrap_or("(missing)");
+        let endpoint = state
+            .soloist
+            .websocket_url
+            .as_deref()
+            .unwrap_or("(missing)");
         let mode = match state.soloist.ownership {
             SoloistOwnership::Installer => "managed",
             SoloistOwnership::Independent => "external",
@@ -1320,7 +1329,9 @@ pub fn doctor(paths: &Paths) -> Result<bool> {
         check!(
             "Soloist WebSocket",
             paths.is_test() || soloist::healthy(&state.soloist),
-            format!("No Soloist WebSocket handshake at {endpoint}; check its listener and service.")
+            format!(
+                "No Soloist WebSocket handshake at {endpoint}; check its listener and service."
+            )
         );
         match state.soloist.ownership {
             SoloistOwnership::Installer => {
@@ -1353,12 +1364,20 @@ pub fn doctor(paths: &Paths) -> Result<bool> {
                 println!(
                     "{:<22} {}",
                     "External systemd unit",
-                    if present { "detected (not managed)" } else { "absent (optional)" }
+                    if present {
+                        "detected (not managed)"
+                    } else {
+                        "absent (optional)"
+                    }
                 );
                 println!("{:<22} disabled (external mode)", "Automatic renewal");
             }
             SoloistOwnership::None => {
-                check!("Soloist configuration", false, "Reinstall with managed or external Soloist.");
+                check!(
+                    "Soloist configuration",
+                    false,
+                    "Reinstall with managed or external Soloist."
+                );
             }
         }
     }
@@ -1640,8 +1659,11 @@ mod tests {
         let prior = service::SoloistUnitSnapshot::capture(&paths).unwrap();
         prior.persist(&paths).unwrap();
 
-        fs::write(&paths.soloist_service, b"[Service]\nExecStart=/managed/soloist\n")
-            .unwrap();
+        fs::write(
+            &paths.soloist_service,
+            b"[Service]\nExecStart=/managed/soloist\n",
+        )
+        .unwrap();
         fs::write(&paths.soloist_env, b"SOLOIST_API_KEY=managed\n").unwrap();
         fs::create_dir_all(&paths.managed_soloist).unwrap();
         let managed = paths.managed_soloist.join("soloist");

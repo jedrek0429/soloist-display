@@ -211,7 +211,6 @@ fn strip_owned_zshrc_block(existing: &str, directory: &Path) -> String {
             return existing.replacen(&snippet, "", 1);
         }
     }
-    // Legacy version appended this exact block at EOF.
     let old = format!(
         "\n{ZSH_START}\nfpath=(\"{}\" $fpath)\nautoload -Uz compinit\ncompinit\n{ZSH_END}\n",
         directory.display()
@@ -311,7 +310,6 @@ fn install_visible_command(paths: &Paths) -> Result<()> {
         &paths.current.join("bin/soloist-display"),
         &paths.visible_command,
     )?;
-    // Optional shell integration must never roll back an otherwise valid installation.
     if let Err(error) = install_completion(paths) {
         eprintln!("warning: could not configure Zsh completion: {error:#}");
     }

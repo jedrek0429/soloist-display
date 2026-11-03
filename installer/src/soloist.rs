@@ -399,6 +399,17 @@ pub fn start_existing(paths: &Paths, state: &SoloistState) -> Result<()> {
     if healthy(state) {
         return Ok(());
     }
+    if state.ownership == SoloistOwnership::Installer {
+        service::install_soloist(paths, &paths.managed_soloist_current.join("soloist"))?;
+        service::restart_soloist(paths)?;
+        for _ in 0..20 {
+            if healthy(state) {
+                return Ok(());
+            }
+            std::thread::sleep(Duration::from_millis(250));
+        }
+        bail!("managed Soloist did not start or expose its WebSocket");
+    }
     if state.ownership == SoloistOwnership::Independent {
         if !paths.is_test() {
             let _ = Command::new("systemctl")
@@ -431,6 +442,28 @@ mod tests {
         paths.ensure_management_dirs().unwrap();
         (directory, paths)
     }
+    #[test]
+    #[serial]
+    fn verifies_external_websocket_without_requiring_systemd() {
+        let (_directory, paths) = paths();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("ws://{}", listener.local_addr().unwrap());
+        let worker = std::thread::spawn(move || {
+            for _ in 0..2 {
+                let (stream, _) = listener.accept().unwrap();
+                let _socket = tungstenite::accept(stream).unwrap();
+            }
+        });
+        let state = verify_external(&paths, &SoloistState::default(), Some(&url)).unwrap();
+        assert_eq!(state.ownership, SoloistOwnership::Independent);
+        assert_eq!(state.websocket_url.as_deref(), Some(url.as_str()));
+        assert!(!state.service_owned);
+        assert!(!state.data_owned);
+        assert!(!paths.soloist_service.exists());
+        worker.join().unwrap();
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
     #[test]
     fn validates_custom_external_websocket_endpoints() {
         assert!(validate_websocket_url("ws://127.0.0.1:9190").is_ok());

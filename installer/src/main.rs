@@ -12,6 +12,7 @@ mod service;
 mod soloist;
 mod state;
 mod terminal;
+mod uninstall_tx;
 
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
@@ -120,6 +121,7 @@ enum Command {
 fn locked<T>(paths: &Paths, operation: impl FnOnce() -> Result<T>) -> Result<T> {
     paths.ensure_management_dirs()?;
     let _lock = InstallLock::acquire(&paths.lock, Duration::from_secs(15))?;
+    uninstall_tx::recover(paths)?;
     manager::recover(paths)?;
     renewal::recover(paths)?;
     operation()

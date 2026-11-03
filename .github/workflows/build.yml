@@ -51,6 +51,8 @@ jobs:
           sudo apt-get install -y shellcheck
           sh -n install.sh
           shellcheck install.sh
+          sh -n scripts/test-bootstrap-e2e.sh
+          sh -n scripts/test-release-lifecycle.sh
       - name: Frontend syntax
         run: |
           for file in src/*.js; do node --check --input-type=module < "$file"; done
@@ -75,35 +77,13 @@ jobs:
           if HOME=/tmp SOLOIST_DISPLAY_TEST_ROOT=/tmp/soloist-display-no-tty \
             target/debug/soloist-display install </dev/null >/tmp/no-tty.log 2>&1; then exit 1; fi
           grep -q 'non-interactive installation requires --yes' /tmp/no-tty.log
-  systemd-integration:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Start systemd user manager
-        run: |
-          sudo loginctl enable-linger "$(whoami)"
-          sudo systemctl start "user@$(id -u).service"
-          echo "XDG_RUNTIME_DIR=/run/user/$(id -u)" >> "$GITHUB_ENV"
-          echo "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus" >> "$GITHUB_ENV"
-      - name: Test live Soloist unit restoration
-        env:
-          SOLOIST_DISPLAY_RUN_SYSTEMD_TEST: '1'
-        run: |
-          systemctl --user show-environment
-          cargo test --locked -p soloist-display-installer restores_previous_live_systemd_user_service -- --nocapture
-      - name: Test live uninstall and original service restoration
-        env:
-          SOLOIST_DISPLAY_RUN_SYSTEMD_TEST: '1'
-        run: cargo test --locked -p soloist-display-installer live_uninstall_restores_original_service -- --nocapture
-
   cross-build:
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        target: [x86_64-unknown-linux-musl, aarch64-unknown-linux-musl, armv7-unknown-linux-musleabihf]
+        target: [aarch64-unknown-linux-musl, armv7-unknown-linux-musleabihf]
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable

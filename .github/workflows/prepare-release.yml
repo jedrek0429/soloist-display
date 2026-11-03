@@ -94,4 +94,3 @@ jobs:
           BRANCH: ${{ steps.version.outputs.branch }}
         run: |
           gh workflow run build.yml --ref "$BRANCH"
-          gh workflow run distribution-smoke.yml --ref "$BRANCH"

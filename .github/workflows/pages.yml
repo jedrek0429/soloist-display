@@ -3,8 +3,6 @@ on:
   push:
     branches: [main]
     paths: ['site/**', 'index.html', 'styles.css', 'src/motion.js', 'src/spectrum.js', 'install.sh', '.github/workflows/pages.yml']
-  release:
-    types: [published]
   workflow_run:
     workflows: [Signed release]
     types: [completed]

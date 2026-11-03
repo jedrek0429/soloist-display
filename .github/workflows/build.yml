@@ -53,17 +53,14 @@ jobs:
       - name: Frontend syntax
         run: |
           for file in src/*.js; do node --check --input-type=module < "$file"; done
-          python -m json.tool config.json >/dev/null
-          python3 scripts/check-settings-contract.py
-      - name: Release tag validation tests
-        run: python3 -m unittest discover -s scripts -p "test_*.py"
+          cargo run --quiet -p soloist-display-installer --bin release-tools -- check-settings .
       - name: Release bootstrap pin smoke test
         run: |
           mkdir -p /tmp/bootstrap-test
           for target in x86_64-unknown-linux-musl aarch64-unknown-linux-musl armv7-unknown-linux-musleabihf; do
             printf '%s %s https://github.com/jedrek0429/soloist-display/releases/download/v0.0.0/soloist-display-%s\n' "$target" "$(printf '%s' "$target" | sha256sum | cut -d' ' -f1)" "$target"
           done > /tmp/bootstrap-test/bootstrap-manifest.txt
-          python3 scripts/render-bootstrap.py install.sh /tmp/bootstrap-test/bootstrap-manifest.txt https://github.com/jedrek0429/soloist-display/releases/download/v0.0.0 > /tmp/bootstrap-test/install.sh
+          cargo run --quiet -p soloist-display-installer --bin release-tools -- render-bootstrap install.sh /tmp/bootstrap-test/bootstrap-manifest.txt https://github.com/jedrek0429/soloist-display/releases/download/v0.0.0 > /tmp/bootstrap-test/install.sh
           sh -n /tmp/bootstrap-test/install.sh
           shellcheck /tmp/bootstrap-test/install.sh
           grep -Fq "PIN_RELEASE_BASE='https://github.com/jedrek0429/soloist-display/releases/download/v0.0.0'" /tmp/bootstrap-test/install.sh

@@ -416,6 +416,73 @@ fn validate_soloist_elf(path: &Path, target: &str) -> Result<()> {
     Ok(())
 }
 
+const MAX_SESSION_BYTES: u64 = 512 * 1024 * 1024;
+const MAX_SESSION_ENTRIES: usize = 10000;
+
+fn copy_session_tree(
+    source: &Path,
+    destination: &Path,
+    depth: usize,
+    count: &mut usize,
+    total: &mut u64,
+) -> Result<()> {
+    if depth > 32 {
+        bail!("existing Soloist data directory is too deeply nested");
+    }
+    fs::create_dir(destination)?;
+    fs::set_permissions(destination, fs::Permissions::from_mode(0o700))?;
+    for item in fs::read_dir(source)? {
+        let entry = item?;
+        *count += 1;
+        if *count > MAX_SESSION_ENTRIES {
+            bail!("existing Soloist session has too many files");
+        }
+        let name = entry.file_name();
+        if depth == 0 && matches!(name.to_str(), Some("soloist.pid" | "ws.addr" | "ws.port")) {
+            continue;
+        }
+        let from = entry.path();
+        let to = destination.join(name);
+        let kind = entry.file_type()?;
+        if kind.is_symlink() {
+            bail!("existing Soloist data contains a symlink; cannot copy it safely");
+        }
+        if kind.is_dir() {
+            copy_session_tree(&from, &to, depth + 1, count, total)?;
+        } else if kind.is_file() {
+            let size = entry.metadata()?.len();
+            *total = total.checked_add(size).ok_or_else(|| anyhow!("Soloist session exceeds size limit"))?;
+            if *total > MAX_SESSION_BYTES {
+                bail!("existing Soloist session exceeds 512 MiB; use external mode");
+            }
+            fs::copy(&from, &to)?;
+            fs::set_permissions(&to, fs::Permissions::from_mode(0o600))?;
+            fs::File::open(&to)?.sync_all()?;
+        } else {
+            bail!("existing Soloist data contains an unsupported file type");
+        }
+    }
+    fs::File::open(destination)?.sync_all()?;
+    Ok(())
+}
+
+pub fn copy_existing_session(paths: &Paths, source: &Path) -> Result<PathBuf> {
+    let destination = paths.managed_soloist.join("session");
+    if source.starts_with(&paths.managed_soloist) || destination.exists() {
+        bail!("managed Soloist session directory is not available for migration");
+    }
+    let metadata = fs::symlink_metadata(source)
+        .with_context(|| format!("read existing Soloist session directory {}", source.display()))?;
+    if !metadata.is_dir() || metadata.file_type().is_symlink() {
+        bail!("existing Soloist session path is not a regular directory");
+    }
+    fs::create_dir_all(&paths.managed_soloist)?;
+    let (mut count, mut total) = (0, 0);
+    copy_session_tree(source, &destination, 0, &mut count, &mut total)?;
+    fs::File::open(&paths.managed_soloist)?.sync_all()?;
+    Ok(destination)
+}
+
 pub fn install(
     paths: &Paths,
     client: &ReleaseClient,
@@ -429,7 +496,8 @@ pub fn install(
     if !paths.state.join("soloist-runtime.json").exists() {
         runtime.save(paths)?;
     }
-    let data_owned = !runtime.data_dir.exists();
+    let data_owned = runtime.data_dir.starts_with(&paths.managed_soloist)
+        || !runtime.data_dir.exists();
     let version_dir = paths.managed_soloist.join(version);
     fs::create_dir_all(&version_dir)?;
     fs::create_dir_all(&paths.cache)?;

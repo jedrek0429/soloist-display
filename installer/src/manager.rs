@@ -21,11 +21,23 @@ use std::{
     time::Duration,
 };
 
-#[derive(Clone, Copy, Debug, clap::ValueEnum)]
-pub enum RemoveMode {
-    Display,
-    Data,
-    All,
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum SoloistRemoval {
+    Restore,
+    Keep,
+    Remove,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum DisplayDataRemoval {
+    Keep,
+    Remove,
+}
+
+pub struct UninstallOptions {
+    pub soloist: Option<SoloistRemoval>,
+    pub data: Option<DisplayDataRemoval>,
+    pub yes: bool,
 }
 
 fn artifact_destination(release: &Path, artifact: &Artifact) -> Result<PathBuf> {
@@ -1407,21 +1419,70 @@ pub fn doctor(paths: &Paths) -> Result<bool> {
     Ok(ok)
 }
 
-fn choose_remove_mode() -> Result<RemoveMode> {
-    if !io::stdin().is_terminal() {
-        bail!("uninstall requires --mode in non-interactive mode");
+fn choose_uninstall_options(
+    options: UninstallOptions,
+    managed: bool,
+    previous: bool,
+) -> Result<(Option<SoloistRemoval>, DisplayDataRemoval)> {
+    if !managed && options.soloist.is_some() {
+        bail!("external Soloist is not managed by Display; --soloist cannot be used");
     }
-    eprintln!("1  Display only (keep data and Soloist)\n2  Display and its data\n3  Display, data, and installer-owned Soloist");
-    eprint!("Choose [1-3]: ");
-    io::stderr().flush()?;
-    let mut choice = String::new();
-    io::stdin().read_line(&mut choice)?;
-    match choice.trim() {
-        "1" => Ok(RemoveMode::Display),
-        "2" => Ok(RemoveMode::Data),
-        "3" => Ok(RemoveMode::All),
-        _ => bail!("invalid uninstall mode"),
+    let soloist = if !managed {
+        None
+    } else if let Some(action) = options.soloist {
+        Some(action)
+    } else if options.yes {
+        Some(if previous {
+            SoloistRemoval::Restore
+        } else {
+            SoloistRemoval::Keep
+        })
+    } else {
+        if !io::stdin().is_terminal() {
+            bail!("non-interactive uninstall requires --soloist and --data, or --yes");
+        }
+        if previous {
+            eprintln!("Soloist: 1 Restore previous installation (recommended)  2 Keep managed  3 Remove managed");
+        } else {
+            eprintln!("Soloist: 1 Keep managed (recommended)  2 Remove managed");
+        }
+        eprint!("Choose [1]: ");
+        io::stderr().flush()?;
+        let mut value = String::new();
+        io::stdin().read_line(&mut value)?;
+        Some(match (previous, value.trim()) {
+            (true, "" | "1") => SoloistRemoval::Restore,
+            (true, "2") | (false, "" | "1") => SoloistRemoval::Keep,
+            (true, "3") | (false, "2") => SoloistRemoval::Remove,
+            _ => bail!("invalid Soloist uninstall choice"),
+        })
+    };
+    if matches!(soloist, Some(SoloistRemoval::Restore)) && !previous {
+        bail!("cannot restore Soloist: there is no usable previous service snapshot");
     }
+    if matches!(soloist, Some(SoloistRemoval::Remove)) && previous {
+        bail!("a previous Soloist installation exists; choose --soloist restore to avoid losing it");
+    }
+    let data = if let Some(action) = options.data {
+        action
+    } else if options.yes {
+        DisplayDataRemoval::Keep
+    } else {
+        if !io::stdin().is_terminal() {
+            bail!("non-interactive uninstall requires --data, or --yes");
+        }
+        eprintln!("Display settings: 1 Keep (recommended)  2 Remove settings and cache");
+        eprint!("Choose [1]: ");
+        io::stderr().flush()?;
+        let mut value = String::new();
+        io::stdin().read_line(&mut value)?;
+        match value.trim() {
+            "" | "1" => DisplayDataRemoval::Keep,
+            "2" => DisplayDataRemoval::Remove,
+            _ => bail!("invalid Display data choice"),
+        }
+    };
+    Ok((soloist, data))
 }
 
 fn safe_remove(path: &Path, allowed: &[&Path]) -> Result<()> {
@@ -1436,22 +1497,34 @@ fn safe_remove(path: &Path, allowed: &[&Path]) -> Result<()> {
     Ok(())
 }
 
-pub fn uninstall(paths: &Paths, requested: Option<RemoveMode>, quiet: bool) -> Result<()> {
+pub fn uninstall(paths: &Paths, options: UninstallOptions, quiet: bool) -> Result<()> {
     let state =
         InstallState::load(paths)?.ok_or_else(|| anyhow!("Soloist Display is not installed"))?;
-    let mode = requested.map(Ok).unwrap_or_else(choose_remove_mode)?;
+    let managed = state.soloist.ownership == SoloistOwnership::Installer;
+    let previous = if managed {
+        service::SoloistUnitSnapshot::load(paths)?
+    } else {
+        None
+    };
+    let has_previous = previous.as_ref().is_some_and(|snapshot| snapshot.has_previous());
+    let (soloist_action, data_action) =
+        choose_uninstall_options(options, managed, has_previous)?;
     let progress = Progress::new(quiet, "Removing Soloist Display");
     progress.step(1, "Stopping services");
-    service::disable_owned(paths, "soloist-display.service")?;
-    service::remove_renewal_timer(paths)?;
-    if state.soloist.ownership == SoloistOwnership::Installer
-        && !matches!(mode, RemoveMode::All)
-        && !quiet
-    {
-        eprintln!(
-            "  Managed Soloist will remain installed, but automatic renewal is disabled because Soloist Display is being removed."
-        );
+    if matches!(soloist_action, Some(SoloistRemoval::Keep)) && !quiet {
+        eprintln!("  Keeping managed Soloist; automatic binary renewal will be disabled.");
     }
+    service::disable_owned(paths, "soloist-display.service")?;
+    if matches!(soloist_action, Some(SoloistRemoval::Restore)) {
+        previous
+            .as_ref()
+            .ok_or_else(|| anyhow!("missing previous Soloist service"))?
+            .restore(paths)
+            .context("restore previous Soloist before uninstalling the managed binary")?;
+    } else if matches!(soloist_action, Some(SoloistRemoval::Remove)) {
+        service::disable_owned(paths, "soloist.service")?;
+    }
+    service::remove_renewal_timer(paths)?;
     progress.step(2, "Removing files");
     remove_completion(paths)?;
     for path in [
@@ -1467,27 +1540,23 @@ pub fn uninstall(paths: &Paths, requested: Option<RemoveMode>, quiet: bool) -> R
             )?;
         }
     }
-    if matches!(mode, RemoveMode::All) && state.soloist.ownership == SoloistOwnership::Installer {
-        let previous_unit = service::SoloistUnitSnapshot::load(paths)?;
-        service::disable_owned(paths, "soloist.service")?;
-        for path in [
-            &paths.soloist_service,
-            &paths.soloist_env,
-            &paths.managed_soloist,
-        ] {
-            if path.exists() || path.is_symlink() {
-                safe_remove(
-                    path,
-                    &[&paths.config_home, &paths.data_home, &paths.cache_home],
-                )?;
+    if matches!(
+        soloist_action,
+        Some(SoloistRemoval::Remove | SoloistRemoval::Restore)
+    ) {
+        if matches!(soloist_action, Some(SoloistRemoval::Remove)) {
+            for path in [&paths.soloist_service, &paths.soloist_env] {
+                if path.exists() || path.is_symlink() {
+                    safe_remove(path, &[&paths.config_home])?;
+                }
             }
         }
-        if let Some(unit) = previous_unit {
-            unit.restore(paths)?;
+        if paths.managed_soloist.exists() || paths.managed_soloist.is_symlink() {
+            safe_remove(&paths.managed_soloist, &[&paths.data_home])?;
         }
     }
     progress.step(3, "Cleaning up");
-    if matches!(mode, RemoveMode::Data | RemoveMode::All) {
+    if data_action == DisplayDataRemoval::Remove {
         for path in [&paths.config.join("config.json"), &paths.cache] {
             if path.exists() {
                 safe_remove(path, &[&paths.config_home, &paths.cache_home])?;
@@ -1512,14 +1581,7 @@ pub fn uninstall(paths: &Paths, requested: Option<RemoveMode>, quiet: bool) -> R
     service::daemon_reload(paths)?;
     drop(progress);
     if !quiet {
-        println!(
-            "Soloist Display removed{}.",
-            if matches!(mode, RemoveMode::Display) {
-                "; settings and Soloist were preserved"
-            } else {
-                ""
-            }
-        );
+        println!("Soloist Display removed.");
     }
     Ok(())
 }

@@ -263,6 +263,13 @@ pub fn soloist_unit_present(paths: &Paths) -> bool {
         })
 }
 
+pub fn stop_soloist_existing(paths: &Paths) -> Result<()> {
+    if soloist_unit_present(paths) && active(paths, "soloist.service") {
+        systemctl(paths, &["stop", "soloist.service"], true)?;
+    }
+    Ok(())
+}
+
 pub fn start_soloist_existing(paths: &Paths) -> Result<()> {
     if !soloist_unit_present(paths) {
         return Err(anyhow!("no existing Soloist systemd unit was found"));

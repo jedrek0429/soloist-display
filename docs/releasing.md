@@ -24,9 +24,8 @@ A prerelease may change configuration or CLI behavior; back up settings and test
 git switch main && git pull --ff-only
 cargo fmt --all -- --check
 cargo check --workspace --locked
-cargo test --workspace --locked
-cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --all-targets --locked
+cargo clippy --workspace --all-targets --locked -- -D warnings
 sh -n install.sh
 cargo run --quiet -p soloist-display-installer --bin release-tools -- check-settings .
 cargo run --quiet -p soloist-display-installer --bin release-tools -- validate-tag v1.0.0-alpha.1
@@ -48,7 +47,7 @@ git tag -a v1.0.0-alpha.1 -m "Soloist Display v1.0.0-alpha.1"
 git push origin v1.0.0-alpha.1
 ```
 
-The `Signed release` workflow builds static binaries for x86_64, ARM64 and ARMv7, downloads and validates official Soloist archives, hashes the assets, signs the application and bootstrap manifests with Ed25519, renders the release-bound `install.sh`, and publishes the GitHub Release. A tag with a prerelease suffix is automatically marked **Pre-release** and `--latest=false`. Stable tags publish without this flag. Never publish a release if any signing/build step failed.
+The `Signed release` workflow builds a single statically linked `release-tools` executable for CI signing and publishing tasks, along with static application binaries for x86_64, ARM64 and ARMv7, downloads and validates official Soloist archives, hashes the assets, signs the application and bootstrap manifests with Ed25519, renders the release-bound `install.sh`, and publishes the GitHub Release. A tag with a prerelease suffix is automatically marked **Pre-release** and `--latest=false`. Stable tags publish without this flag. Never publish a release if any signing/build step failed.
 
 ## Verify after publication
 

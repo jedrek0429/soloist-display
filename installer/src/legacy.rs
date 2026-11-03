@@ -81,8 +81,31 @@ fn parse_unit(paths: &Paths, unit: &str) -> Result<ExistingSettings> {
         if line.starts_with('[') {
             service_section = line == "[Service]";
         }
-        if !service_section || line.starts_with('#') {
+        if !service_section || line.starts_with('#') || line.is_empty() {
             continue;
+        }
+        let directive = line
+            .split_once('=')
+            .map(|(key, _)| key)
+            .ok_or_else(|| anyhow!("invalid systemd service directive"))?;
+        if !matches!(
+            directive,
+            "Environment"
+                | "EnvironmentFile"
+                | "ExecStart"
+                | "Type"
+                | "Restart"
+                | "RestartSec"
+                | "StartLimitIntervalSec"
+                | "StartLimitBurst"
+                | "TimeoutStartSec"
+                | "StandardOutput"
+                | "StandardError"
+        ) {
+            bail!("existing Soloist uses an unsupported systemd service directive: {directive}");
+        }
+        if directive == "Type" && line.trim_start_matches("Type=").trim() != "simple" {
+            bail!("existing Soloist uses a non-simple systemd service; use external mode");
         }
         if let Some(line) = line.strip_prefix("Environment=") {
             for assignment in words(line)? {
@@ -296,6 +319,18 @@ mod tests {
         ).is_err());
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
+    #[test]
+    #[serial]
+    fn refuses_units_with_unhandled_service_directives() {
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("HOME", temp.path());
+        std::env::set_var("SOLOIST_DISPLAY_TEST_ROOT", temp.path().join("root"));
+        let paths = Paths::discover().unwrap();
+        let unit = "[Service]\nType=simple\nStateDirectory=soloist\nExecStart=/usr/bin/soloist -n Speaker -k secret\n";
+        assert!(parse_unit(&paths, unit).is_err());
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
     #[test]
     #[serial]
     fn rejects_unknown_flags() {

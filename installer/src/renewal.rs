@@ -103,7 +103,9 @@ fn cleanup_interrupted_stages(paths: &Paths) -> Result<()> {
     for entry in fs::read_dir(&paths.managed_soloist)? {
         let entry = entry?;
         let name = entry.file_name();
-        let Some(name) = name.to_str() else { continue; };
+        let Some(name) = name.to_str() else {
+            continue;
+        };
         let kind = entry.file_type()?;
         if name.starts_with(".renew-") && kind.is_dir() {
             fs::remove_dir_all(entry.path())?;

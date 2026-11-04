@@ -207,6 +207,34 @@ fn completion_directory(paths: &Paths) -> PathBuf {
     paths.data_home.join("zsh/site-functions")
 }
 
+fn completion_paths(paths: &Paths) -> [(&'static str, PathBuf); 3] {
+    [
+        (
+            "bash",
+            paths
+                .data_home
+                .join("bash-completion/completions/soloist-display"),
+        ),
+        ("zsh", completion_directory(paths).join("_soloist-display")),
+        (
+            "fish",
+            paths
+                .data_home
+                .join("fish/vendor_completions.d/soloist-display.fish"),
+        ),
+    ]
+}
+
+fn shell_available(shell: &str) -> bool {
+    env::var_os("PATH").is_some_and(|path| {
+        env::split_paths(&path).any(|directory| {
+            fs::metadata(directory.join(shell)).is_ok_and(|metadata| {
+                metadata.is_file() && metadata.permissions().mode() & 0o111 != 0
+            })
+        })
+    })
+}
+
 fn completion_snippet(directory: &Path, activate: bool) -> String {
     let quoted = directory.to_string_lossy().replace('\'', "'\\''");
     let mut snippet = format!("{ZSH_START}\nfpath=('{quoted}' $fpath)\n");
@@ -268,38 +296,58 @@ fn integrate_zshrc(existing: &str, directory: &Path) -> String {
     output
 }
 
-fn install_completion(paths: &Paths) -> Result<()> {
-    use clap::CommandFactory;
-    let directory = completion_directory(paths);
-    fs::create_dir_all(&directory)?;
-    let mut script = Vec::new();
-    clap_complete::generate(
-        clap_complete::Shell::Zsh,
-        &mut crate::Cli::command(),
-        "soloist-display",
-        &mut script,
-    );
-    fs::write(directory.join("_soloist-display"), script)?;
-    let rc = paths.home.join(".zshrc");
-    if rc.is_symlink() {
-        bail!("refusing to modify symlinked .zshrc");
+fn completion_script(binary: &Path, shell: &str) -> Result<Vec<u8>> {
+    let output = Command::new(binary)
+        .args(["completions", shell])
+        .output()
+        .with_context(|| format!("generate {shell} completions from {}", binary.display()))?;
+    if !output.status.success() {
+        bail!(
+            "{shell} completion generation failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
     }
-    let existing = match fs::read_to_string(&rc) {
-        Ok(value) => value,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
-        Err(error) => return Err(error.into()),
-    };
-    let updated = integrate_zshrc(&existing, &directory);
-    if updated != existing {
-        fs::write(rc, updated)?;
+    Ok(output.stdout)
+}
+
+fn install_completions_with(paths: &Paths, available: impl Fn(&str) -> bool) -> Result<()> {
+    let binary = paths.current.join("bin/soloist-display");
+    for (shell, file) in completion_paths(paths) {
+        if !available(shell) {
+            continue;
+        }
+        let script = completion_script(&binary, shell)?;
+        fs::create_dir_all(file.parent().context("missing completion directory")?)?;
+        fs::write(file, script)?;
+
+        if shell == "zsh" {
+            let rc = paths.home.join(".zshrc");
+            if rc.is_symlink() {
+                bail!("refusing to modify symlinked .zshrc");
+            }
+            let existing = match fs::read_to_string(&rc) {
+                Ok(value) => value,
+                Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
+                Err(error) => return Err(error.into()),
+            };
+            let updated = integrate_zshrc(&existing, &completion_directory(paths));
+            if updated != existing {
+                fs::write(rc, updated)?;
+            }
+        }
     }
     Ok(())
 }
 
-fn remove_completion(paths: &Paths) -> Result<()> {
-    let file = completion_directory(paths).join("_soloist-display");
-    if file.exists() {
-        fs::remove_file(file)?;
+fn install_completions(paths: &Paths) -> Result<()> {
+    install_completions_with(paths, shell_available)
+}
+
+fn remove_completions(paths: &Paths) -> Result<()> {
+    for (_, file) in completion_paths(paths) {
+        if file.exists() {
+            fs::remove_file(file)?;
+        }
     }
     let rc = paths.home.join(".zshrc");
     if rc.is_symlink() {
@@ -307,7 +355,7 @@ fn remove_completion(paths: &Paths) -> Result<()> {
     }
     let content = match fs::read_to_string(&rc) {
         Ok(value) => value,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
         Err(error) => return Err(error.into()),
     };
     let cleaned = strip_owned_zshrc_block(&content, &completion_directory(paths));
@@ -323,8 +371,8 @@ fn install_visible_command(paths: &Paths) -> Result<()> {
         &paths.current.join("bin/soloist-display"),
         &paths.visible_command,
     )?;
-    if let Err(error) = install_completion(paths) {
-        eprintln!("warning: could not configure Zsh completion: {error:#}");
+    if let Err(error) = install_completions(paths) {
+        eprintln!("warning: could not configure shell completions: {error:#}");
     }
     Ok(())
 }
@@ -332,6 +380,75 @@ fn install_visible_command(paths: &Paths) -> Result<()> {
 #[cfg(test)]
 mod completion_tests {
     use super::*;
+
+    #[test]
+    fn completion_uses_the_active_binary() {
+        let dir = tempfile::tempdir().unwrap();
+        let binary = dir.path().join("soloist-display");
+        fs::write(&binary, "#!/bin/sh\necho active-release-completions\n").unwrap();
+        let mut permissions = fs::metadata(&binary).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&binary, permissions).unwrap();
+        assert_eq!(
+            completion_script(&binary, "fish").unwrap(),
+            b"active-release-completions\n"
+        );
+    }
+
+    #[test]
+    fn creates_only_completions_for_available_shells() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = Paths {
+            home: temp.path().to_path_buf(),
+            data_home: temp.path().join("data"),
+            config_home: temp.path().join("config"),
+            state_home: temp.path().join("state"),
+            cache_home: temp.path().join("cache"),
+            root: temp.path().join("data/soloist-display"),
+            config: temp.path().join("config/soloist-display"),
+            state: temp.path().join("state/soloist-display"),
+            cache: temp.path().join("cache/soloist-display"),
+            releases: temp.path().join("data/soloist-display/releases"),
+            current: temp.path().join("data/soloist-display/current"),
+            transactions: temp.path().join("state/soloist-display/transactions"),
+            logs: temp.path().join("state/soloist-display/logs"),
+            lock: temp.path().join("state/soloist-display/installer.lock"),
+            install_state: temp.path().join("state/soloist-display/install.json"),
+            bin_dir: temp.path().join("bin"),
+            visible_command: temp.path().join("bin/soloist-display"),
+            display_service: temp
+                .path()
+                .join("config/systemd/user/soloist-display.service"),
+            soloist_service: temp.path().join("config/systemd/user/soloist.service"),
+            applications: temp.path().join("data/applications"),
+            soloist_env: temp.path().join("config/soloist-display/soloist.env"),
+            managed_soloist: temp.path().join("data/soloist-display/soloist"),
+            managed_soloist_current: temp.path().join("data/soloist-display/soloist/current"),
+            soloist_data: temp.path().join("data/soloist"),
+            soloist_cache: temp.path().join("cache/soloist"),
+        };
+        let binary = paths.current.join("bin/soloist-display");
+        fs::create_dir_all(binary.parent().unwrap()).unwrap();
+        fs::write(&binary, "#!/bin/sh\nprintf '%s\\n' \"$2\"\n").unwrap();
+        let mut mode = fs::metadata(&binary).unwrap().permissions();
+        mode.set_mode(0o755);
+        fs::set_permissions(&binary, mode).unwrap();
+
+        install_completions_with(&paths, |shell| shell != "fish").unwrap();
+
+        let files = completion_paths(&paths);
+        assert_eq!(fs::read_to_string(&files[0].1).unwrap(), "bash\n");
+        assert_eq!(fs::read_to_string(&files[1].1).unwrap(), "zsh\n");
+        assert!(!files[2].1.exists());
+        assert!(!paths.data_home.join("fish").exists());
+
+        remove_completions(&paths).unwrap();
+        assert!(!files[0].1.exists());
+        assert!(!files[1].1.exists());
+        assert!(!fs::read_to_string(paths.home.join(".zshrc"))
+            .unwrap()
+            .contains(ZSH_START));
+    }
 
     #[test]
     fn inserts_before_existing_compinit_without_duplicating_it() {
@@ -1099,6 +1216,9 @@ pub fn update(
             });
             next.save(paths)?;
         }
+        if let Err(error) = install_completions(paths) {
+            eprintln!("warning: could not refresh shell completions: {error:#}");
+        }
         crate::terminal::success(format!("Soloist Display {} is up to date.", state.version));
         return Ok(());
     }
@@ -1168,6 +1288,9 @@ pub fn update(
         return Err(error.context("update failed; restored the previous release"));
     }
     drop(progress);
+    if let Err(error) = install_completions(paths) {
+        eprintln!("warning: could not refresh shell completions: {error:#}");
+    }
     if !quiet {
         println!("Updated Soloist Display to {}.", manifest.version);
         if state.suppress_updates {
@@ -1718,7 +1841,9 @@ pub fn uninstall(paths: &Paths, options: UninstallOptions, quiet: bool) -> Resul
             transaction.stage(paths, &paths.root.join("addons/mpris"))?;
             transaction.stage(paths, &paths.state.join("mpris.json"))?;
         }
-        transaction.stage(paths, &completion_directory(paths).join("_soloist-display"))?;
+        for (_, file) in completion_paths(paths) {
+            transaction.stage(paths, &file)?;
+        }
         for path in [
             &paths.display_service,
             &paths.visible_command,
@@ -1761,8 +1886,8 @@ pub fn uninstall(paths: &Paths, options: UninstallOptions, quiet: bool) -> Resul
             .context("uninstall failed and recovery could not complete")?;
         return Err(error.context("uninstall did not complete"));
     }
-    if let Err(error) = remove_completion(paths) {
-        eprintln!("warning: could not remove Zsh completion integration: {error:#}");
+    if let Err(error) = remove_completions(paths) {
+        eprintln!("warning: could not remove shell completion integration: {error:#}");
     }
     drop(progress);
     if !quiet {

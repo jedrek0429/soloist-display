@@ -23,6 +23,12 @@ soloist-display notifications off
 
 The channel is remembered. Downgrades need explicit consent; older settings may not survive them. `notifications on` restores update prompts.
 
+## Shell completions
+
+The installer sets up completions for Bash, Zsh and Fish. Bash needs the `bash-completion` package enabled. Zsh is configured through an installer-owned `~/.zshrc` block; Bash and Fish discover their completion files without editing their startup files.
+
+After installing a new shell, `soloist-display update` refreshes completions even if Display is already up to date. You can also generate scripts manually with `soloist-display completions bash|zsh|fish`.
+
 ## Managed or External?
 
 **Managed** is the default. Display installs and maintains a Soloist binary and user service. It checks the official Spotify CDN weekly. To check now:

@@ -443,7 +443,7 @@ mod completion_tests {
         remove_completions(&paths).unwrap();
         assert!(!files[0].1.exists());
         assert!(!files[1].1.exists());
-        assert!(!paths.home.join(".zshrc").read_to_string().unwrap().contains(ZSH_START));
+        assert!(!fs::read_to_string(paths.home.join(".zshrc")).unwrap().contains(ZSH_START));
     }
 
     #[test]

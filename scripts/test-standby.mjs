@@ -153,7 +153,7 @@ test('cover playback retracts and resumes with the selected sleeve alignment',()
           globalThis.document={documentElement:{dataset:{discAppearance:appearance}}};
           const director=new DiscDirector({
             discs,backdrops:[element('bg-a',[]),element('bg-b',[])],info:element('info',[]),
-            settings:{pauseRetractMs:0,sleeveAlignment:alignment,reducedMotion}
+            settings:{pauseRetractMs:0,sleeveAlignment:alignment,reducedMotion,sleeveDuration:1200}
           });
           director.started=true;
           const record=discs[0].querySelector('.record-track');
@@ -164,8 +164,8 @@ test('cover playback retracts and resumes with the selected sleeve alignment',()
           assert.equal(record.style.translate,alignment==='center'?'25% 0':'0% 0');
           assert.equal(cover.style.translate,alignment==='center'?'25% 0':'0% 0');
           assert.equal(cover.style.transform,undefined);
-          assert.equal(record.style.transition,reducedMotion?'none':'transform 450ms ease-in-out, translate 450ms ease-in-out');
-          assert.equal(cover.style.transition,reducedMotion?'none':'translate 450ms ease-in-out');
+          assert.equal(record.style.transition,reducedMotion?'none':'transform 600ms ease-in-out, translate 600ms ease-in-out');
+          assert.equal(cover.style.transition,reducedMotion?'none':'translate 600ms ease-in-out');
           director.setPlaying(true);
           assert.equal(record.style.transform,'translateX(50%)');
           assert.equal(record.style.translate,'0% 0');
@@ -268,9 +268,9 @@ test('returning from idle reveals the fully extended sleeve without a late slide
 
         // Normal visible pauses must still animate in both directions.
         director.setPlaying(false);
-        assert.equal(track.style.transition,'transform 450ms ease-in-out, translate 450ms ease-in-out');
+        assert.equal(track.style.transition,'transform 500ms ease-in-out, translate 500ms ease-in-out');
         director.setPlaying(true);
-        assert.equal(track.style.transition,'transform 450ms ease-in-out, translate 450ms ease-in-out');
+        assert.equal(track.style.transition,'transform 500ms ease-in-out, translate 500ms ease-in-out');
         director.reset();
       }
     }

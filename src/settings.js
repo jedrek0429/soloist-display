@@ -83,6 +83,13 @@ const sections=[
     ]
   },
   {
+    title:'Idle motion',
+    fields:[
+      ['idleTransitionStyle','Transition','select',['fade','off']],
+      ['idleFadeDuration','Duration','range',0,10000,50,'ms']
+    ]
+  },
+  {
     title:'Display',
     fields:[
       ['burnInProtection','Screen burn-in protection','toggle']
@@ -120,7 +127,7 @@ let activeSection=0;
 let motionExpanded=false;
 let previousPauseSeconds=300;
 const previousDurationValues=new Map();
-const motionPages=new Set(['Sleeve motion','Disc motion','Backdrop motion','Panel motion']);
+const motionPages=new Set(['Sleeve motion','Disc motion','Backdrop motion','Panel motion','Idle motion']);
 const isCover=style=>style==='vinyl-cover'||style==='cd-cover';
 const motionVisible=title=>title!=='Sleeve motion'||isCover(draft.discAppearance);
 const motionLabel=title=>title==='Disc motion'&&draft.discAppearance==='album-cover'?'Album cover':title.replace(' motion','');
@@ -204,6 +211,7 @@ function renderSection(){
     (key==='sleeveAlignment'&&!isCover(draft.discAppearance))||
     (key==='idleShowDate'&&!['digital-clock','vinyl-clock'].includes(draft.idleAppearance))||
     (key==='idleText'&&draft.idleAppearance==='black')||
+    (key==='idleFadeDuration'&&draft.idleTransitionStyle==='off')||
     (key==='timeLayout'&&draft.timeDisplay==='off')||
     (key==='transitionDuration'&&selectedValue('transitionStyle')==='off')||
     (key==='transitionDelay'&&selectedValue('transitionStyle')==='off')||
@@ -320,7 +328,7 @@ function renderSection(){
       line.append(select);
       const output=document.createElement('output');output.htmlFor=key;
       const refresh=()=>{const value=typeof min[0]==='number'?Number(select.value):select.value;draft[key==='centerHoleColor'?selectedHoleColorKey():selectedFieldKey(key)]=value;output.textContent=String(value);};
-      select.addEventListener('change',()=>{refresh();if(['discAppearance','cdCoverSide','timeDisplay','transitionStyle','sleeveTransitionStyle','backdropTransitionStyle','panelTransitionStyle','idleAppearance'].includes(key)){if(key==='discAppearance')renderNav();renderSection();}status.textContent='Unsaved changes';});
+      select.addEventListener('change',()=>{refresh();if(['discAppearance','cdCoverSide','timeDisplay','transitionStyle','sleeveTransitionStyle','backdropTransitionStyle','panelTransitionStyle','idleTransitionStyle','idleAppearance'].includes(key)){if(key==='discAppearance')renderNav();renderSection();}status.textContent='Unsaved changes';});
       // Rendering a select must not change the configuration. Only user input does.
       output.textContent=select.value;
       controls.append(line);continue;

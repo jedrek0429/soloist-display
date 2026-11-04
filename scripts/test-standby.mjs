@@ -19,6 +19,28 @@ test('disc and standby use separate vinyl labels and setting keys',()=>{
   assert.equal(vm.runInContext("sections.find(s=>s.title==='Standby').fields[0][0]",context),'idleAppearance');
 });
 
+
+test('standby fade is adjustable in Motion, including Pure black',()=>{
+  const config=JSON.parse(fs.readFileSync(new URL('../config.json',import.meta.url),'utf8'));
+  const settings=fs.readFileSync(new URL('../src/settings.js',import.meta.url),'utf8');
+  const main=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
+  const css=fs.readFileSync(new URL('../styles.css',import.meta.url),'utf8');
+  assert.equal(config.idleTransitionStyle,'fade');
+  assert.equal(config.idleFadeDuration,300);
+  assert.match(settings,/title:'Idle motion'/);
+  assert.match(settings,/\['idleTransitionStyle','Transition','select',\['fade','off'\]\]/);
+  assert.match(settings,/key==='idleFadeDuration'&&draft\.idleTransitionStyle==='off'/);
+  assert.match(settings,/'idleTransitionStyle','idleAppearance'\]\.includes\(key\)/);
+  assert.match(settings,/\['idleFadeDuration','Duration','range',0,10000,50,'ms'\]/);
+  assert.match(main,/root\.dataset\.idleTransition=config\.idleTransitionStyle==='off'\?'off':'fade'/);
+  assert.match(main,/--idle-fade-duration':bounded\(config\.idleFadeDuration,300,0,10000\)\+'ms'/);
+  assert.match(css,/\.standby\{[^}]*transition:opacity var\(--idle-fade-duration,300ms\) ease,visibility var\(--idle-fade-duration,300ms\)/);
+  assert.match(css,/:root\[data-idle-appearance='black'\] \.standby\{background:#000\}/);
+  assert.doesNotMatch(css,/:root\[data-idle-appearance='black'\] \.standby\{transition:none\}/);
+  assert.match(css,/:root\[data-idle-transition='off'\] \.standby\{transition:none\}/);
+  assert.match(css,/:root\[data-reduced-motion='true'\] \.standby[^\n]*transition:none!important/);
+});
+
 test('fresh state without a track enters standby',()=>{
   assert.equal(isEmptyPlayback({type:'state',state:{item:null,status:'paused'}}),true);
   assert.equal(isEmptyPlayback({item:null,status:'stopped'}),true);
@@ -131,7 +153,7 @@ test('cover playback retracts and resumes with the selected sleeve alignment',()
           globalThis.document={documentElement:{dataset:{discAppearance:appearance}}};
           const director=new DiscDirector({
             discs,backdrops:[element('bg-a',[]),element('bg-b',[])],info:element('info',[]),
-            settings:{pauseRetractMs:0,sleeveAlignment:alignment,reducedMotion}
+            settings:{pauseRetractMs:0,sleeveAlignment:alignment,reducedMotion,sleeveDuration:1200}
           });
           director.started=true;
           const record=discs[0].querySelector('.record-track');
@@ -142,8 +164,8 @@ test('cover playback retracts and resumes with the selected sleeve alignment',()
           assert.equal(record.style.translate,alignment==='center'?'25% 0':'0% 0');
           assert.equal(cover.style.translate,alignment==='center'?'25% 0':'0% 0');
           assert.equal(cover.style.transform,undefined);
-          assert.equal(record.style.transition,reducedMotion?'none':'transform 450ms ease-in-out, translate 450ms ease-in-out');
-          assert.equal(cover.style.transition,reducedMotion?'none':'translate 450ms ease-in-out');
+          assert.equal(record.style.transition,reducedMotion?'none':'transform 600ms ease-in-out, translate 600ms ease-in-out');
+          assert.equal(cover.style.transition,reducedMotion?'none':'translate 600ms ease-in-out');
           director.setPlaying(true);
           assert.equal(record.style.transform,'translateX(50%)');
           assert.equal(record.style.translate,'0% 0');
@@ -153,6 +175,36 @@ test('cover playback retracts and resumes with the selected sleeve alignment',()
           assert.equal(director.pauseRetracted,false);
           assert.equal(cover.style.transition,'');
         }
+      }
+    }
+  }finally{
+    globalThis.document=previousDoc;
+    globalThis.requestAnimationFrame=previousFrame;
+  }
+});
+
+test('pause sleeve obeys the existing transition toggle and half-duration',()=>{
+  const previousDoc=globalThis.document,previousFrame=globalThis.requestAnimationFrame;
+  globalThis.requestAnimationFrame=()=>0;
+  try{
+    for(const appearance of ['vinyl-cover','cd-cover']){
+      for(const style of ['in-out','off']){
+        globalThis.document={documentElement:{dataset:{discAppearance:appearance}}};
+        const discs=[element('disc-a',[]),element('disc-b',[])];
+        const director=new DiscDirector({
+          discs,backdrops:[element('bg-a',[]),element('bg-b',[])],info:element('info',[]),
+          settings:{pauseRetractMs:0,sleeveTransitionStyle:style,sleeveDuration:1700}
+        });
+        director.started=true;
+        director.setPlaying(false);
+        const record=discs[0].querySelector('.record-track');
+        const cover=discs[0].querySelector('.record-sleeve');
+        const expected=style==='off'?'none':'transform 850ms ease-in-out, translate 850ms ease-in-out';
+        assert.equal(record.style.transition,expected,appearance+':'+style);
+        assert.equal(cover.style.transition,style==='off'?'none':'translate 850ms ease-in-out');
+        director.setPlaying(true);
+        assert.equal(record.style.transition,expected);
+        director.reset();
       }
     }
   }finally{
@@ -246,9 +298,9 @@ test('returning from idle reveals the fully extended sleeve without a late slide
 
         // Normal visible pauses must still animate in both directions.
         director.setPlaying(false);
-        assert.equal(track.style.transition,'transform 450ms ease-in-out, translate 450ms ease-in-out');
+        assert.equal(track.style.transition,'transform 500ms ease-in-out, translate 500ms ease-in-out');
         director.setPlaying(true);
-        assert.equal(track.style.transition,'transform 450ms ease-in-out, translate 450ms ease-in-out');
+        assert.equal(track.style.transition,'transform 500ms ease-in-out, translate 500ms ease-in-out');
         director.reset();
       }
     }

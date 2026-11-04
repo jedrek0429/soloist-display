@@ -247,6 +247,7 @@ async fn put_config(
             | "coverTransitionDuration"
             | "backdropTransitionDuration"
             | "panelTransitionDuration" => Some((100., 10000.)),
+            "idleFadeDuration" => Some((0., 10000.)),
             "sleeveDelay"
             | "sleeveDelayIn"
             | "sleeveDelayOut"
@@ -312,6 +313,13 @@ async fn put_config(
             return Err((
                 StatusCode::BAD_REQUEST,
                 "Unsupported backdrop transition".into(),
+            ));
+        }
+        if key == "idleTransitionStyle" && !["fade", "off"].contains(&value.as_str().unwrap_or(""))
+        {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Unsupported idle transition".into(),
             ));
         }
         if key == "panelTransitionStyle"
@@ -689,6 +697,69 @@ mod tests {
                 .await
                 .err()
                 .expect("invalid value must fail");
+            assert_eq!(error.0, StatusCode::BAD_REQUEST);
+        }
+    }
+
+    #[tokio::test]
+    async fn validates_idle_fade_duration() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = WebState {
+            path: Arc::new(dir.path().join("config.json")),
+            write_lock: Arc::new(Mutex::new(())),
+        };
+        assert_eq!(read_settings(&state.path)["idleFadeDuration"], 300);
+        assert_eq!(read_settings(&state.path)["idleTransitionStyle"], "fade");
+        for style in ["fade", "off"] {
+            let mut config = read_settings(&state.path);
+            let tag = config_etag(&config);
+            config["idleTransitionStyle"] = Value::from(style);
+            let mut headers = HeaderMap::new();
+            headers.insert(header::IF_MATCH, HeaderValue::from_str(&tag).unwrap());
+            assert!(
+                put_config(State(state.clone()), headers, Json(config))
+                    .await
+                    .is_ok(),
+                "valid idle transition {style}"
+            );
+        }
+        let mut config = read_settings(&state.path);
+        let tag = config_etag(&config);
+        config["idleTransitionStyle"] = Value::from("slide");
+        let mut headers = HeaderMap::new();
+        headers.insert(header::IF_MATCH, HeaderValue::from_str(&tag).unwrap());
+        assert_eq!(
+            put_config(State(state.clone()), headers, Json(config))
+                .await
+                .err()
+                .expect("invalid idle transition must fail")
+                .0,
+            StatusCode::BAD_REQUEST
+        );
+        for duration in [0, 50, 300, 10000] {
+            let mut config = read_settings(&state.path);
+            let tag = config_etag(&config);
+            config["idleFadeDuration"] = Value::from(duration);
+            let mut headers = HeaderMap::new();
+            headers.insert(header::IF_MATCH, HeaderValue::from_str(&tag).unwrap());
+            assert!(
+                put_config(State(state.clone()), headers, Json(config))
+                    .await
+                    .is_ok(),
+                "valid idle fade duration {duration}"
+            );
+            assert_eq!(read_settings(&state.path)["idleFadeDuration"], duration);
+        }
+        for value in [Value::from(-1), Value::from(10001), Value::from("300")] {
+            let mut config = read_settings(&state.path);
+            let tag = config_etag(&config);
+            config["idleFadeDuration"] = value;
+            let mut headers = HeaderMap::new();
+            headers.insert(header::IF_MATCH, HeaderValue::from_str(&tag).unwrap());
+            let error = put_config(State(state.clone()), headers, Json(config))
+                .await
+                .err()
+                .expect("invalid idle fade duration must fail");
             assert_eq!(error.0, StatusCode::BAD_REQUEST);
         }
     }

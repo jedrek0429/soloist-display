@@ -36,6 +36,8 @@
   "idleText": "",
   "idleShowDate": true,
   "idlePauseDelaySeconds": 300,
+  "idleTransitionStyle": "fade",
+  "idleFadeDuration": 300,
   "transitionDuration": 2000,
   "backdropTransitionStyle": "fade",
   "backdropTransitionDuration": 2000,

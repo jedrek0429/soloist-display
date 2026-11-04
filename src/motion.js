@@ -61,7 +61,6 @@ export class DiscDirector{
       backdrop.style.opacity='0';
       backdrop.style.zIndex='';
     }
-    this.info.classList.remove('metadata-exiting','metadata-entering','revealing');
     this.info.style.transform='';
     this.info.style.opacity='';
   }
@@ -80,8 +79,10 @@ export class DiscDirector{
   positionPausedSleeve(retracted,{animate=true}={}){
     const track=this.activeTrack();
     const sleeve=this.discs[this.current].querySelector('.record-sleeve');
-    track.style.transition=this.motionEnabled&&animate?'transform 450ms ease-in-out, translate 450ms ease-in-out':'none';
-    sleeve.style.transition=this.motionEnabled&&animate?'translate 450ms ease-in-out':'none';
+    const duration=this.motionEnabled&&animate&&this.settings.sleeveTransitionStyle!=='off'
+      ?this.settings.sleeveDuration/2:0;
+    track.style.transition=duration?`transform ${duration}ms ease-in-out, translate ${duration}ms ease-in-out`:'none';
+    sleeve.style.transition=duration?`translate ${duration}ms ease-in-out`:'none';
     const offset=retracted&&this.settings.sleeveAlignment==='center'?'25% 0':'0% 0';
     track.style.transform=retracted?'translateX(0)':'translateX(50%)';
     track.style.translate=offset;
@@ -191,7 +192,6 @@ export class DiscDirector{
     if(this.settings.panelEnabled===false){show();return;}
     this.panelAnimation?.cancel();
     this.panelAnimation=null;
-    this.info.classList.remove('metadata-exiting','metadata-entering','revealing');
     this.info.style.transform='';
     this.info.style.opacity='';
     const style=this.motionEnabled?this.settings.panelTransitionStyle:'off';

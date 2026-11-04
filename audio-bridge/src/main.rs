@@ -268,15 +268,20 @@ async fn put_config(
                 return Err((StatusCode::BAD_REQUEST, format!("Out of range: {key}")));
             }
         }
-        if key == "idleMode"
-            && !["clock", "vinyl", "text"].contains(&value.as_str().unwrap_or(""))
+        if key == "idleMode" && !["clock", "vinyl", "text"].contains(&value.as_str().unwrap_or(""))
         {
-            return Err((StatusCode::BAD_REQUEST, "Unsupported standby appearance".into()));
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Unsupported standby appearance".into(),
+            ));
         }
         if key == "idlePauseDelay"
             && !["never", "0", "30", "60", "300", "600"].contains(&value.as_str().unwrap_or(""))
         {
-            return Err((StatusCode::BAD_REQUEST, "Unsupported standby pause delay".into()));
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Unsupported standby pause delay".into(),
+            ));
         }
         if key == "idleText" && value.as_str().unwrap_or("").chars().count() > 80 {
             return Err((StatusCode::BAD_REQUEST, "Standby text is too long".into()));

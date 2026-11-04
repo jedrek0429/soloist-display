@@ -72,3 +72,16 @@ test('landing SEO describes the actual Linux Spotify display',()=>{
   assert.match(workflow,/cp site\/og-image\.webp/);
   assert.match(workflow,/s@<head>@<head><meta name="robots" content="noindex,follow">@/);
 });
+
+test('landing explanation stays in the main grid and follows the preview on mobile',()=>{
+  const landing=read('../site/index.html');
+  assert.match(landing,/<h2 id="about-heading">Spotify Connect for Linux and Raspberry Pi<\/h2>/);
+  assert.match(landing,/Soloist Display turns your computer into a Spotify Connect speaker\./);
+  assert.match(landing,/Control playback from the Spotify app on your phone or computer, while Soloist Display plays the music and shows animated album artwork, track details and a live audio spectrum\./);
+  assert.match(landing,/<p class="requirement">Requires Spotify Premium\.<\/p>/);
+  assert.ok(landing.indexOf('<section class="hero">') < landing.indexOf('<figure class="preview"'));
+  assert.ok(landing.indexOf('<figure class="preview"') < landing.indexOf('<section class="about"'));
+  assert.match(landing,/grid-template:"hero preview" auto "about preview" auto/);
+  assert.match(landing,/@media\(min-width:801px\) and \(max-height:800px\)/);
+  assert.doesNotMatch(landing,/class="eyebrow"|class="features"/);
+});

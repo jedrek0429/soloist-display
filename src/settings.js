@@ -105,6 +105,10 @@ const sections=[
     ]
   }
 ];
+const selectLabel=(key,choice)=>{
+  const labels={song:'Song change',album:'Album change',cd:'CD','vinyl-cover':'Vinyl & Cover','cd-cover':'CD & Cover','album-cover':'Album cover','digital-clock':'Digital clock','vinyl-clock':'Vinyl clock',vinyl:'Vinyl',text:'Text only',black:'Pure black'};
+  return key==='idleAppearance'&&choice==='vinyl'?'Vinyl standby':labels[choice]||String(choice).replace(/^./,c=>c.toUpperCase());
+};
 const controls=document.querySelector('#controls');
 const nav=document.querySelector('#section-nav');
 const status=document.querySelector('#status');
@@ -311,7 +315,7 @@ function renderSection(){
     }else if(type==='select'){
       const select=document.createElement('select');
       select.id=key;select.dataset.key=key;
-      for(const choice of min){const option=document.createElement('option');option.value=String(choice);option.textContent=({song:'Song change',album:'Album change',cd:'CD','vinyl-cover':'Vinyl & Cover','cd-cover':'CD & Cover','album-cover':'Album cover','digital-clock':'Digital clock','vinyl-clock':'Vinyl clock',vinyl:'Vinyl standby',text:'Text only',black:'Pure black'}[choice]||String(choice).replace(/^./,c=>c.toUpperCase()));select.append(option)}
+      for(const choice of min){const option=document.createElement('option');option.value=String(choice);option.textContent=selectLabel(key,choice);select.append(option)}
       select.value=String((key==='centerHoleColor'?draft[selectedHoleColorKey()]:selectedValue(key))??min[0]);
       line.append(select);
       const output=document.createElement('output');output.htmlFor=key;

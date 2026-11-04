@@ -33,7 +33,7 @@ soloist-display update           # update Display
 soloist-display doctor           # check what's wrong
 ```
 
-Managed Soloist checks for new builds every six hours. External Soloist is left alone.
+Managed Soloist checks for new builds weekly. External Soloist is left alone.
 
 ## Media keys (optional)
 

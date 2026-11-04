@@ -384,7 +384,7 @@ pub fn daemon_reload(paths: &Paths) -> Result<()> {
 }
 
 const RENEWAL_SERVICE: &str = "[Unit]\nDescription=Check Spotify Soloist binary updates\n\n[Service]\nType=oneshot\nExecStart=__MANAGER__ renew-soloist\n";
-const RENEWAL_TIMER: &str = "[Unit]\nDescription=Check Spotify Soloist builds every six hours\n\n[Timer]\nOnBootSec=10min\nOnUnitActiveSec=6h\nPersistent=true\n\n[Install]\nWantedBy=timers.target\n";
+const RENEWAL_TIMER: &str = "[Unit]\nDescription=Check Spotify Soloist builds weekly\n\n[Timer]\nOnCalendar=weekly\nPersistent=true\nRandomizedDelaySec=1h\n\n[Install]\nWantedBy=timers.target\n";
 
 pub fn install_renewal_timer(paths: &Paths) -> Result<()> {
     let directory = paths
@@ -600,6 +600,14 @@ pub fn restart_soloist(paths: &Paths) -> Result<()> {
 mod tests {
     use super::*;
     use serial_test::serial;
+
+    #[test]
+    fn renewal_timer_is_weekly() {
+        assert!(RENEWAL_TIMER.contains("OnCalendar=weekly\n"));
+        assert!(RENEWAL_TIMER.contains("Persistent=true\n"));
+        assert!(!RENEWAL_TIMER.contains("OnBootSec="));
+        assert!(!RENEWAL_TIMER.contains("OnUnitActiveSec="));
+    }
 
     #[test]
     fn environment_file_path_is_absolute_and_not_quoted() {

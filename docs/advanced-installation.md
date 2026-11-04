@@ -25,7 +25,7 @@ The channel is remembered. Downgrades need explicit consent; older settings may 
 
 ## Managed or External?
 
-**Managed** is the default. Display installs and maintains a Soloist binary and user service. It checks the official Spotify CDN every six hours. To check now:
+**Managed** is the default. Display installs and maintains a Soloist binary and user service. It checks the official Spotify CDN weekly. To check now:
 
 ```sh
 soloist-display renew-soloist

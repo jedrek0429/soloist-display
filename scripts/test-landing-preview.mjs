@@ -69,6 +69,6 @@ test('landing SEO describes the actual Linux Spotify display',()=>{
   assert.match(landing,/<meta property="og:image" content="https:\/\/jedrek0429\.github\.io\/soloist-display\/og-image\.webp">/);
   assert.match(sitemap,/<loc>https:\/\/jedrek0429\.github\.io\/soloist-display\/<\/loc>/);
   assert.match(workflow,/cp site\/sitemap\.xml/);
-  assert.match(workflow,/cp docs\/screenshots\/now-playing\.webp/);
+  assert.match(workflow,/cp site\/og-image\.webp/);
   assert.match(workflow,/s@<head>@<head><meta name="robots" content="noindex,follow">@/);
 });

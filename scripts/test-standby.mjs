@@ -204,5 +204,5 @@ test('standby has flat settings background and no redundant connection copy',()=
   assert.match(style,/\.standby-record\{[^}]*width:min\(90vw,calc\(100dvh - 7rem\)\)/);
   assert.doesNotMatch(app,/Play something on Spotify to begin/);
   assert.doesNotMatch(app,/'PAUSED'|'READY'|standby-status|standby-description/);
-  assert.match(app,/state==='offline'\?'Disconnected':state==='reconnecting'\?'Reconnecting…'/);
+  assert.match(app,/state==='offline'\?'Disconnected':state==='reconnecting'\?'Reconnecting'/);
 });

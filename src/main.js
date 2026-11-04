@@ -102,7 +102,7 @@ const director=new DiscDirector({discs:[$('disc-a'),$('disc-b')],backdrops:[$('b
 const spectrum=new Spectrum($('visualizer'), config.visualizerSensitivity ?? 1, config.visualizerSmoothing ?? 0.7, {autoNormalize:config.visualizerAutoNormalize===true,peakHold:config.visualizerPeakHold===true});
 function setDisplayState(state){
   root.dataset.displayState=state;
-  $('standby-connection').textContent=state==='offline'?'Disconnected':state==='reconnecting'?'Reconnecting…':'';
+  $('standby-connection').textContent=state==='offline'?'Disconnected':state==='reconnecting'?'Reconnecting':'';
 }
 let currentUri=null,position=0,positionTime=performance.now(),duration=0,playing=false;
 let pauseTimer=null;

@@ -5,8 +5,8 @@ on:
     paths:
       - 'audio-bridge/**'
       - 'Cargo.lock'
-      - 'installer/src/platform.rs'
-      - 'installer/src/dependencies.rs'
+      - 'installer/**'
+      - 'scripts/ci-build-glibc.sh'
       - '.github/workflows/cpal-glibc-validation.yml'
   workflow_dispatch:
 
@@ -28,21 +28,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: glibc-${{ matrix.target }}
-      - name: Install native ALSA headers
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pkg-config libasound2-dev
-      - name: Build CPAL audio bridge
-        run: cargo build --release --locked -p soloist-audio-bridge --target ${{ matrix.target }}
-      - name: Inspect glibc and shared libraries
-        run: |
-          binary="target/${{ matrix.target }}/release/soloist-audio-bridge"
-          file "$binary"
-          readelf -l "$binary" | grep INTERP
-          readelf -d "$binary" | grep NEEDED
-          readelf --version-info "$binary" | grep -o 'GLIBC_[0-9][0-9.]*' | sort -Vu | tail -1
-          ldd "$binary" | tee /tmp/runtime-libraries.txt
-          ! grep -q 'not found' /tmp/runtime-libraries.txt
+      - run: bash scripts/ci-build-glibc.sh ${{ matrix.target }}
 
   armv7:
     if: github.event_name == 'workflow_dispatch' || github.head_ref == 'feat/cpal-glibc-linux-packaging'
@@ -55,27 +41,4 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: glibc-armv7
-      - name: Install ARM hard-float cross sysroot and ALSA
-        run: |
-          sudo dpkg --add-architecture armhf
-          sudo sed -i '/^Types: deb$/a Architectures: amd64' /etc/apt/sources.list.d/ubuntu.sources
-          for suite in noble noble-updates noble-security; do
-            echo "deb [arch=armhf signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] http://ports.ubuntu.com/ubuntu-ports $suite main universe"
-          done | sudo tee /etc/apt/sources.list.d/armhf.list
-          sudo apt-get update
-          sudo apt-get install -y gcc-arm-linux-gnueabihf pkg-config libasound2-dev:armhf
-      - name: Cross-build CPAL bridge with ARMv7 glibc
-        env:
-          PKG_CONFIG_ALLOW_CROSS: '1'
-          PKG_CONFIG_LIBDIR: /usr/lib/arm-linux-gnueabihf/pkgconfig
-          CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc
-        run: cargo build --release --locked -p soloist-audio-bridge --target armv7-unknown-linux-gnueabihf
-      - name: Check ELF class, hard-float ABI and dependencies
-        run: |
-          binary=target/armv7-unknown-linux-gnueabihf/release/soloist-audio-bridge
-          file "$binary"
-          readelf -h "$binary" | grep -E 'Machine:|Flags:'
-          readelf -h "$binary" | grep -q 'hard-float ABI'
-          readelf -l "$binary" | grep INTERP
-          readelf -d "$binary" | grep NEEDED
-          readelf --version-info "$binary" | grep -o 'GLIBC_[0-9][0-9.]*' | sort -Vu | tail -1
+      - run: bash scripts/ci-build-glibc.sh armv7-unknown-linux-gnueabihf

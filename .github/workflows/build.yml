@@ -127,31 +127,21 @@ jobs:
           ! grep -Fq 'SECRET_TEST_VALUE' /tmp/soloist-display-probe/output
   cross-build:
     if: github.event_name == 'push'
-    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        target: [aarch64-unknown-linux-musl, armv7-unknown-linux-musleabihf]
+        include:
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - runner: ubuntu-24.04
+            target: armv7-unknown-linux-gnueabihf
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - uses: mlugg/setup-zig@v2
-        with:
-          version: 0.13.0
-      - uses: taiki-e/install-action@cargo-zigbuild
       - uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.target }}
-      - run: cargo zigbuild --workspace --release --target ${{ matrix.target }}
-      - run: file target/${{ matrix.target }}/release/soloist-display target/${{ matrix.target }}/release/soloist-audio-bridge
-      - name: Runtime smoke test (native or QEMU)
-        run: |
-          binary="target/${{ matrix.target }}/release/soloist-display"
-          case '${{ matrix.target }}' in
-            x86_64-*) "$binary" --version ;;
-            aarch64-*) sudo apt-get update && sudo apt-get install -y qemu-user-static; qemu-aarch64-static "$binary" --version ;;
-            armv7-*) sudo apt-get update && sudo apt-get install -y qemu-user-static; qemu-arm-static "$binary" --version ;;
-          esac
-
+          key: glibc-${{ matrix.target }}
+      - run: bash scripts/ci-build-glibc.sh ${{ matrix.target }}

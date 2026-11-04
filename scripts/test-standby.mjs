@@ -19,6 +19,22 @@ test('disc and standby use separate vinyl labels and setting keys',()=>{
   assert.equal(vm.runInContext("sections.find(s=>s.title==='Standby').fields[0][0]",context),'idleAppearance');
 });
 
+
+test('standby fade is adjustable in Motion, including Pure black',()=>{
+  const config=JSON.parse(fs.readFileSync(new URL('../config.json',import.meta.url),'utf8'));
+  const settings=fs.readFileSync(new URL('../src/settings.js',import.meta.url),'utf8');
+  const main=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
+  const css=fs.readFileSync(new URL('../styles.css',import.meta.url),'utf8');
+  assert.equal(config.idleFadeDuration,300);
+  assert.match(settings,/title:'Idle motion'/);
+  assert.match(settings,/\['idleFadeDuration','Fade duration','range',0,10000,50,'ms'\]/);
+  assert.match(main,/--idle-fade-duration':bounded\(config\.idleFadeDuration,300,0,10000\)\+'ms'/);
+  assert.match(css,/\.standby\{[^}]*transition:opacity var\(--idle-fade-duration,300ms\) ease,visibility var\(--idle-fade-duration,300ms\)/);
+  assert.match(css,/:root\[data-idle-appearance='black'\] \.standby\{background:#000\}/);
+  assert.doesNotMatch(css,/:root\[data-idle-appearance='black'\] \.standby\{transition:none\}/);
+  assert.match(css,/:root\[data-reduced-motion='true'\] \.standby[^\n]*transition:none!important/);
+});
+
 test('fresh state without a track enters standby',()=>{
   assert.equal(isEmptyPlayback({type:'state',state:{item:null,status:'paused'}}),true);
   assert.equal(isEmptyPlayback({item:null,status:'stopped'}),true);

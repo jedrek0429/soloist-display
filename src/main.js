@@ -39,6 +39,7 @@ const settings={
   panelEnabled:config.panelEnabled!==false,
   panelTransitionStyle:config.panelTransitionStyle||'slide',
   panelTransitionDuration:bounded(config.panelTransitionDuration,2050,100,10000),
+  panelHideMs:pauseDelayMs(config.panelHideDelaySeconds??-1),
   reducedMotion:config.reducedMotion===true,
   transitionStyle:motionValue('transitionStyle')||'fly',
   sleeveTransitionStyle:motionValue('sleeveTransitionStyle')||'in-out',

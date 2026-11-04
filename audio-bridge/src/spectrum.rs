@@ -91,6 +91,12 @@ impl Spectrum {
     }
 }
 
+impl Default for Spectrum {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -104,7 +110,7 @@ mod tests {
     #[test]
     fn silence_stays_silent_and_emits_at_the_original_cadence() {
         let mut spectrum = Spectrum::new();
-        let frames = spectrum.push_mono(&vec![0.; WINDOW + 4 * HOP]);
+        let frames = spectrum.push_mono(&[0.; WINDOW + 4 * HOP]);
         assert_eq!(frames.len(), 5);
         assert!(frames.iter().all(|bands| bands.iter().all(|level| *level == 0.)));
     }

@@ -6,6 +6,16 @@ Display releases live under `$XDG_DATA_HOME/soloist-display/releases`. The activ
 
 Mutating CLI operations share a lock. Installation, renewal and uninstall use recovery journals. Recovery runs on the next relevant CLI invocation. If the previous build is also broken, manual recovery may be needed. Package-manager changes are not atomically reversible.
 
+## Shell completions
+
+Install, update and repair generate completions from the active Display binary for shells found on `PATH`:
+
+- Bash: `$XDG_DATA_HOME/bash-completion/completions/soloist-display`
+- Zsh: `$XDG_DATA_HOME/zsh/site-functions/_soloist-display`
+- Fish: `$XDG_DATA_HOME/fish/vendor_completions.d/soloist-display.fish`
+
+If a shell is not installed, its completion file and directory are not created. Bash needs `bash-completion` enabled to load its file. Zsh gets an installer-owned block in `~/.zshrc`; Bash and Fish startup files are left alone. Uninstall removes the completion files and the unmodified Zsh block.
+
 ## MPRIS bridge lifecycle
 
 The opt-in add-on downloads only the [soloist-mpris](https://github.com/TobiasVeiga00/soloist-mpris) binary (currently pinned to v0.2.2); it never runs upstream's installer, replaces `soloist.service`, changes credentials or creates upstream update timers. The manager checks the downloaded archive against upstream's SHA-256 file, validates its ELF architecture and stores the upstream MIT licence alongside the executable. The checksum is published beside the archive: it detects corruption, **not** author authenticity.

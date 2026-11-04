@@ -211,7 +211,7 @@
 :root[data-idle-appearance='black'] .standby,:root[data-idle-appearance='black']:not([data-display-state='playing']) body,:root[data-idle-appearance='black']:not([data-display-state='playing']) .stage{background:#000}
 :root[data-idle-appearance='black'] .standby{transition:none}
 :root[data-idle-appearance='black'] .standby-content,:root[data-idle-appearance='black'] .standby-connection{display:none}
-:root[data-display-state='playing'] .standby{visibility:hidden;opacity:0;pointer-events:none}
+:root[data-display-state='connecting'] .standby,:root[data-display-state='playing'] .standby{visibility:hidden;opacity:0;pointer-events:none}
 :root:not([data-display-state='playing']) .disc-stage,:root:not([data-display-state='playing']) .info,:root:not([data-display-state='playing']) .backdrop{visibility:hidden!important}
 :root:not([data-metadata-ready='true']) .info{visibility:hidden!important}
 #artist:empty{display:none}

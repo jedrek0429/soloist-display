@@ -85,7 +85,8 @@ const sections=[
   {
     title:'Idle motion',
     fields:[
-      ['idleFadeDuration','Fade duration','range',0,10000,50,'ms']
+      ['idleTransitionStyle','Transition','select',['fade','off']],
+      ['idleFadeDuration','Duration','range',0,10000,50,'ms']
     ]
   },
   {
@@ -210,6 +211,7 @@ function renderSection(){
     (key==='sleeveAlignment'&&!isCover(draft.discAppearance))||
     (key==='idleShowDate'&&!['digital-clock','vinyl-clock'].includes(draft.idleAppearance))||
     (key==='idleText'&&draft.idleAppearance==='black')||
+    (key==='idleFadeDuration'&&draft.idleTransitionStyle==='off')||
     (key==='timeLayout'&&draft.timeDisplay==='off')||
     (key==='transitionDuration'&&selectedValue('transitionStyle')==='off')||
     (key==='transitionDelay'&&selectedValue('transitionStyle')==='off')||
@@ -326,7 +328,7 @@ function renderSection(){
       line.append(select);
       const output=document.createElement('output');output.htmlFor=key;
       const refresh=()=>{const value=typeof min[0]==='number'?Number(select.value):select.value;draft[key==='centerHoleColor'?selectedHoleColorKey():selectedFieldKey(key)]=value;output.textContent=String(value);};
-      select.addEventListener('change',()=>{refresh();if(['discAppearance','cdCoverSide','timeDisplay','transitionStyle','sleeveTransitionStyle','backdropTransitionStyle','panelTransitionStyle','idleAppearance'].includes(key)){if(key==='discAppearance')renderNav();renderSection();}status.textContent='Unsaved changes';});
+      select.addEventListener('change',()=>{refresh();if(['discAppearance','cdCoverSide','timeDisplay','transitionStyle','sleeveTransitionStyle','backdropTransitionStyle','panelTransitionStyle','idleTransitionStyle','idleAppearance'].includes(key)){if(key==='discAppearance')renderNav();renderSection();}status.textContent='Unsaved changes';});
       // Rendering a select must not change the configuration. Only user input does.
       output.textContent=select.value;
       controls.append(line);continue;

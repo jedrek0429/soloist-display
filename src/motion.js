@@ -248,14 +248,18 @@ export class DiscDirector{
     const sleeveDelayOut=sleeveOn?this.settings.sleeveDelayOut:0;
     const align=this.settings.sleeveAlignment==='center';
     // Individual translate is independent of the track's sliding transform.
-        const offset=align?'25%':'0%';
+    const offset=align?'25%':'0%';
 
     for(const disc of this.discs){
       disc.style.transform='';disc.style.opacity='';
-      disc.querySelector('.record-track').style.translate='0% 0';
-      disc.querySelector('.record-track').style.transition='none';
-      disc.querySelector('.record-sleeve').style.transition='none';
-      disc.querySelector('.record-sleeve').style.translate='0% 0';
+      const track=disc.querySelector('.record-track');
+      const sleeve=disc.querySelector('.record-sleeve');
+      track.style.transition='none';
+      sleeve.style.transition='none';
+      if(disc!==outgoing||!this.wasRetractedAtChange){
+        track.style.translate='0% 0';
+        sleeve.style.translate='0% 0';
+      }
     }
     for(const bg of this.backdrops){
       bg.style.transition='none';bg.style.opacity=bg===previousBg?'1':'0';bg.style.zIndex='';
@@ -295,6 +299,7 @@ export class DiscDirector{
     void this.transitionPanel(onShow);
     const duration=this.motionEnabled?this.settings.transitionDuration:0;
     const style=this.motionEnabled?this.settings.transitionStyle:'off';
+    const transitionDelay=this.wasRetractedAtChange?0:this.settings.transitionDelay;
     const bgDuration=this.motionEnabled&&this.settings.backdropTransitionStyle==='fade'?this.settings.backdropTransitionDuration:0;
     this.changing=style==='slide'||style==='fly';
     outgoing.classList.add('active');incoming.classList.add('active');
@@ -317,8 +322,9 @@ export class DiscDirector{
         // The incoming record must not emerge before the outgoing one is tucked away.
         // Its own delay begins after that point (or the incoming disc's arrival).
         const discArrival=this.motionEnabled&&['fly','slide'].includes(this.settings.transitionStyle)
-          ?this.settings.transitionDelay+this.settings.transitionDuration/2:0;
-        await delay(Math.max(sleeveDelayIn+sleeveDuration/2,discArrival)+sleeveDelayOut);
+          ?transitionDelay+duration/2:0;
+        const retractWait=this.wasRetractedAtChange?0:sleeveDelayIn+sleeveDuration/2;
+        await delay(Math.max(retractWait,discArrival)+sleeveDelayOut);
         if(token!==this.token)return false;
         const opening=[this.animate(newTrack,[{transform:'translateX(0)'},{transform:'translateX(50%)'}],sleeveDuration/2,token)];
         if(align){
@@ -330,18 +336,18 @@ export class DiscDirector{
     }
     if(style==='fade'){
       incoming.style.opacity='0';
-      jobs.push(this.after(this.settings.transitionDelay,token,()=>this.animate(incoming,[{opacity:0},{opacity:1}],duration,token)));
+      jobs.push(this.after(transitionDelay,token,()=>this.animate(incoming,[{opacity:0},{opacity:1}],duration,token)));
     }
     if(style==='slide'){
       incoming.style.transform='translate(65%,-50%)';
-      jobs.push(this.after(this.settings.transitionDelay,token,()=>this.animate(outgoing,[{transform:'translate(-50%,-50%)'},{transform:'translate(-165%,-50%)'}],duration,token)));
-      jobs.push(this.after(this.settings.transitionDelay,token,()=>this.animate(incoming,[{transform:'translate(65%,-50%)'},{transform:'translate(-50%,-50%)'}],duration,token)));
+      jobs.push(this.after(transitionDelay,token,()=>this.animate(outgoing,[{transform:'translate(-50%,-50%)'},{transform:'translate(-165%,-50%)'}],duration,token)));
+      jobs.push(this.after(transitionDelay,token,()=>this.animate(incoming,[{transform:'translate(65%,-50%)'},{transform:'translate(-50%,-50%)'}],duration,token)));
     }
     if(style==='fly'){
       incoming.style.transform='translate(55%,-115%) scale(.72) rotateX(65deg)';
-      jobs.push(this.after(this.settings.transitionDelay,token,()=>this.animate(outgoing,[{transform:'translate(-50%,-50%) scale(1) rotateX(0deg)'},{transform:'translate(-145%,-98%) scale(.72) rotateX(65deg)'}],duration/2,token)));
+      jobs.push(this.after(transitionDelay,token,()=>this.animate(outgoing,[{transform:'translate(-50%,-50%) scale(1) rotateX(0deg)'},{transform:'translate(-145%,-98%) scale(.72) rotateX(65deg)'}],duration/2,token)));
       jobs.push((async()=>{
-        await delay(this.settings.transitionDelay+duration/2);
+        await delay(transitionDelay+duration/2);
         if(token!==this.token)return false;
         return this.animate(incoming,[{transform:'translate(55%,-115%) scale(.72) rotateX(65deg)'},{transform:'translate(-50%,-50%) scale(1) rotateX(0deg)'}],duration/2,token);
       })());

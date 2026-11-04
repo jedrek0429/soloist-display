@@ -161,6 +161,64 @@ test('cover playback retracts and resumes with the selected sleeve alignment',()
   }
 });
 
+test('changing a retracted cover leaves it centred and skips the retract wait',async()=>{
+  const previousDoc=globalThis.document,previousFrame=globalThis.requestAnimationFrame;
+  const previousTimeout=globalThis.setTimeout;
+  globalThis.requestAnimationFrame=()=>0;
+  try{
+    for(const appearance of ['vinyl-cover','cd-cover']){
+      for(const alignment of ['center','left']){
+        const delays=[],log=[];
+        globalThis.setTimeout=(callback,ms=0,...args)=>{
+          delays.push(ms);
+          queueMicrotask(()=>callback(...args));
+          return 1;
+        };
+        globalThis.document={
+          documentElement:{dataset:{discAppearance:appearance}},
+          querySelectorAll:()=>[]
+        };
+        const discs=[element('disc-a',log),element('disc-b',log)];
+        const backdrops=[element('bg-a',log),element('bg-b',log)];
+        const director=new DiscDirector({
+          discs,backdrops,info:element('info',log),
+          settings:{
+            pauseRetractMs:0,sleeveAlignment:alignment,sleeveTransitionStyle:'in-out',
+            sleeveDelayIn:200,sleeveDelayOut:0,sleeveDuration:2,
+            transitionStyle:'fly',transitionDelay:300,transitionDuration:2,
+            backdropTransitionStyle:'off',panelEnabled:false
+          }
+        });
+        director.started=true;
+        discs[0].classList.add('active');
+        backdrops[0].classList.add('active');
+        director.setPlaying(false);
+        const track=discs[0].querySelector('.record-track');
+        const sleeve=discs[0].querySelector('.record-sleeve');
+        const offset=alignment==='center'?'25% 0':'0% 0';
+        assert.equal(track.style.translate,offset);
+        assert.equal(sleeve.style.translate,offset);
+
+        let departure;
+        const animate=discs[0].animate;
+        discs[0].animate=(frames,options)=>{
+          departure={track:track.style.translate,sleeve:sleeve.style.translate};
+          return animate(frames,options);
+        };
+        await director.change('',()=>{});
+        assert.deepEqual(departure,{track:offset,sleeve:offset},appearance+':'+alignment);
+        assert.ok(delays.every(ms=>ms<100),appearance+':'+alignment+': '+delays);
+        assert.equal(director.current,1);
+        assert.equal(director.artworkChanging,false);
+      }
+    }
+  }finally{
+    globalThis.setTimeout=previousTimeout;
+    globalThis.document=previousDoc;
+    globalThis.requestAnimationFrame=previousFrame;
+  }
+});
+
 test('pause retraction is delayed, cancellable, and independent of plain discs',()=>{
   const previousDoc=globalThis.document,previousFrame=globalThis.requestAnimationFrame;
   const previousNow=Date.now;

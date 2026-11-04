@@ -77,11 +77,11 @@ export class DiscDirector{
     this.pauseStartedAt=null;
     this.pauseRetracted=false;
   }
-  positionPausedSleeve(retracted){
+  positionPausedSleeve(retracted,{animate=true}={}){
     const track=this.activeTrack();
     const sleeve=this.discs[this.current].querySelector('.record-sleeve');
-    track.style.transition=this.motionEnabled?'transform 450ms ease-in-out, translate 450ms ease-in-out':'none';
-    sleeve.style.transition=this.motionEnabled?'translate 450ms ease-in-out':'none';
+    track.style.transition=this.motionEnabled&&animate?'transform 450ms ease-in-out, translate 450ms ease-in-out':'none';
+    sleeve.style.transition=this.motionEnabled&&animate?'translate 450ms ease-in-out':'none';
     const offset=retracted&&this.settings.sleeveAlignment==='center'?'25% 0':'0% 0';
     track.style.transform=retracted?'translateX(0)':'translateX(50%)';
     track.style.translate=offset;
@@ -103,7 +103,7 @@ export class DiscDirector{
       this.retractPausedTrack();
     },remaining);
   }
-  setPlaying(value){
+  setPlaying(value,{instantResume=false}={}){
     this.playing=value;
     if(!value&&!this.started&&!this.artworkChanging)return;
     this.playbackKnown=true;
@@ -112,7 +112,7 @@ export class DiscDirector{
       this.pauseRetractTimer=null;
       this.pauseStartedAt=null;
       if(this.pauseRetracted&&this.isSleeve()&&this.started&&!this.artworkChanging){
-        this.positionPausedSleeve(false);
+        this.positionPausedSleeve(false,{animate:!instantResume});
       }
       this.pauseRetracted=false;
       return;

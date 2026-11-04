@@ -41,6 +41,7 @@ jobs:
           if-no-files-found: error
 
   build-native:
+    if: vars.ENABLE_CROSS_PLATFORM_RELEASES == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -88,6 +89,7 @@ jobs:
 
   sign:
     needs: [build-linux, build-native]
+    if: always() && needs.build-linux.result == 'success' && (needs.build-native.result == 'success' || needs.build-native.result == 'skipped')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7

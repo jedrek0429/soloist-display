@@ -228,8 +228,8 @@ test('default standby message is blank in config, display and preview',()=>{
   const app=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
   const preview=fs.readFileSync(new URL('../docs/idle-preview.html',import.meta.url),'utf8');
   assert.equal(config.idleText,'');
-  assert.match(main,/config\\.idleText\\.slice\\(0,80\\):''/);
-  for(const html of [app,preview])assert.match(html,/<h1 class="standby-caption" id="standby-title"><\\/h1>/);
+  assert.ok(main.includes("config.idleText.slice(0,80):''"));
+  for(const html of [app,preview])assert.ok(html.includes('<h1 class="standby-caption" id="standby-title"></h1>'));
   assert.match(preview,/<input id="caption" type="text" maxlength="80" value="">/);
 });
 

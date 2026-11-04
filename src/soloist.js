@@ -39,6 +39,13 @@ export function normalize(event){
   const status=event?.status??event?.playback?.status??event?.state?.status??null;
   return {item,position,status};
 }
+export function isEmptyPlayback(event){
+  const {item,status}=normalize(event);
+  if(item)return false;
+  const explicitEmpty=[event,event?.playback,event?.state].some(node=>node&&Object.prototype.hasOwnProperty.call(node,'item')&&node.item===null);
+  const stopped=['stopped','idle','none','not_playing'].includes(status)||['stopped','idle'].includes(status?.state);
+  return explicitEmpty||stopped;
+}
 export function positionMs(position){if(typeof position==='number')return position;return Number(position?.position_ms??position?.position??position?.ms??0)}
 export function durationMs(item){return Number(item?.decorations?.playback?.duration_ms??item?.duration_ms??0)}
 export function playing(status){return status===true||status==='playing'||status==='play'||status?.state==='playing'}

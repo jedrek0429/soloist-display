@@ -28,6 +28,36 @@ export class DiscDirector{
     for(const disc of this.discs){if(!disc.classList.contains('active')||appearance==='album-cover')continue;disc.querySelector('.rotor').style.transform=`rotate(${disc.dataset.angleOffset?this.angle-Number(disc.dataset.angleOffset):this.angle}rad)`;}
     requestAnimationFrame(t=>this.spin(t));
   }
+  reset(){
+    ++this.token;
+    ++this.panelToken;
+    for(const animation of this.animations)animation.cancel();
+    this.animations.clear();
+    this.panelAnimation?.cancel();
+    this.panelAnimation=null;
+    clearTimeout(this.fadeTimer);
+    this.pendingShow=null;
+    this.started=false;
+    this.changing=false;
+    this.playing=false;
+    for(const disc of this.discs){
+      disc.classList.remove('active');
+      disc.style.transform='';
+      disc.style.opacity='';
+      disc.querySelector('.record-track').style.transform='';
+      disc.querySelector('.record-track').style.translate='';
+      disc.querySelector('.record-sleeve').style.translate='';
+    }
+    for(const backdrop of this.backdrops){
+      backdrop.classList.remove('active');
+      backdrop.style.transition='none';
+      backdrop.style.opacity='0';
+      backdrop.style.zIndex='';
+    }
+    this.info.classList.remove('metadata-exiting','metadata-entering','revealing');
+    this.info.style.transform='';
+    this.info.style.opacity='';
+  }
   setPlaying(value){this.playing=value}
   async after(wait,token,work){
     if(wait>0)await delay(wait);

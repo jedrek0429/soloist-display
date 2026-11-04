@@ -1,4 +1,4 @@
-import {artistFor,albumKeyFor,coverFor,normalize,positionMs,durationMs,playing as isPlaying} from './soloist.js';
+import {artistFor,albumKeyFor,coverFor,normalize,positionMs,durationMs,playing as isPlaying,isEmptyPlayback} from './soloist.js';
 import {DiscDirector} from './motion.js';
 import {Spectrum} from './spectrum.js';
 
@@ -52,6 +52,7 @@ const settings={
   panelDelayOut:bounded(config.panelDelayOut,0,0,10000)
 };
 const root=document.documentElement;
+root.dataset.reducedMotion=settings.reducedMotion?'true':'false';
 root.dataset.progressBar=config.progressBar===false?'off':'on';
 root.dataset.timeDisplay=['off','remaining','total'].includes(config.timeDisplay)?config.timeDisplay:'off';
 root.dataset.timeLayout=config.timeLayout==='together'?'together':'split';
@@ -84,7 +85,33 @@ for(const [key,value] of Object.entries({
 }))root.style.setProperty(key,value);
 const director=new DiscDirector({discs:[$('disc-a'),$('disc-b')],backdrops:[$('backdrop-a'),$('backdrop-b')],info:$('info'),settings});
 const spectrum=new Spectrum($('visualizer'), config.visualizerSensitivity ?? 1, config.visualizerSmoothing ?? 0.7, {autoNormalize:config.visualizerAutoNormalize===true,peakHold:config.visualizerPeakHold===true});
+const standbyCopy={
+  connecting:['CONNECTING','Connecting to Soloist','Checking playback status…'],
+  ready:['CONNECTED','Ready when you are','Play something on Spotify to begin.'],
+  offline:['RECONNECTING','Connection lost','Trying to reconnect automatically…']
+};
+function setDisplayState(state){
+  root.dataset.displayState=state;
+  if(state==='playing')return;
+  const [status,title,description]=standbyCopy[state];
+  $('standby-status').textContent=status;
+  $('standby-title').textContent=title;
+  $('standby-description').textContent=description;
+}
 let currentUri=null,position=0,positionTime=performance.now(),duration=0,playing=false;
+function clearTrack(){
+  if(currentUri!==null||director.started){
+    director.reset();
+    currentUri=null;
+    currentAlbumKey=null;
+    lastTrack=null;
+    position=0;
+    duration=0;
+    positionTime=performance.now();
+  }
+  playing=false;
+}
+
 let lastTrack=null;
 let currentAlbumKey=null;
 function updateItem(item){
@@ -100,7 +127,7 @@ function updateItem(item){
   currentAlbumKey=albumKey;
   const name=item?.decorations?.identity?.name||item.name||'Not playing';
   const artist=artistFor(item),cover=coverFor(item);
-  const show=()=>{$('track').textContent=name;$('artist').textContent=artist};
+  const show=()=>{$('track').textContent=name;$('artist').textContent=artist;setDisplayState('playing')};
   if(panelOnly)director.changePanel(show);
   else director.change(cover,show);
 }
@@ -112,7 +139,8 @@ function syncPosition(ms){
 }
 function handleSoloist(event){
   const {item,position:pos,status}=normalize(event);
-  if(item)updateItem(item);
+  if(isEmptyPlayback(event)){clearTrack();setDisplayState('ready')}
+  else if(item)updateItem(item);
   if(status!==null){playing=isPlaying(status);director.setPlaying(playing)}
   if(pos!==null){const ms=positionMs(pos);if(Number.isFinite(ms))syncPosition(ms)}
   if(event.type==='position_sync'||event.type==='position_changed'){const ms=positionMs(event.position??event);if(Number.isFinite(ms))syncPosition(ms)}
@@ -130,12 +158,11 @@ function connect(url,onData,onOpen,onDisconnect){
   open();
 }
 connect(config.soloistWebSocket||'ws://127.0.0.1:9090',handleSoloist,s=>{
-  $('track').textContent=currentUri?$('track').textContent:'Waiting for playback';
+  if(!currentUri)setDisplayState('ready');
   s.send(JSON.stringify({type:'command',command:'get_state'}));
 },()=>{
-  playing=false;director.setPlaying(false);currentUri=null;
-  $('track').textContent='Soloist disconnected';
-  $('artist').textContent='Reconnecting automatically…';
+  clearTrack();
+  setDisplayState('offline');
 });
 if(config.visualizer!==false&&settings.panelEnabled){
   let retry=500;

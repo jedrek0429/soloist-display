@@ -11,6 +11,11 @@ use std::{
 };
 
 const TARGETS: [&str; 3] = [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "armv7-unknown-linux-gnueabihf",
+];
+const LEGACY_TARGETS: [&str; 3] = [
     "x86_64-unknown-linux-musl",
     "aarch64-unknown-linux-musl",
     "armv7-unknown-linux-musleabihf",
@@ -73,7 +78,7 @@ fn build_manifest(dist: &Path, tag: &str, version: &str) -> Result<()> {
     let base = format!("https://github.com/{repo}/releases/download/{tag}");
     let mut artifacts = Vec::new();
     let mut bootstrap = String::new();
-    for target in TARGETS {
+    for (index, target) in TARGETS.iter().enumerate() {
         for (kind, prefix) in [
             ("manager", "soloist-display"),
             ("audio-bridge", "soloist-audio-bridge"),
@@ -82,13 +87,15 @@ fn build_manifest(dist: &Path, tag: &str, version: &str) -> Result<()> {
             let file = dist.join(&name);
             let sha = digest(&file)?;
             let size = file.metadata()?.len();
-            artifacts.push(json!({
-                "name": name, "kind": kind, "target": target,
-                "url": format!("{base}/{name}"), "fallback_url": null,
-                "sha256": sha, "size": size
-            }));
-            if kind == "manager" {
-                bootstrap.push_str(&format!("{target} {sha} {base}/{name}\n"));
+            for selected_target in [*target, LEGACY_TARGETS[index]] {
+                artifacts.push(json!({
+                    "name": name, "kind": kind, "target": selected_target,
+                    "url": format!("{base}/{name}"), "fallback_url": null,
+                    "sha256": sha, "size": size
+                }));
+                if kind == "manager" {
+                    bootstrap.push_str(&format!("{selected_target} {sha} {base}/{name}\n"));
+                }
             }
         }
     }
@@ -116,7 +123,7 @@ fn render_bootstrap(template: &Path, manifest: &Path, base: &str) -> Result<()> 
             bail!("invalid bootstrap manifest record");
         }
         let (target, sha, url) = (fields[0], fields[1], fields[2]);
-        if !TARGETS.contains(&target)
+        if (!TARGETS.contains(&target) && !LEGACY_TARGETS.contains(&target))
             || sha.len() != 64
             || !sha.bytes().all(|b| b.is_ascii_hexdigit())
             || !url.starts_with(&format!("{base}/soloist-display-{target}"))
@@ -127,7 +134,7 @@ fn render_bootstrap(template: &Path, manifest: &Path, base: &str) -> Result<()> 
             bail!("duplicate bootstrap target: {target}");
         }
     }
-    if digests.len() != TARGETS.len() {
+    if digests.len() != TARGETS.len() + LEGACY_TARGETS.len() {
         bail!("bootstrap manifest has missing targets");
     }
     let mut rendered = fs::read_to_string(template)?;
@@ -303,7 +310,19 @@ mod tests {
             serde_json::from_slice(&fs::read(dir.path().join("release-manifest.json")).unwrap())
                 .unwrap();
         let artifacts = parsed["artifacts"].as_array().unwrap();
-        assert_eq!(artifacts.len(), 6);
+        assert_eq!(artifacts.len(), 12);
+        for (current, legacy) in TARGETS.into_iter().zip(LEGACY_TARGETS) {
+            let new_asset = artifacts
+                .iter()
+                .find(|asset| asset["kind"] == "manager" && asset["target"] == current)
+                .unwrap();
+            let old_asset = artifacts
+                .iter()
+                .find(|asset| asset["kind"] == "manager" && asset["target"] == legacy)
+                .unwrap();
+            assert_eq!(new_asset["url"], old_asset["url"]);
+            assert_eq!(new_asset["sha256"], old_asset["sha256"]);
+        }
         assert!(artifacts
             .iter()
             .all(|artifact| artifact["kind"] != "soloist"));

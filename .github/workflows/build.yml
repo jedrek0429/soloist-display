@@ -84,7 +84,8 @@ jobs:
       - name: Release bootstrap pin smoke test
         run: |
           mkdir -p /tmp/bootstrap-test
-          for target in x86_64-unknown-linux-musl aarch64-unknown-linux-musl armv7-unknown-linux-musleabihf; do
+          for target in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu armv7-unknown-linux-gnueabihf \
+                        x86_64-unknown-linux-musl aarch64-unknown-linux-musl armv7-unknown-linux-musleabihf; do
             printf '%s %s https://github.com/jedrek0429/soloist-display/releases/download/v0.0.0/soloist-display-%s\n' "$target" "$(printf '%s' "$target" | sha256sum | cut -d' ' -f1)" "$target"
           done > /tmp/bootstrap-test/bootstrap-manifest.txt
           cargo run --quiet -p soloist-display-installer --bin release-tools -- render-bootstrap install.sh /tmp/bootstrap-test/bootstrap-manifest.txt https://github.com/jedrek0429/soloist-display/releases/download/v0.0.0 > /tmp/bootstrap-test/install.sh

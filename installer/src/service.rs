@@ -664,6 +664,63 @@ mod tests {
 
     #[test]
     #[serial]
+    fn generated_soloist_unit_passes_credentials_to_live_systemd() {
+        if std::env::var("SOLOIST_DISPLAY_RUN_SYSTEMD_TEST").as_deref() != Ok("1") {
+            return;
+        }
+        let paths = Paths::discover().unwrap();
+        assert!(!paths.is_test());
+        assert!(user_manager_available(&paths));
+        assert!(!paths.soloist_service.exists());
+        assert!(!paths.soloist_env.exists());
+        assert!(!soloist_unit_present(&paths));
+
+        let fixture = tempfile::Builder::new()
+            .prefix("soloist service ")
+            .tempdir()
+            .unwrap();
+        let binary = fixture.path().join("fake-soloist");
+        let started = fixture.path().join("started");
+        let script = r#"#!/bin/sh
+if [ "$#" -ne 10 ] ||
+   [ "$1" != "--device-name" ] || [ "$2" != "Lounge CRT" ] ||
+   [ "$3" != "--api-key" ] || [ "$4" != "fixture-key" ] ||
+   [ "$5" != "--ws" ] || [ "$6" != "127.0.0.1:9090" ]; then
+    exit 64
+fi
+printf 'ready\n' > "$(dirname "$0")/started"
+exec /usr/bin/sleep 20
+"#;
+        fs::write(&binary, script).unwrap();
+        fs::set_permissions(&binary, fs::Permissions::from_mode(0o755)).unwrap();
+
+        let result = (|| -> Result<()> {
+            crate::soloist::configure(
+                &paths,
+                Some("Lounge CRT".into()),
+                Some("fixture-key".into()),
+            )?;
+            install_soloist(&paths, &binary)?;
+            for _ in 0..30 {
+                if started.exists() && active(&paths, "soloist.service") {
+                    return Ok(());
+                }
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+            bail!("generated Soloist service did not receive credentials and stay active");
+        })();
+
+        let stopped = disable_owned(&paths, "soloist.service");
+        fs::remove_file(&paths.soloist_service).ok();
+        fs::remove_file(&paths.soloist_env).ok();
+        let reloaded = daemon_reload(&paths);
+        result.unwrap();
+        stopped.unwrap();
+        reloaded.unwrap();
+    }
+
+    #[test]
+    #[serial]
     fn restores_previous_live_systemd_user_service() {
         if std::env::var("SOLOIST_DISPLAY_RUN_SYSTEMD_TEST").as_deref() != Ok("1") {
             return;

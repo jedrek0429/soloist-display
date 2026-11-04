@@ -29,7 +29,6 @@ Open http://127.0.0.1:8088. Point `audioWebSocket` at `ws://127.0.0.1:9191` in t
 
 Use a disposable Linux user or VM. The live systemd tests can create, start and remove `soloist.service`. **Do not run them on your usual setup.**
 
-CI covers the installer, recovery journals, Managed/External handling, rollback and live systemd unit restoration. Cross-building ARM binaries is not the same as testing on ARM hardware.
 
 Before a release, also test with a real Spotify Connect session:
 

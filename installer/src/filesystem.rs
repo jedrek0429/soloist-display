@@ -98,7 +98,7 @@ pub fn remove_link_if_present(path: &Path) -> Result<()> {
         return Ok(());
     }
     #[cfg(windows)]
-    if junction::exists(path) {
+    if junction::exists(path).context("inspect Windows junction")? {
         junction::delete(path)?;
         return Ok(());
     }
@@ -136,7 +136,7 @@ pub fn safe_remove(path: &Path, allowed_roots: &[&Path]) -> Result<()> {
         bail!("refusing to remove unmanaged path {}", path.display());
     }
     #[cfg(windows)]
-    if junction::exists(path) {
+    if junction::exists(path).context("inspect Windows junction")? {
         junction::delete(path)?;
         return Ok(());
     }

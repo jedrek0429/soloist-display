@@ -16,7 +16,7 @@ Owned files:
 - `$XDG_CONFIG_HOME/systemd/user/soloist-display-mpris.service`
 - `$XDG_STATE_HOME/soloist-display/mpris.json`
 
-The separate `soloist-display-mpris.service` publishes `org.mpris.MediaPlayer2.soloist` on the session D-Bus. `SOLOIST_DATA_DIR` points to Soloist's data directory; the bridge reads `ws.addr` and `ws.port` there and reconnects after restarts. Managed uses its configured data directory; External can specify one. The add-on is supported on x86_64 and ARM64, not ARMv7.
+The separate `soloist-display-mpris.service` publishes `org.mpris.MediaPlayer2.soloist` on the session D-Bus. `SOLOIST_DATA_DIR` points to Soloist's data directory; the bridge reads `ws.addr` and `ws.port` there and reconnects after restarts. Managed uses its configured data directory; External can specify one. The add-on is supported on x86_64 and ARM64, but **not on ARMv7**.
 
 Installation refuses to overwrite existing services, unmanaged add-on files or another owner of the MPRIS name. Interrupted installation is recovered on the next manager operation. Soloist Display uninstall stages the owned files in its recovery journal, snapshots the bridge service state and restores it on rollback. External Soloist and independently installed bridges are not uninstall targets. See [advanced installation](advanced-installation.md#optional-mpris-bridge) for user commands.
 

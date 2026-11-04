@@ -7,7 +7,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use std::{
     collections::HashMap,
     fs, io,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     process::Command,
 };
 
@@ -69,6 +69,21 @@ fn expand(value: &str, env: &HashMap<String, String>) -> Result<String> {
         bail!("unsupported expansion in existing Soloist service; use external mode");
     }
     Ok(value.to_owned())
+}
+
+fn environment_file_path(paths: &Paths, value: &str) -> Result<PathBuf> {
+    let path = if let Some(relative) = value.strip_prefix("%h/") {
+        paths.home.join(relative)
+    } else {
+        PathBuf::from(value)
+    };
+    if !path.is_absolute()
+        || path.to_string_lossy().contains('%')
+        || path.components().any(|part| part == Component::ParentDir)
+    {
+        bail!("unsupported Soloist EnvironmentFile path: {value}; use external mode");
+    }
+    Ok(path)
 }
 
 fn parse_unit(paths: &Paths, unit: &str) -> Result<ExistingSettings> {
@@ -153,17 +168,14 @@ fn parse_unit(paths: &Paths, unit: &str) -> Result<ExistingSettings> {
         }
     }
     for env_file in env_files {
-        let optional = env_file.starts_with('-');
-        let path = PathBuf::from(env_file.trim_start_matches('-'));
-        if !path.is_absolute() {
-            bail!("relative Soloist EnvironmentFile cannot be migrated");
-        }
-        if optional && !path.exists() {
-            continue;
-        }
+        let (optional, value) = match env_file.strip_prefix('-') {
+            Some(value) => (true, value),
+            None => (false, env_file.as_str()),
+        };
+        let path = environment_file_path(paths, value)?;
         let contents = match fs::read_to_string(&path) {
             Ok(contents) => contents,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) if optional && error.kind() == io::ErrorKind::NotFound => continue,
             Err(error) => return Err(error).with_context(|| format!("read {}", path.display())),
         };
         for line in contents.lines().map(str::trim) {
@@ -340,6 +352,59 @@ mod tests {
 
     #[test]
     #[serial]
+    fn migrates_home_specifier_environment_file() {
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("HOME", temp.path());
+        std::env::set_var("SOLOIST_DISPLAY_TEST_ROOT", temp.path().join("root"));
+        let paths = Paths::discover().unwrap();
+        let config = temp.path().join(".config/soloist");
+        fs::create_dir_all(&config).unwrap();
+        fs::write(
+            config.join("soloist.env"),
+            "SOLOIST_NAME=\"Living Room\"\nSOLOIST_API_KEY=secret\n",
+        )
+        .unwrap();
+        let unit = "[Service]\nEnvironmentFile=-%h/.config/soloist/missing.env %h/.config/soloist/soloist.env\nExecStart=/usr/bin/soloist --device-name $SOLOIST_NAME --api-key $SOLOIST_API_KEY\n";
+        let parsed = parse_unit(&paths, unit).unwrap();
+        assert_eq!(parsed.name.as_deref(), Some("Living Room"));
+        assert_eq!(parsed.api_key.as_deref(), Some("secret"));
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
+    #[serial]
+    fn refuses_relative_and_unknown_environment_file_paths() {
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("HOME", temp.path());
+        std::env::set_var("SOLOIST_DISPLAY_TEST_ROOT", temp.path().join("root"));
+        let paths = Paths::discover().unwrap();
+        for file in [
+            "soloist.env",
+            "~/.config/soloist.env",
+            "$HOME/.config/soloist.env",
+            "%E/soloist.env",
+            "%h/../other.env",
+        ] {
+            let unit = format!("[Service]\nEnvironmentFile={file}\nExecStart=/usr/bin/soloist\n");
+            assert!(parse_unit(&paths, &unit).is_err(), "accepted {file}");
+        }
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
+    #[serial]
+    fn refuses_missing_required_environment_file() {
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("HOME", temp.path());
+        std::env::set_var("SOLOIST_DISPLAY_TEST_ROOT", temp.path().join("root"));
+        let paths = Paths::discover().unwrap();
+        let unit = "[Service]\nEnvironmentFile=%h/missing.env\nExecStart=/usr/bin/soloist\n";
+        assert!(parse_unit(&paths, unit).is_err());
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
+    #[serial]
     fn missing_legacy_credentials_can_be_reentered() {
         let temp = tempfile::tempdir().unwrap();
         std::env::set_var("HOME", temp.path());
@@ -347,7 +412,7 @@ mod tests {
         let paths = Paths::discover().unwrap();
         let missing = temp.path().join("missing.env");
         let unit = format!(
-            "[Service]\nEnvironmentFile={}\nExecStart=/usr/bin/soloist --device-name ${{SOLOIST_NAME}} --api-key ${{SOLOIST_API_KEY}} --ws 127.0.0.1:9090\n",
+            "[Service]\nEnvironmentFile=-{}\nExecStart=/usr/bin/soloist --device-name ${{SOLOIST_NAME}} --api-key ${{SOLOIST_API_KEY}} --ws 127.0.0.1:9090\n",
             missing.display()
         );
         let settings = parse_unit(&paths, &unit).unwrap();

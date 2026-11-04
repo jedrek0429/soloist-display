@@ -79,7 +79,8 @@ const sections=[
       ['panelTransitionStyle','Transition','select',['slide','fade','off']],
       ['panelTransitionDuration','Duration','range',100,10000,50,'ms'],
       ['panelDelayIn','Delay in','range',0,10000,50,'ms'],
-      ['panelDelayOut','Delay out','range',0,10000,50,'ms']
+      ['panelDelayOut','Delay out','range',0,10000,50,'ms'],
+      ['panelHideDelaySeconds','Hide after pause','duration']
     ]
   },
   {

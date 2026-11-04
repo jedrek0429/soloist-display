@@ -43,6 +43,7 @@
   "backdropTransitionDuration": 2000,
   "panelTransitionStyle": "slide",
   "panelTransitionDuration": 2050,
+  "panelHideDelaySeconds": -1,
   "centerHoleBasic": 1,
   "centerHoleCd": 14,
   "centerHoleVinyl": 0.6,

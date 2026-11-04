@@ -6,16 +6,14 @@ use axum::{
     Json, Router,
 };
 use futures_util::SinkExt;
+mod capture;
 mod pcm;
 mod spectrum;
-use pcm::PcmInput;
 use serde_json::Value;
-use spectrum::{Spectrum, HOP, RATE};
-use std::{env, path::PathBuf, process::Stdio, sync::Arc, time::Instant};
+use spectrum::{HOP, RATE};
+use std::{env, path::PathBuf, sync::Arc};
 use tokio::{
-    io::AsyncReadExt,
     net::TcpListener,
-    process::Command,
     sync::{broadcast, Mutex},
     time::Duration,
 };
@@ -453,13 +451,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listener = TcpListener::bind(format!("127.0.0.1:{port}")).await?;
     let (sender, _) = broadcast::channel::<String>(64);
     let capture_tx = sender.clone();
-    tokio::spawn(async move {
-        loop {
-            if let Err(error) = capture(capture_tx.clone()).await {
-                eprintln!("Audio capture stopped: {error}; retrying");
-            }
-            tokio::time::sleep(Duration::from_secs(2)).await;
+    tokio::task::spawn_blocking(move || loop {
+        if let Err(error) = capture::run(capture_tx.clone()) {
+            eprintln!("Audio capture stopped: {error}; retrying");
         }
+        std::thread::sleep(std::time::Duration::from_secs(2));
     });
     eprintln!(
         "Spectrum WebSocket listening on ws://127.0.0.1:{port} (6 bands, {:.1} Hz)",
@@ -487,89 +483,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         });
-    }
-}
-
-async fn capture(
-    sender: broadcast::Sender<String>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let mut cmd = Command::new("parec");
-    cmd.args([
-        "--raw",
-        "--format=s16le",
-        "--rate",
-        "22050",
-        "--channels=1",
-        "--latency-msec=25",
-        "--process-time-msec=10",
-    ]);
-    let source = env::var("SOLOIST_DISPLAY_MONITOR")
-        .ok()
-        .filter(|s| !s.is_empty())
-        .or_else(|| {
-            let output = std::process::Command::new("pactl")
-                .arg("get-default-sink")
-                .output()
-                .ok()?;
-            if !output.status.success() {
-                return None;
-            }
-            Some(format!(
-                "{}.monitor",
-                String::from_utf8(output.stdout).ok()?.trim()
-            ))
-        });
-    if let Some(source) = &source {
-        cmd.arg("--device").arg(source);
-        eprintln!("Capturing monitor source: {source}");
-    } else {
-        eprintln!("Warning: no output monitor found; set SOLOIST_DISPLAY_MONITOR explicitly");
-    }
-    cmd.stdout(Stdio::piped()).stderr(Stdio::inherit());
-    let mut child = cmd.spawn()?;
-    let mut stdout = child.stdout.take().ok_or("No audio stream")?;
-    let mut spectrum = Spectrum::new();
-    let mut pcm = PcmInput::new();
-    let mut raw = [0u8; HOP * 2];
-    let mut peak = 0f32;
-    let mut frames = 0u64;
-    let mut report = Instant::now();
-    let mut previous_frame = Instant::now();
-    let mut max_gap = Duration::ZERO;
-    loop {
-        stdout.read_exact(&mut raw).await?;
-        let mut samples = [0.; HOP];
-        for (sample, bytes) in samples.iter_mut().zip(raw.as_chunks::<2>().0) {
-            *sample = i16::from_le_bytes([bytes[0], bytes[1]]) as f32 / 32768.;
-            peak = peak.max(sample.abs());
-        }
-        let mono = pcm.push(&samples, RATE as u32, 1)?;
-        let Some(bands) = spectrum.push_mono(mono.as_ref()).into_iter().next() else {
-            continue;
-        };
-        let now = Instant::now();
-        max_gap = max_gap.max(now.duration_since(previous_frame));
-        previous_frame = now;
-        frames += 1;
-        if sender.receiver_count() > 0 {
-            let payload = format!(
-                "{{\"bands\":[{:.4},{:.4},{:.4},{:.4},{:.4},{:.4}]}}",
-                bands[0], bands[1], bands[2], bands[3], bands[4], bands[5]
-            );
-            let _ = sender.send(payload);
-        }
-        if report.elapsed() >= Duration::from_secs(5) {
-            eprintln!(
-                "Audio: {:.1} frames/s | max gap: {:.0}ms | peak: {:.3} | bands: {:.2} {:.2} {:.2} {:.2} {:.2} {:.2} | clients: {}",
-                frames as f32 / report.elapsed().as_secs_f32(), max_gap.as_secs_f64() * 1000., peak,
-                bands[0], bands[1], bands[2], bands[3], bands[4], bands[5],
-                sender.receiver_count()
-            );
-            report = Instant::now();
-            frames = 0;
-            peak = 0.;
-            max_gap = Duration::ZERO;
-        }
     }
 }
 

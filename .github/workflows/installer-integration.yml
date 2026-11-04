@@ -1,6 +1,5 @@
 name: Installer integration
 on:
-  workflow_call:
   pull_request:
     paths:
       - 'installer/**'

@@ -38,7 +38,6 @@ jobs:
         env:
           SOLOIST_DISPLAY_RUN_SYSTEMD_TEST: '1'
         run: |
-          systemctl --user show-environment
           cargo test --locked -p soloist-display-installer restores_previous_live_systemd_user_service -- --nocapture
       - name: Test live uninstall and original service restoration
         env:

@@ -56,7 +56,7 @@ const root=document.documentElement;
 root.dataset.reducedMotion=settings.reducedMotion?'true':'false';
 root.dataset.idleAppearance=['digital-clock','vinyl-clock','vinyl','text','black'].includes(config.idleAppearance)?config.idleAppearance:'digital-clock';
 root.dataset.idleShowDate=config.idleShowDate===false?'false':'true';
-$('standby-title').textContent=typeof config.idleText==='string'?config.idleText.slice(0,80):'Ready when you are';
+$('standby-title').textContent=typeof config.idleText==='string'?config.idleText.slice(0,80):'';
 function updateStandbyClock(){
   const now=new Date();
   $('standby-clock').textContent=now.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit',hourCycle:'h23'});

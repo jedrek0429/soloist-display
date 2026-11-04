@@ -31,7 +31,7 @@ Open `docs/idle-preview.html` in a browser directly. No server or Spotify sessio
 
 ## Standby fade
 
-In **Motion → Idle**, set **Fade duration** to 0, 300 and 2000 ms. Check entry and exit, including **After pausing → 0** and **Pure black**. Reduced motion must still skip the transition.
+In **Motion → Idle**, select **Transition → Fade**, then test **Duration** at 0, 300 and 2000 ms. Check entry and exit, including **After pausing → 0** and **Pure black**. Set **Transition → Off** and verify both directions are instant and Duration is hidden. Reduced motion must still skip the transition.
 
 ## Test the installer
 

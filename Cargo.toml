@@ -3,7 +3,7 @@ members = ["audio-bridge", "installer"]
 resolver = "2"
 
 [workspace.package]
-version = "1.0.0-alpha.7"
+version = "1.0.0-alpha.8"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/jedrek0429/soloist-display"

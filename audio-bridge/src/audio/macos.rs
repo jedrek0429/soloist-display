@@ -19,6 +19,7 @@ impl SCStreamOutputTrait for Handler {
         let Ok(buffers) = sample.audio_buffer_list() else {
             return;
         };
+        let interleaved = (&buffers).into_iter().count() == 1;
         for buffer in &buffers {
             let samples: Vec<f32> = buffer
                 .data()
@@ -32,7 +33,7 @@ impl SCStreamOutputTrait for Handler {
                 let channels = sample
                     .format_description()
                     .and_then(|format| format.audio_channel_count())
-                    .filter(|_| buffers.len() == 1)
+                    .filter(|_| interleaved)
                     .unwrap_or(1) as u16;
                 let _ = self.sender.try_send(AudioChunk {
                     samples,

@@ -33,7 +33,7 @@
   "discAppearance": "vinyl-cover",
   "burnInProtection": false,
   "idleAppearance": "digital-clock",
-  "idleText": "Ready when you are",
+  "idleText": "",
   "idleShowDate": true,
   "idlePauseDelaySeconds": 300,
   "transitionDuration": 2000,

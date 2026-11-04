@@ -54,6 +54,9 @@ fn read_settings(path: &PathBuf) -> Value {
                         object.insert(key.clone(), value.clone());
                     }
                 }
+                if values.get("idleText").and_then(Value::as_str) == Some("Ready when you are") {
+                    object.insert("idleText".into(), Value::from(""));
+                }
                 // Existing global diameters become the initial size for every appearance.
                 if let Some(size) = values.get("discSize").and_then(Value::as_f64) {
                     for key in [
@@ -765,6 +768,17 @@ mod tests {
         assert_eq!(settings["discSizeBasic"].as_f64(), Some(142.0));
         assert_eq!(settings["discSizeCd"].as_f64(), Some(88.0));
         assert_eq!(settings["discSizeVinyl"].as_f64(), Some(142.0));
+    }
+
+    #[test]
+    fn clears_previous_default_standby_text_but_keeps_custom_messages() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("config.json");
+        assert_eq!(read_settings(&path)["idleText"], "");
+        std::fs::write(&path, r#"{"idleText":"Ready when you are"}"#).unwrap();
+        assert_eq!(read_settings(&path)["idleText"], "");
+        std::fs::write(&path, r#"{"idleText":"Play some music"}"#).unwrap();
+        assert_eq!(read_settings(&path)["idleText"], "Play some music");
     }
 
     #[test]

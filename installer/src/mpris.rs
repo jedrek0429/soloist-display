@@ -292,10 +292,13 @@ fn activate(paths: &Paths) -> Result<()> {
     systemctl(paths, &["daemon-reload"])?;
     systemctl(paths, &["enable", "--now", UNIT])?;
     if !paths.is_test() {
-        thread::sleep(Duration::from_millis(750));
-        if !service::active(paths, UNIT) || !name_taken()? {
-            bail!("MPRIS bridge did not register with D-Bus; inspect journalctl --user -u soloist-display-mpris");
+        for _ in 0..20 {
+            if service::active(paths, UNIT) && name_taken()? {
+                return Ok(());
+            }
+            thread::sleep(Duration::from_millis(250));
         }
+        bail!("MPRIS bridge did not register with D-Bus; inspect journalctl --user -u soloist-display-mpris");
     }
     Ok(())
 }
@@ -309,7 +312,7 @@ fn check_ownership(paths: &Paths, data_dir: &Path) -> Result<()> {
 }
 
 fn rollback_pending(paths: &Paths) -> Result<()> {
-    service::disable_owned(paths, UNIT)?;
+    systemctl(paths, &["disable", "--now", UNIT])?;
     if unit_path(paths).exists() {
         fs::remove_file(unit_path(paths))?;
     }
@@ -344,6 +347,9 @@ pub fn enable(paths: &Paths, platform: &Platform, requested: Option<PathBuf>) ->
         check_ownership(paths, &installed.data_dir)?;
         if !binary_path(paths).is_file() {
             bail!("MPRIS binary is missing; remove and reinstall the addon");
+        }
+        if !paths.is_test() && !service::active(paths, UNIT) && name_taken()? {
+            bail!("another player already owns the Soloist MPRIS name");
         }
         activate(paths)?;
         println!("MPRIS bridge enabled.");
@@ -382,13 +388,20 @@ pub fn enable(paths: &Paths, platform: &Platform, requested: Option<PathBuf>) ->
     Ok(())
 }
 
+pub fn stop_for_uninstall(paths: &Paths) -> Result<()> {
+    let state = read_state(paths)?
+        .ok_or_else(|| anyhow!("MPRIS metadata is missing"))?;
+    check_ownership(paths, &state.data_dir)?;
+    systemctl(paths, &["disable", "--now", UNIT])
+}
+
 pub fn disable(paths: &Paths) -> Result<()> {
     let Some(state) = read_state(paths)? else {
         println!("MPRIS bridge is not installed.");
         return Ok(());
     };
     check_ownership(paths, &state.data_dir)?;
-    service::disable_owned(paths, UNIT)?;
+    systemctl(paths, &["disable", "--now", UNIT])?;
     println!("MPRIS bridge disabled; Spotify Soloist is unchanged.");
     Ok(())
 }
@@ -399,7 +412,7 @@ pub fn remove(paths: &Paths) -> Result<()> {
         return Ok(());
     };
     check_ownership(paths, &state.data_dir)?;
-    service::disable_owned(paths, UNIT)?;
+    systemctl(paths, &["disable", "--now", UNIT])?;
     fs::remove_file(unit_path(paths))?;
     if addon_dir(paths).exists() {
         fs::remove_dir_all(addon_dir(paths))?;

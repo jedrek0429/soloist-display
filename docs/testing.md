@@ -25,6 +25,19 @@ SOLOIST_DISPLAY_AUDIO_PORT=9191 \
 
 Open http://127.0.0.1:8088. Point `audioWebSocket` at `ws://127.0.0.1:9191` in test settings. Soloist still defaults to port `9090`.
 
+## Optional MPRIS add-on
+
+The installer unit tests cover MPRIS service quoting, checksum validation, ELF architecture rejection, and unsupported ARMv7. `Installer integration` also exercises the generated unit under a live disposable systemd user manager. It runs a stand-in process, not Spotify Soloist.
+
+Before publishing, verify manually with a real Soloist session:
+
+- Managed and External (including a custom data directory).
+- Enable, disable, re-enable, and remove, checking `playerctl -p soloist metadata` and media keys.
+- An existing externally managed `soloist-mpris.service` or owned D-Bus name must be left untouched.
+- Stop/restart Soloist while the bridge is running; check reconnect.
+- Uninstall Soloist Display with the bridge enabled and disabled, including an interrupted uninstall/rollback.
+- An ARMv7 installation must refuse MPRIS without affecting Soloist Display.
+
 ## Test the installer
 
 Use a disposable Linux user or VM. The live systemd tests can create, start and remove `soloist.service`. **Do not run them on your usual setup.**

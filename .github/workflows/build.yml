@@ -77,6 +77,22 @@ jobs:
           if HOME=/tmp SOLOIST_DISPLAY_TEST_ROOT=/tmp/soloist-display-no-tty \
             target/debug/soloist-display install </dev/null >/tmp/no-tty.log 2>&1; then exit 1; fi
           grep -q 'non-interactive installation requires --yes' /tmp/no-tty.log
+
+          mkdir -p /tmp/soloist-display-probe/bin /tmp/soloist-display-probe/home
+          printf '%s\n' '#!/bin/sh' \
+            'if [ "$1" = --user ] && [ "$2" = show-environment ]; then' \
+            '  echo SECRET_TEST_VALUE=must-not-leak' \
+            '  exit 0' \
+            'fi' \
+            'exit 1' > /tmp/soloist-display-probe/bin/systemctl
+          chmod 755 /tmp/soloist-display-probe/bin/systemctl
+          if HOME=/tmp/soloist-display-probe/home PATH="/tmp/soloist-display-probe/bin:$PATH" \
+            target/debug/soloist-display install </dev/null >/tmp/soloist-display-probe/output 2>&1; then
+            echo 'Expected non-interactive installation to fail' >&2
+            exit 1
+          fi
+          grep -Fq 'non-interactive installation requires --yes' /tmp/soloist-display-probe/output
+          ! grep -Fq 'SECRET_TEST_VALUE' /tmp/soloist-display-probe/output
   cross-build:
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04

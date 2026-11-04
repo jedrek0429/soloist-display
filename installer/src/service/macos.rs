@@ -65,10 +65,18 @@ fn install(
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
+    let domain = domain()?;
+    if !path.is_file()
+        && Command::new("launchctl")
+            .args(["print", &format!("{domain}/{label}")])
+            .output()
+            .is_ok_and(|output| output.status.success())
+    {
+        return Err(anyhow!("refusing to replace unowned launchd agent {label}"));
+    }
     let log = paths.logs.join(format!("{label}.log"));
     fs::write(path, plist(label, program, arguments, &log))?;
     filesystem::set_private(path)?;
-    let domain = domain()?;
     let _ = Command::new("launchctl")
         .args(["bootout", &domain])
         .arg(path)
@@ -116,6 +124,9 @@ pub fn start_display(paths: &Paths) -> Result<()> {
     if paths.is_test() {
         return Ok(());
     }
+    if !paths.display_service.is_file() {
+        return Err(anyhow!("refusing to start an unowned Soloist Display agent"));
+    }
     process::run(
         Command::new("launchctl").args([
             "kickstart",
@@ -127,7 +138,7 @@ pub fn start_display(paths: &Paths) -> Result<()> {
     )
 }
 pub fn stop_display(paths: &Paths) -> Result<()> {
-    if paths.is_test() {
+    if paths.is_test() || !paths.display_service.is_file() {
         return Ok(());
     }
     let _ = Command::new("launchctl")
@@ -151,8 +162,13 @@ pub fn active(paths: &Paths, unit: &str) -> bool {
     domain().is_ok_and(|domain| {
         Command::new("launchctl")
             .args(["print", &format!("{domain}/{label}")])
-            .status()
-            .is_ok_and(|status| status.success())
+            .output()
+            .is_ok_and(|output| {
+                output.status.success()
+                    && String::from_utf8_lossy(&output.stdout)
+                        .lines()
+                        .any(|line| line.trim() == "state = running")
+            })
     })
 }
 pub fn disable_owned(paths: &Paths, unit: &str) -> Result<()> {
@@ -164,6 +180,9 @@ pub fn disable_owned(paths: &Paths, unit: &str) -> Result<()> {
     } else {
         &paths.soloist_service
     };
+    if !path.is_file() {
+        return Err(anyhow!("refusing to stop an unowned launchd agent"));
+    }
     let _ = Command::new("launchctl")
         .args(["bootout", &domain()?])
         .arg(path)

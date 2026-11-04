@@ -1,6 +1,6 @@
 use crate::terminal::Progress;
 use crate::{
-    dependencies, legacy, migrations,
+    dependencies, legacy, migrations, mpris,
     paths::{path_string, Paths},
     platform::{Architecture, Platform},
     process,
@@ -1695,6 +1695,9 @@ pub fn uninstall(paths: &Paths, options: UninstallOptions, quiet: bool) -> Resul
     let result = (|| -> Result<()> {
         progress.step(1, "Stopping services");
         service::disable_owned(paths, "soloist-display.service")?;
+        if mpris::is_installed(paths)? {
+            mpris::stop_for_uninstall(paths)?;
+        }
         match soloist_action {
             Some(SoloistRemoval::Restore) => {
                 previous
@@ -1710,6 +1713,11 @@ pub fn uninstall(paths: &Paths, options: UninstallOptions, quiet: bool) -> Resul
         }
         service::remove_renewal_timer(paths)?;
         progress.step(2, "Removing files");
+        if mpris::is_installed(paths)? {
+            transaction.stage(paths, &mpris::unit_path(paths))?;
+            transaction.stage(paths, &paths.root.join("addons/mpris"))?;
+            transaction.stage(paths, &paths.state.join("mpris.json"))?;
+        }
         transaction.stage(paths, &completion_directory(paths).join("_soloist-display"))?;
         for path in [
             &paths.display_service,

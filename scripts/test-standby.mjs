@@ -222,6 +222,13 @@ test('standby markup matches the standalone preview and has no decorative status
   assert.ok(!standby(app).includes('>S<'));
 });
 
+test('standby stays hidden until the first playback state arrives',()=>{
+  const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
+  const css=fs.readFileSync(new URL('../styles.css',import.meta.url),'utf8');
+  assert.match(html,/<html[^>]*data-display-state="connecting"/);
+  assert.match(css,/:root\\[data-display-state='connecting'\\] \\.standby,:root\\[data-display-state='playing'\\] \\.standby\\{visibility:hidden;opacity:0;pointer-events:none\\}/);
+});
+
 test('standby has flat settings background and no redundant connection copy',()=>{
   const app=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
   const style=fs.readFileSync(new URL('../styles.css',import.meta.url),'utf8');

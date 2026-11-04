@@ -47,6 +47,8 @@ playerctl -p soloist play-pause
 
 The add-on uses only the upstream bridge binary. It never runs the upstream installer or installs another Soloist instance. Disable or remove it with `soloist-display mpris disable` or `soloist-display mpris remove`. Desktop environments may handle media keys automatically; standalone window managers still need a binding to `playerctl`. See [advanced installation](docs/advanced-installation.md#optional-mpris-bridge).
 
+Thanks to [@TobiasVeiga00](https://github.com/TobiasVeiga00) for creating [soloist-mpris](https://github.com/TobiasVeiga00/soloist-mpris), which powers this optional integration.
+
 ## Uninstall
 
 ```sh

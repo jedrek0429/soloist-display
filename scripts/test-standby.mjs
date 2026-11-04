@@ -213,6 +213,170 @@ test('pause sleeve obeys the existing transition toggle and half-duration',()=>{
   }
 });
 
+
+test('panel hides and returns on pause with its existing transition style and half-duration',()=>{
+  const previousDoc=globalThis.document,previousFrame=globalThis.requestAnimationFrame;
+  globalThis.requestAnimationFrame=()=>0;
+  try{
+    for(const style of ['slide','fade','off']){
+      for(const reducedMotion of [false,true]){
+        globalThis.document={documentElement:{dataset:{discAppearance:'basic'}}};
+        const panel=element('info',[]);
+        const director=new DiscDirector({
+          discs:[element('disc-a',[]),element('disc-b',[])],
+          backdrops:[element('bg-a',[]),element('bg-b',[])],info:panel,
+          settings:{panelHideMs:0,panelTransitionStyle:style,panelTransitionDuration:1500,reducedMotion}
+        });
+        director.started=true;
+        director.setPlaying(false);
+        const animated=!reducedMotion&&style!=='off';
+        assert.equal(director.panelPauseHidden,true);
+        assert.equal(panel.style.transition,animated?`${style==='fade'?'opacity':'transform'} 750ms ease-in-out`:'none');
+        assert.equal(panel.style.transform,style==='slide'?'translateY(calc(100% + 6vh + 60px))':'');
+        assert.equal(panel.style.opacity,style==='slide'?'':'0');
+        assert.equal(panel.style.pointerEvents,'none');
+        director.setPlaying(true);
+        assert.equal(director.panelPauseHidden,false);
+        assert.equal(panel.style.transform,'');
+        assert.equal(panel.style.opacity,'');
+        assert.equal(panel.style.pointerEvents,'');
+        assert.equal(panel.style.transition,animated?`${style==='fade'?'opacity':'transform'} 750ms ease-in-out`:'none');
+        director.setPlaying(false);
+        director.setPlaying(true,{instantResume:true});
+        assert.equal(panel.style.transition,'none');
+        assert.equal(panel.style.opacity,'');
+        director.reset();
+        assert.equal(panel.style.transition,'');
+        assert.equal(director.panelPauseTimer,null);
+      }
+    }
+  }finally{
+    globalThis.document=previousDoc;
+    globalThis.requestAnimationFrame=previousFrame;
+  }
+});
+
+test('panel pause delay is cancellable, measured from pause, and independent of disc appearance',()=>{
+  const previousDoc=globalThis.document,previousFrame=globalThis.requestAnimationFrame,previousNow=Date.now;
+  globalThis.requestAnimationFrame=()=>0;
+  try{
+    let now=1000;
+    Date.now=()=>now;
+    for(const appearance of ['basic','cd','vinyl-cover','cd-cover','album-cover']){
+      globalThis.document={documentElement:{dataset:{discAppearance:appearance}}};
+      const panel=element('info',[]);
+      const director=new DiscDirector({
+        discs:[element('disc-a',[]),element('disc-b',[])],
+        backdrops:[element('bg-a',[]),element('bg-b',[])],info:panel,
+        settings:{panelHideMs:5000,panelTransitionStyle:'fade',panelTransitionDuration:800}
+      });
+      director.started=true;
+      director.setPlaying(false);
+      assert.equal(director.panelPauseHidden,false);
+      now+=3000;
+      director.setPlaying(false);
+      assert.equal(director.panelPauseStartedAt,now-3000);
+      now+=2001;
+      director.schedulePanelHide();
+      assert.equal(director.panelPauseHidden,true);
+      assert.equal(panel.style.opacity,'0');
+      director.setPlaying(true);
+      assert.equal(director.panelPauseTimer,null);
+      assert.equal(director.panelPauseStartedAt,null);
+      assert.equal(director.panelPauseHidden,false);
+      director.reset();
+    }
+  }finally{
+    Date.now=previousNow;
+    globalThis.document=previousDoc;
+    globalThis.requestAnimationFrame=previousFrame;
+  }
+});
+
+test('panel stays hidden on a paused track change, but reveals immediately from idle',()=>{
+  const previousDoc=globalThis.document,previousFrame=globalThis.requestAnimationFrame;
+  globalThis.requestAnimationFrame=()=>0;
+  try{
+    globalThis.document={documentElement:{dataset:{discAppearance:'vinyl'}}};
+    const log=[],panel=element('info',log);
+    const director=new DiscDirector({
+      discs:[element('disc-a',[]),element('disc-b',[])],
+      backdrops:[element('bg-a',[]),element('bg-b',[])],info:panel,
+      settings:{panelHideMs:0,panelTransitionStyle:'slide',panelTransitionDuration:1200}
+    });
+    director.started=true;
+    director.setPlaying(false);
+    let updated=false;
+    director.changePanel(()=>{updated=true});
+    assert.equal(updated,true);
+    assert.equal(director.panelPauseHidden,true);
+    assert.equal(panel.style.transform,'translateY(calc(100% + 6vh + 60px))');
+    assert.equal(log.length,0,'no panel transition may unhide a paused panel');
+    director.setPlaying(true,{instantResume:true});
+    assert.equal(panel.style.transform,'');
+    assert.equal(panel.style.transition,'none');
+    director.reset();
+  }finally{
+    globalThis.document=previousDoc;
+    globalThis.requestAnimationFrame=previousFrame;
+  }
+});
+
+test('pause while panel metadata is animating commits the latest text before hiding',async()=>{
+  const previousDoc=globalThis.document,previousFrame=globalThis.requestAnimationFrame;
+  globalThis.requestAnimationFrame=()=>0;
+  try{
+    globalThis.document={documentElement:{dataset:{discAppearance:'vinyl'}}};
+    const panel=element('info',[]);
+    panel.animate=()=>{
+      const animation={oncancel:null,cancel(){this.oncancel?.()}};
+      return animation;
+    };
+    const director=new DiscDirector({
+      discs:[element('disc-a',[]),element('disc-b',[])],
+      backdrops:[element('bg-a',[]),element('bg-b',[])],info:panel,
+      settings:{panelHideMs:0,panelTransitionStyle:'fade',panelTransitionDuration:1200}
+    });
+    director.started=true;
+    let updates=0;
+    director.changePanel(()=>updates++);
+    assert.equal(updates,0,'panel text waits for the exit transition');
+    director.setPlaying(false);
+    assert.equal(updates,1,'hide must not discard a pending metadata update');
+    assert.equal(director.panelPauseHidden,true);
+    await Promise.resolve();
+    assert.equal(updates,1);
+    director.reset();
+  }finally{
+    globalThis.document=previousDoc;
+    globalThis.requestAnimationFrame=previousFrame;
+  }
+});
+
+test('never and a disabled panel do not schedule pause hiding',()=>{
+  const previousDoc=globalThis.document,previousFrame=globalThis.requestAnimationFrame;
+  globalThis.requestAnimationFrame=()=>0;
+  try{
+    globalThis.document={documentElement:{dataset:{discAppearance:'basic'}}};
+    for(const settings of [{panelHideMs:null},{panelHideMs:0,panelEnabled:false}]){
+      const panel=element('info',[]);
+      const director=new DiscDirector({
+        discs:[element('disc-a',[]),element('disc-b',[])],
+        backdrops:[element('bg-a',[]),element('bg-b',[])],info:panel,
+        settings
+      });
+      director.started=true;
+      director.setPlaying(false);
+      assert.equal(director.panelPauseHidden,false);
+      assert.equal(director.panelPauseTimer,null);
+      director.reset();
+    }
+  }finally{
+    globalThis.document=previousDoc;
+    globalThis.requestAnimationFrame=previousFrame;
+  }
+});
+
 test('changing a retracted cover leaves it centred and skips the retract wait',async()=>{
   const previousDoc=globalThis.document,previousFrame=globalThis.requestAnimationFrame;
   const previousTimeout=globalThis.setTimeout;

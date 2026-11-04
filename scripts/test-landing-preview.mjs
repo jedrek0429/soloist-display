@@ -38,3 +38,17 @@ test('old metadata placeholders cannot flash during startup or reconnect',()=>{
   assert.match(style,/:root:not\(\[data-metadata-ready='true'\]\) \.info\{visibility:hidden!important\}/);
   assert.match(demo,/root\.dataset\.metadataReady='true'/);
 });
+
+test('landing shows a static poster before the animated iframe is ready',()=>{
+  const landing=read('../site/index.html');
+  const demo=read('../site/demo.js');
+  assert.match(landing,/<link rel="preload" as="image" href="\.\/kind-of-blue\.jpg" fetchpriority="high">/);
+  assert.match(landing,/<div class="preview-poster" aria-hidden="true">/);
+  assert.match(landing,/<img class="poster-cover" src="\.\/kind-of-blue\.jpg"/);
+  assert.match(landing,/<div class="poster-meta">So What<span>Miles Davis<\/span><\/div>/);
+  assert.match(landing,/\.preview iframe\{[^}]*opacity:0/);
+  assert.match(landing,/\.preview\[data-ready='true'\] iframe\{opacity:1\}/);
+  assert.match(landing,/event\.origin!==location\.origin\|\|event\.source!==previewFrame\.contentWindow/);
+  assert.match(demo,/image\.decode\(\)\.catch\(\(\)=>\{\}\)\.then\(show\)/);
+  assert.match(demo,/postMessage\('soloist-demo-ready'/);
+});

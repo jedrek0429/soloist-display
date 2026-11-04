@@ -416,7 +416,9 @@ mod completion_tests {
             install_state: temp.path().join("state/soloist-display/install.json"),
             bin_dir: temp.path().join("bin"),
             visible_command: temp.path().join("bin/soloist-display"),
-            display_service: temp.path().join("config/systemd/user/soloist-display.service"),
+            display_service: temp
+                .path()
+                .join("config/systemd/user/soloist-display.service"),
             soloist_service: temp.path().join("config/systemd/user/soloist.service"),
             applications: temp.path().join("data/applications"),
             soloist_env: temp.path().join("config/soloist-display/soloist.env"),
@@ -443,7 +445,9 @@ mod completion_tests {
         remove_completions(&paths).unwrap();
         assert!(!files[0].1.exists());
         assert!(!files[1].1.exists());
-        assert!(!fs::read_to_string(paths.home.join(".zshrc")).unwrap().contains(ZSH_START));
+        assert!(!fs::read_to_string(paths.home.join(".zshrc"))
+            .unwrap()
+            .contains(ZSH_START));
     }
 
     #[test]

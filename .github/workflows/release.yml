@@ -139,3 +139,9 @@ jobs:
             args+=(--prerelease --latest=false)
           fi
           gh release create "$GITHUB_REF_NAME" dist/* "${args[@]}"
+
+  pages:
+    needs: publish
+    uses: ./.github/workflows/pages.yml
+    permissions:
+      contents: write

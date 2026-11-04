@@ -29,11 +29,6 @@ Open http://127.0.0.1:8088. Point `audioWebSocket` at `ws://127.0.0.1:9191` in t
 
 Use a disposable Linux user or VM. The live systemd tests can create, start and remove `soloist.service`. **Do not run them on your usual setup.**
 
-CI runs the usual Rust, shell and frontend checks for relevant PRs. Generated unit files are checked with `systemd-analyze verify` in the normal Rust tests.
-
-The existing **Installer integration** job runs only when installer-related files change (or when dispatched manually). It uses a real systemd user manager to start a generated Soloist service with a fake executable and test credentials. It checks that `EnvironmentFile` supplies the device name and API key. No Spotify account, audio device or network download is needed.
-
-**Signed release** reuses that same integration job and will not sign or publish until it passes. Its separate signed lifecycle fixture covers install, repair, update and uninstall. Cross-building ARM binaries is not the same as testing on ARM hardware.
 
 Before a release, also test with a real Spotify Connect session:
 

@@ -11,7 +11,7 @@ use sha2::{Digest, Sha256};
 use std::{
     fs,
     io::{Read, Write},
-    os::unix::fs::{OpenOptionsExt, PermissionsExt},
+    os::unix::fs::OpenOptionsExt,
     path::{Path, PathBuf},
     process::Command,
     thread,
@@ -493,6 +493,79 @@ mod tests {
         assert!(release_asset(&Architecture::Armv7).is_err());
         assert!(release_asset(&Architecture::X86_64).is_ok());
         assert!(release_asset(&Architecture::Aarch64).is_ok());
+    }
+
+
+    #[test]
+    #[serial_test::serial]
+    fn pending_install_recovers_owned_files() {
+        let temp = tempfile::tempdir().unwrap();
+        std::env::set_var("HOME", temp.path());
+        std::env::set_var("SOLOIST_DISPLAY_TEST_ROOT", temp.path().join("isolated"));
+        let paths = Paths::discover().unwrap();
+        paths.ensure_management_dirs().unwrap();
+        fs::create_dir_all(addon_dir(&paths)).unwrap();
+        fs::write(binary_path(&paths), b"partial").unwrap();
+        fs::create_dir_all(unit_path(&paths).parent().unwrap()).unwrap();
+        fs::write(unit_path(&paths), b"partial").unwrap();
+        save_state(
+            &paths,
+            &MprisState {
+                version: VERSION.into(),
+                data_dir: paths.soloist_data.clone(),
+                phase: Phase::Pending,
+            },
+        )
+        .unwrap();
+        recover(&paths).unwrap();
+        assert!(!state_path(&paths).exists());
+        assert!(!addon_dir(&paths).exists());
+        assert!(!unit_path(&paths).exists());
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn live_mpris_unit_can_start_independently() {
+        if std::env::var("SOLOIST_DISPLAY_RUN_SYSTEMD_TEST").as_deref() != Ok("1") {
+            return;
+        }
+        let paths = Paths::discover().unwrap();
+        assert!(!paths.is_test());
+        assert!(service::user_manager_available(&paths));
+        assert!(!unit_path(&paths).exists());
+        assert!(!addon_dir(&paths).exists());
+        let result = (|| -> Result<()> {
+            fs::create_dir_all(addon_dir(&paths))?;
+            create_file(
+                &binary_path(&paths),
+                b"#!/bin/sh\nexec sleep 60\n",
+                0o755,
+            )?;
+            let unit = unit_path(&paths);
+            fs::create_dir_all(unit.parent().context("no unit directory")?)?;
+            create_file(
+                &unit,
+                render_unit(&paths, Path::new("/tmp/mock-soloist-data"))?.as_bytes(),
+                0o644,
+            )?;
+            systemctl(&paths, &["daemon-reload"])?;
+            systemctl(&paths, &["enable", "--now", UNIT])?;
+            if !service::active(&paths, UNIT) {
+                bail!("stand-in MPRIS service did not start");
+            }
+            Ok(())
+        })();
+        let stopped = systemctl(&paths, &["disable", "--now", UNIT]);
+        if unit_path(&paths).exists() {
+            fs::remove_file(unit_path(&paths)).unwrap();
+        }
+        if addon_dir(&paths).exists() {
+            fs::remove_dir_all(addon_dir(&paths)).unwrap();
+        }
+        service::daemon_reload(&paths).unwrap();
+        stopped.unwrap();
+        result.unwrap();
     }
 
     #[test]

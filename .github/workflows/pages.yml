@@ -2,7 +2,7 @@ name: Publish landing page
 on:
   push:
     branches: [main]
-    paths: ['site/**', 'index.html', 'styles.css', 'src/motion.js', 'src/spectrum.js', 'install.sh', '.github/workflows/pages.yml']
+    paths: ['site/**', 'docs/screenshots/now-playing.webp', 'index.html', 'styles.css', 'src/motion.js', 'src/spectrum.js', 'install.sh', '.github/workflows/pages.yml']
   release:
     types: [published]
   workflow_call:
@@ -28,6 +28,8 @@ jobs:
           set -eu
           mkdir -p "$RUNNER_TEMP/pages/src"
           cp site/index.html "$RUNNER_TEMP/pages/index.html"
+          cp site/sitemap.xml "$RUNNER_TEMP/pages/sitemap.xml"
+          cp docs/screenshots/now-playing.webp "$RUNNER_TEMP/pages/og-image.webp"
           RELEASE_TAG="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
             --jq '[.[] | select(.draft == false)] | sort_by(.published_at) | last | .tag_name // empty')"
           if [ -n "$RELEASE_TAG" ]; then
@@ -46,9 +48,11 @@ jobs:
           fi
           sed -e 's@data-display-state="connecting"@data-display-state="playing"@' \
               -e 's@src="./src/main.js"@src="./src/demo.js"@' \
+              -e 's@<head>@<head><meta name="robots" content="noindex,follow">@' \
               index.html > "$RUNNER_TEMP/pages/preview.html"
           grep -Fq 'data-display-state="playing"' "$RUNNER_TEMP/pages/preview.html"
           grep -Fq 'src="./src/demo.js"' "$RUNNER_TEMP/pages/preview.html"
+          grep -Fq 'name="robots" content="noindex,follow"' "$RUNNER_TEMP/pages/preview.html"
           if [ -n "$RELEASE_TAG" ]; then
             curl --fail --location --retry 3 --silent --show-error \
               "https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/install.sh" \
@@ -74,6 +78,8 @@ jobs:
             git switch --orphan gh-pages
           fi
           cp "$RUNNER_TEMP/pages/index.html" index.html
+          cp "$RUNNER_TEMP/pages/sitemap.xml" sitemap.xml
+          cp "$RUNNER_TEMP/pages/og-image.webp" og-image.webp
           cp "$RUNNER_TEMP/pages/preview.html" preview.html
           cp "$RUNNER_TEMP/pages/styles.css" styles.css
           cp "$RUNNER_TEMP/pages/kind-of-blue.jpg" kind-of-blue.jpg
@@ -81,6 +87,6 @@ jobs:
           cp "$RUNNER_TEMP/pages/src/"*.js src/
           cp "$RUNNER_TEMP/pages/install.sh" install.sh
           cp "$RUNNER_TEMP/pages/.nojekyll" .nojekyll
-          git add index.html preview.html kind-of-blue.jpg styles.css src/motion.js src/spectrum.js src/demo.js install.sh .nojekyll
+          git add index.html sitemap.xml og-image.webp preview.html kind-of-blue.jpg styles.css src/motion.js src/spectrum.js src/demo.js install.sh .nojekyll
           git commit -m "Publish Soloist Display landing page" || true
           git push origin HEAD:gh-pages

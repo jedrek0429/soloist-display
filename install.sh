@@ -3,10 +3,10 @@
 set -eu
 
 BOOTSTRAP_VERSION=1
-PIN_RELEASE_BASE='https://github.com/jedrek0429/soloist-display/releases/download/v1.0.0-alpha.2'
-PIN_X86_64='3600a42919b2d8f82331aab34570962606a1d9545bc0114b9a9187d913531882'
-PIN_AARCH64='3d3e8b0b86a8078ff6bc450f67638fe79bb40987af3875766611a2c06aed4af4'
-PIN_ARMV7='9b712b9244d6e2da94754527f2eae12731d017aa7608cbf84e3211d546be637d'
+PIN_RELEASE_BASE='https://github.com/jedrek0429/soloist-display/releases/download/v1.0.0-alpha.3'
+PIN_X86_64='0cd287189a7dc76878a92b3bff5374960afdaea800bc5aeee732488e7c959377'
+PIN_AARCH64='512801fee2d0ddd749227be6bda1b1554ec63823048ef7fb81e4634ed9ac9410'
+PIN_ARMV7='5c691bfb154e629cad5290b7f3025d7b06be3475f4c156b0bee74f56b9ec798f'
 version=${SOLOIST_DISPLAY_VERSION-latest}
 case "$version" in
   latest)
@@ -33,7 +33,14 @@ if [ -t 2 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-}" != dumb ]; then
   red=$(printf '\033[31m')
 else reset=; red=; fi
 say() { [ "${quiet:-0}" -eq 1 ] || printf '  %s%s%s\n' "$color" "$*" "$reset" >&2; }
-fail() { printf '  %serror%s  %s\n' "$red" "$reset" "$*" >&2; exit 1; }
+fail() {
+  if [ -n "$red" ]; then
+    printf '  %s✗%s %s\n' "$red" "$reset" "$*" >&2
+  else
+    printf '  error  %s\n' "$*" >&2
+  fi
+  exit 1
+}
 cleanup() { [ -z "$tmp_dir" ] || rm -rf "$tmp_dir"; }
 trap 'cleanup' EXIT HUP INT TERM
 
@@ -134,7 +141,7 @@ if [ "$version" = latest ]; then
   esac
 fi
 say 'Installing'
-if [ -t 0 ] && [ -r /dev/tty ] && [ -w /dev/tty ]; then
+if [ -r /dev/tty ] && [ -w /dev/tty ] && ( : </dev/tty ) 2>/dev/null; then
   "$installer" install "$@" </dev/tty
 else
   "$installer" install "$@"

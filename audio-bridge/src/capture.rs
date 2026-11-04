@@ -44,9 +44,9 @@ fn output_device() -> CaptureResult<(cpal::Device, bool)> {
     if preferred.is_some() {
         return Err("requested PulseAudio monitor source does not exist".into());
     }
-    fallback
-        .map(|device| (device, false))
-        .ok_or_else(|| "no PulseAudio/PipeWire output monitor found (microphone capture is not a fallback)".into())
+    fallback.map(|device| (device, false)).ok_or_else(|| {
+        "no PulseAudio/PipeWire output monitor found (microphone capture is not a fallback)".into()
+    })
 }
 
 #[cfg(any(windows, target_os = "macos"))]
@@ -91,10 +91,21 @@ pub fn run(sender: broadcast::Sender<String>) -> CaptureResult<()> {
 
     let stream = match format.sample_format() {
         SampleFormat::F32 => capture_stream!(device, config, tx, error_tx, f32, |value: f32| value),
-        SampleFormat::F64 => capture_stream!(device, config, tx, error_tx, f64, |value: f64| value as f32),
-        SampleFormat::I16 => capture_stream!(device, config, tx, error_tx, i16, |value: i16| value as f32 / 32_768.),
-        SampleFormat::I32 => capture_stream!(device, config, tx, error_tx, i32, |value: i32| value as f32 / 2_147_483_648.),
-        SampleFormat::U16 => capture_stream!(device, config, tx, error_tx, u16, |value: u16| (value as f32 - 32_768.) / 32_768.),
+        SampleFormat::F64 => {
+            capture_stream!(device, config, tx, error_tx, f64, |value: f64| value as f32)
+        }
+        SampleFormat::I16 => capture_stream!(device, config, tx, error_tx, i16, |value: i16| value
+            as f32
+            / 32_768.),
+        SampleFormat::I32 => capture_stream!(device, config, tx, error_tx, i32, |value: i32| value
+            as f32
+            / 2_147_483_648.),
+        SampleFormat::U16 => {
+            capture_stream!(device, config, tx, error_tx, u16, |value: u16| (value
+                as f32
+                - 32_768.)
+                / 32_768.)
+        }
         other => return Err(format!("unsupported system audio sample format: {other:?}").into()),
     };
     stream.play()?;

@@ -44,6 +44,34 @@ The WebSocket must respond to Soloist's protocol. If the service is stopped, int
 
 For a supported existing user service, Managed saves its unit and clones its session. The original stays put. Unsupported systemd settings, drop-ins and startup flags stop migration.
 
+## Optional MPRIS bridge
+
+[soloist-mpris](https://github.com/TobiasVeiga00/soloist-mpris) is an **optional** MIT-licensed bridge between Soloist's WebSocket and the Linux session D-Bus (`org.mpris.MediaPlayer2.soloist`). It supports `playerctl`, media keys bound by your desktop or window manager, and MPRIS-compatible bars. Soloist Display does not need the bridge to play or display music.
+
+```sh
+soloist-display mpris enable
+soloist-display mpris status
+playerctl -p soloist play-pause
+playerctl -p soloist next
+soloist-display mpris disable      # keep files, stop the bridge
+soloist-display mpris enable       # start it again
+soloist-display mpris remove       # uninstall just the bridge
+```
+
+For External Soloist using a non-default data directory, specify the directory containing Soloist's `ws.addr` and `ws.port` files:
+
+```sh
+soloist-display mpris enable --data-dir /absolute/path/to/soloist-data
+```
+
+Managed Soloist uses its configured data directory automatically. External Soloist defaults to `$XDG_DATA_HOME/soloist` (usually `~/.local/share/soloist`). Start Soloist first so the WebSocket address files exist. Only x86_64 and ARM64 upstream binaries are available; ARMv7 is not currently supported by this add-on. A working systemd user session and D-Bus are required.
+
+The manager downloads a **pinned** upstream binary (currently `soloist-mpris v0.2.2`), checks the upstream SHA-256 file and ELF architecture, then installs it under `$XDG_DATA_HOME/soloist-display/addons/mpris`. It creates only `$XDG_CONFIG_HOME/systemd/user/soloist-display-mpris.service`. It does not execute the upstream installer, replace `soloist.service`, touch credentials or install upstream update timers. The bridge runs independently and reconnects when Soloist restarts.
+
+The checksum detects accidental corruption but is hosted alongside the upstream archive; it is **not** a cryptographic signature of the author. This third-party executable is downloaded and executed only if you explicitly enable the add-on. Its copyright notice is installed alongside the executable. Existing MPRIS bridges are never replaced. Soloist Display uninstall removes only the add-on files and unit it owns; it preserves External Soloist and unrelated MPRIS installations.
+
+If the bridge is enabled but does not appear in `playerctl -l`, check `journalctl --user -u soloist-display-mpris.service -n 100 --no-pager` and `soloist-display mpris status`. In a bare window manager, map `XF86AudioPlay` to `playerctl -p soloist play-pause` and similar keys to `next` and `previous`.
+
 ## Unattended setup
 
 Use `--yes` without a terminal. For Managed, supply the Soloist API key through the environment:

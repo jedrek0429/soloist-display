@@ -16,7 +16,7 @@ export class DiscDirector{
     this.current=0;this.token=0;this.started=false;this.angle=0;
     this.velocity=0;this.playing=false;this.changing=false;this.last=performance.now();
     this.pendingShow=null;this.fadeTimer=null;this.animations=new Set();this.panelAnimation=null;this.panelToken=0;
-    this.pauseRetractTimer=null;this.pauseStartedAt=null;this.pauseRetracted=false;this.artworkChanging=false;
+    this.pauseRetractTimer=null;this.pauseStartedAt=null;this.pauseRetracted=false;this.artworkChanging=false;this.playbackKnown=false;
     requestAnimationFrame(t=>this.spin(t));
   }
   spin(now){
@@ -33,6 +33,7 @@ export class DiscDirector{
     this.clearPauseRetraction();
     this.artworkChanging=false;
     this.wasRetractedAtChange=false;
+    this.playbackKnown=false;
     ++this.token;
     ++this.panelToken;
     for(const animation of this.animations)animation.cancel();
@@ -95,6 +96,8 @@ export class DiscDirector{
   }
   setPlaying(value){
     this.playing=value;
+    if(!value&&!this.started&&!this.artworkChanging)return;
+    this.playbackKnown=true;
     if(value){
       clearTimeout(this.pauseRetractTimer);
       this.pauseRetractTimer=null;
@@ -296,8 +299,10 @@ export class DiscDirector{
         jobs.push(this.after(sleeveDelayIn,token,()=>this.animate(oldTrack,[{transform:'translateX(50%)'},{transform:'translateX(0)'}],sleeveDuration/2,token)));
       }
       if(align){
-        jobs.push(this.after(sleeveDelayIn,token,()=>this.animate(oldTrack,[{translate:'0% 0'},{translate:offset+' 0'}],sleeveDuration/2,token)));
-        jobs.push(this.after(sleeveDelayIn,token,()=>this.animate(oldSleeve,[{translate:'0% 0'},{translate:offset+' 0'}],sleeveDuration/2,token)));
+        if(!this.wasRetractedAtChange){
+          jobs.push(this.after(sleeveDelayIn,token,()=>this.animate(oldTrack,[{translate:'0% 0'},{translate:offset+' 0'}],sleeveDuration/2,token)));
+          jobs.push(this.after(sleeveDelayIn,token,()=>this.animate(oldSleeve,[{translate:'0% 0'},{translate:offset+' 0'}],sleeveDuration/2,token)));
+        }
         newTrack.style.translate=offset+' 0';newSleeve.style.translate=offset+' 0';
       }
       jobs.push((async()=>{
@@ -351,7 +356,7 @@ export class DiscDirector{
     clearTimeout(this.pauseRetractTimer);
     this.pauseRetractTimer=null;
     this.pauseRetracted=false;
-    if(!this.playing&&this.isSleeve())this.pauseStartedAt=Date.now();
+    if(this.playbackKnown&&!this.playing&&this.isSleeve())this.pauseStartedAt=Date.now();
     else this.pauseStartedAt=null;
     await preload(url);
     if(token!==this.token)return;

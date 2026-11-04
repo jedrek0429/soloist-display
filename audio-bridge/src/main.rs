@@ -288,7 +288,7 @@ async fn put_config(
         {
             return Err((
                 StatusCode::BAD_REQUEST,
-                "Standby pause delay must be an integer from 0 to 86400, or -1".into(),
+                "Pause delay must be an integer from 0 to 86400, or -1".into(),
             ));
         }
         if key == "idleText" && value.as_str().unwrap_or("").chars().count() > 80 {
@@ -686,6 +686,46 @@ mod tests {
                 .err()
                 .expect("invalid value must fail");
             assert_eq!(error.0, StatusCode::BAD_REQUEST);
+        }
+    }
+
+    #[tokio::test]
+    async fn validates_sleeve_pause_retraction_delay() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = WebState {
+            path: Arc::new(dir.path().join("config.json")),
+            write_lock: Arc::new(Mutex::new(())),
+        };
+        for key in [
+            "pauseRetractDelaySecondsVinylCover",
+            "pauseRetractDelaySecondsCdCover",
+        ] {
+            assert_eq!(read_settings(&state.path)[key], -1);
+            for delay in [-1, 0, 9, 120, 86400] {
+                let mut config = read_settings(&state.path);
+                let tag = config_etag(&config);
+                config[key] = Value::from(delay);
+                let mut headers = HeaderMap::new();
+                headers.insert(header::IF_MATCH, HeaderValue::from_str(&tag).unwrap());
+                assert!(
+                    put_config(State(state.clone()), headers, Json(config))
+                        .await
+                        .is_ok(),
+                    "valid {key} = {delay}"
+                );
+            }
+            for bad in [-2, 86401] {
+                let mut config = read_settings(&state.path);
+                let tag = config_etag(&config);
+                config[key] = Value::from(bad);
+                let mut headers = HeaderMap::new();
+                headers.insert(header::IF_MATCH, HeaderValue::from_str(&tag).unwrap());
+                let error = put_config(State(state.clone()), headers, Json(config))
+                    .await
+                    .err()
+                    .expect("invalid pause delay must fail");
+                assert_eq!(error.0, StatusCode::BAD_REQUEST);
+            }
         }
     }
 

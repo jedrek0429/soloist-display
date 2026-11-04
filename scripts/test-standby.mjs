@@ -102,3 +102,80 @@ test('first song animates only the arriving disc in every appearance',async()=>{
     globalThis.requestAnimationFrame=originalFrame;
   }
 });
+
+test('cover playback retracts on pause and restores without moving the sleeve',()=>{
+  const previousDoc=globalThis.document,previousFrame=globalThis.requestAnimationFrame;
+  globalThis.requestAnimationFrame=()=>0;
+  try{
+    for(const appearance of ['vinyl-cover','cd-cover']){
+      const discs=[element('disc-a',[]),element('disc-b',[])];
+      globalThis.document={documentElement:{dataset:{discAppearance:appearance}}};
+      const director=new DiscDirector({
+        discs,backdrops:[element('bg-a',[]),element('bg-b',[])],info:element('info',[]),
+        settings:{pauseRetractMs:0}
+      });
+      director.started=true;
+      const record=discs[0].querySelector('.record-track');
+      const cover=discs[0].querySelector('.record-sleeve');
+      record.style.transform='translateX(50%)';
+      director.setPlaying(false);
+      assert.equal(record.style.transform,'translateX(0)',appearance);
+      assert.equal(cover.style.transform,undefined,appearance);
+      director.setPlaying(true);
+      assert.equal(record.style.transform,'translateX(50%)',appearance);
+      director.reset();
+      assert.equal(director.pauseRetractTimer,null);
+      assert.equal(director.pauseRetracted,false);
+    }
+  }finally{
+    globalThis.document=previousDoc;
+    globalThis.requestAnimationFrame=previousFrame;
+  }
+});
+
+test('pause retraction is delayed, cancellable, and independent of plain discs',()=>{
+  const previousDoc=globalThis.document,previousFrame=globalThis.requestAnimationFrame;
+  const previousNow=Date.now;
+  globalThis.requestAnimationFrame=()=>0;
+  try{
+    let now=1000;
+    Date.now=()=>now;
+    for(const appearance of ['vinyl-cover','cd-cover','vinyl','cd','basic']){
+      globalThis.document={documentElement:{dataset:{discAppearance:appearance}}};
+      const discs=[element('disc-a',[]),element('disc-b',[])];
+      const director=new DiscDirector({
+        discs,backdrops:[element('bg-a',[]),element('bg-b',[])],info:element('info',[]),
+        settings:{pauseRetractMs:5000}
+      });
+      director.started=true;
+      const track=discs[0].querySelector('.record-track');
+      track.style.transform='translateX(50%)';
+      director.setPlaying(false);
+      assert.equal(track.style.transform,'translateX(50%)');
+      now+=5001;
+      director.schedulePauseRetraction();
+      assert.equal(track.style.transform,['vinyl-cover','cd-cover'].includes(appearance)?'translateX(0)':'translateX(50%)');
+      director.setPlaying(true);
+      assert.equal(track.style.transform,'translateX(50%)');
+      director.reset();
+    }
+    globalThis.document={documentElement:{dataset:{discAppearance:'cd-cover'}}};
+    const discs=[element('disc-a',[]),element('disc-b',[])];
+    const director=new DiscDirector({
+      discs,backdrops:[element('bg-a',[]),element('bg-b',[])],info:element('info',[]),
+      settings:{pauseRetractMs:0}
+    });
+    director.started=true;
+    director.artworkChanging=true;
+    director.setPlaying(false);
+    assert.equal(director.pauseRetracted,false);
+    director.artworkChanging=false;
+    director.schedulePauseRetraction();
+    assert.equal(director.pauseRetracted,true);
+    director.reset();
+  }finally{
+    Date.now=previousNow;
+    globalThis.document=previousDoc;
+    globalThis.requestAnimationFrame=previousFrame;
+  }
+});

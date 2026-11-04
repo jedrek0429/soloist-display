@@ -14,14 +14,14 @@ use std::{
 const DISPLAY_UNIT: &str = r#"[Unit]
 Description=Soloist Display local server and audio spectrum
 After=sound.target pipewire.service pipewire-pulse.service pulseaudio.service
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
 ExecStart=__BRIDGE__
 Restart=on-failure
 RestartSec=3
-StartLimitIntervalSec=60
-StartLimitBurst=5
 
 [Install]
 WantedBy=default.target
@@ -35,6 +35,17 @@ fn unit_quote(path: &Path) -> String {
             .replace('\\', "\\\\")
             .replace('"', "\\\"")
     )
+}
+
+fn environment_file_path(path: &Path) -> Result<String> {
+    if !path.is_absolute() {
+        bail!("Soloist EnvironmentFile path must be absolute");
+    }
+    let value = path_string(path);
+    if value.contains(['\n', '\r', '\0']) {
+        bail!("Soloist EnvironmentFile path contains an invalid character");
+    }
+    Ok(value.replace('%', "%%"))
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -130,6 +141,8 @@ impl ManagedRuntime {
 const SOLOIST_UNIT: &str = r#"[Unit]
 Description=Spotify Soloist playback
 After=sound.target pipewire.service pipewire-pulse.service pulseaudio.service
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -137,8 +150,6 @@ EnvironmentFile=__ENV__
 ExecStart=__SOLOIST__ --device-name ${SOLOIST_NAME} --api-key ${SOLOIST_API_KEY} --ws __WS__ --data-dir __DATA__ --cache-dir __CACHE____EXTRA__
 Restart=on-failure
 RestartSec=5
-StartLimitIntervalSec=60
-StartLimitBurst=5
 
 [Install]
 WantedBy=default.target
@@ -195,7 +206,7 @@ pub fn install_display(paths: &Paths) -> Result<()> {
 pub fn install_soloist(paths: &Paths, executable: &Path) -> Result<()> {
     let runtime = ManagedRuntime::load(paths)?;
     let unit = SOLOIST_UNIT
-        .replace("__ENV__", &unit_quote(&paths.soloist_env))
+        .replace("__ENV__", &environment_file_path(&paths.soloist_env)?)
         .replace("__SOLOIST__", &unit_quote(executable))
         .replace("__WS__", &unit_quote(Path::new(&runtime.websocket_bind()?)))
         .replace("__DATA__", &unit_quote(&runtime.data_dir))
@@ -589,6 +600,67 @@ pub fn restart_soloist(paths: &Paths) -> Result<()> {
 mod tests {
     use super::*;
     use serial_test::serial;
+
+    #[test]
+    fn environment_file_path_is_absolute_and_not_quoted() {
+        assert_eq!(
+            environment_file_path(Path::new("/home/admin/.config/soloist-display/soloist.env"))
+                .unwrap(),
+            "/home/admin/.config/soloist-display/soloist.env"
+        );
+        assert_eq!(
+            environment_file_path(Path::new("/home/user with spaces/100%/soloist.env")).unwrap(),
+            "/home/user with spaces/100%%/soloist.env"
+        );
+        assert!(environment_file_path(Path::new("relative/soloist.env")).is_err());
+        assert!(environment_file_path(Path::new("/tmp/unsafe\npath")).is_err());
+    }
+
+    #[test]
+    #[serial]
+    fn generated_units_pass_systemd_analyze_verify() {
+        let directory = tempfile::Builder::new()
+            .prefix("soloist display ")
+            .tempdir()
+            .unwrap();
+        std::env::set_var("HOME", directory.path());
+        std::env::set_var(
+            "SOLOIST_DISPLAY_TEST_ROOT",
+            directory.path().join("test root"),
+        );
+        let result = (|| -> Result<()> {
+            let paths = Paths::discover()?;
+            paths.ensure_management_dirs()?;
+            fs::create_dir_all(paths.soloist_env.parent().unwrap())?;
+            fs::write(
+                &paths.soloist_env,
+                b"SOLOIST_NAME=Test\nSOLOIST_API_KEY=test\n",
+            )?;
+            install_soloist(&paths, Path::new("/bin/true"))?;
+
+            let bridge = paths.current.join("bin/soloist-audio-bridge");
+            fs::create_dir_all(bridge.parent().unwrap())?;
+            fs::write(&bridge, b"#!/bin/sh\nexit 0\n")?;
+            fs::set_permissions(&bridge, fs::Permissions::from_mode(0o755))?;
+            install_display(&paths)?;
+
+            for path in [&paths.soloist_service, &paths.display_service] {
+                let output = Command::new("systemd-analyze")
+                    .arg("verify")
+                    .arg(path)
+                    .output()?;
+                assert!(
+                    output.status.success() && output.stderr.is_empty(),
+                    "systemd rejected {}: {}",
+                    path.display(),
+                    String::from_utf8_lossy(&output.stderr)
+                );
+            }
+            Ok(())
+        })();
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+        result.unwrap();
+    }
 
     #[test]
     #[serial]

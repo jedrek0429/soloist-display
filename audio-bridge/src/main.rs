@@ -7,8 +7,8 @@ use axum::{
 };
 use futures_util::SinkExt;
 mod spectrum;
-use spectrum::{Spectrum, HOP, RATE};
 use serde_json::Value;
+use spectrum::{Spectrum, HOP, RATE};
 use std::{env, path::PathBuf, process::Stdio, sync::Arc, time::Instant};
 use tokio::{
     io::AsyncReadExt,

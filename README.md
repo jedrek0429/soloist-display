@@ -1,5 +1,11 @@
 # Soloist Display
 
+[![Release](https://img.shields.io/github/v/release/jedrek0429/soloist-display?include_prereleases&style=for-the-badge)](https://github.com/jedrek0429/soloist-display/releases)
+[![Checks](https://img.shields.io/github/actions/workflow/status/jedrek0429/soloist-display/build.yml?branch=main&style=for-the-badge&label=Checks)](https://github.com/jedrek0429/soloist-display/actions/workflows/build.yml)
+[![Installer integration](https://img.shields.io/github/actions/workflow/status/jedrek0429/soloist-display/installer-integration.yml?branch=main&style=for-the-badge&label=Installer)](https://github.com/jedrek0429/soloist-display/actions/workflows/installer-integration.yml)
+[![License: MIT](https://img.shields.io/github/license/jedrek0429/soloist-display?style=for-the-badge)](LICENSE)
+[![Code quality](https://img.shields.io/codefactor/grade/github/jedrek0429/soloist-display/main?style=for-the-badge&label=Code%20quality)](https://www.codefactor.io/repository/github/jedrek0429/soloist-display)
+
 A full-screen now-playing display for [Spotify Soloist](https://developer.spotify.com/documentation/soloist).
 
 ![Soloist Display](docs/screenshots/now-playing.webp)

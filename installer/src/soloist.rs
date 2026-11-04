@@ -456,7 +456,8 @@ mod tests {
     #[serial]
     fn distinguishes_independent_broken_and_installer_owned_soloist() {
         let (_directory, paths) = paths();
-        let independent = paths.home.join(".local/bin/soloist");
+        let executable_name = if cfg!(windows) { "soloist.exe" } else { "soloist" };
+        let independent = paths.home.join(".local/bin").join(executable_name);
         fs::create_dir_all(independent.parent().unwrap()).unwrap();
         fs::write(&independent, b"independent").unwrap();
         assert_eq!(
@@ -471,7 +472,7 @@ mod tests {
             SoloistOwnership::Independent
         );
         fs::remove_file(&paths.soloist_service).unwrap();
-        let owned = paths.managed_soloist.join("1/soloist");
+        let owned = paths.managed_soloist.join("1").join(executable_name);
         fs::create_dir_all(owned.parent().unwrap()).unwrap();
         fs::write(&owned, b"owned").unwrap();
         let previous = SoloistState {

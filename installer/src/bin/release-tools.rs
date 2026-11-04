@@ -92,15 +92,6 @@ fn build_manifest(dist: &Path, tag: &str, version: &str) -> Result<()> {
             }
         }
     }
-    for arch in ["x86_64", "arm64", "arm32"] {
-        let name = format!("soloist_release_{arch}.tar.gz");
-        let file = dist.join(&name);
-        artifacts.push(json!({
-            "name": name, "kind": "soloist", "target": arch,
-            "url": format!("https://soloist-builds.spotifycdn.com/{name}"),
-            "sha256": digest(&file)?, "size": file.metadata()?.len()
-        }));
-    }
     let manifest = json!({
         "schema": 1, "version": version, "published_at": timestamp()?,
         "artifacts": artifacts
@@ -299,6 +290,23 @@ fn main() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn manifest_does_not_pin_rolling_spotify_archives() {
+        let dir = tempfile::tempdir().unwrap();
+        for target in TARGETS {
+            for prefix in ["soloist-display", "soloist-audio-bridge"] {
+                fs::write(dir.path().join(format!("{prefix}-{target}")), b"test").unwrap();
+            }
+        }
+        build_manifest(dir.path(), "v1.0.0-alpha.4", "1.0.0-alpha.4").unwrap();
+        let parsed: Value =
+            serde_json::from_slice(&fs::read(dir.path().join("release-manifest.json")).unwrap())
+                .unwrap();
+        let artifacts = parsed["artifacts"].as_array().unwrap();
+        assert_eq!(artifacts.len(), 6);
+        assert!(artifacts.iter().all(|artifact| artifact["kind"] != "soloist"));
+    }
+
     #[test]
     fn accepts_canonical_release_tags() {
         for tag in ["v1.0.0", "v1.0.0-alpha.1", "v1.0.0-beta.2", "v1.0.0-rc.1"] {

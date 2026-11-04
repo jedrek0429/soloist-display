@@ -126,7 +126,9 @@ impl UninstallTransaction {
                 None
             },
             mpris_owned,
-            mpris_active: mpris_owned && !paths.is_test() && service::active(paths, "soloist-display-mpris.service"),
+            mpris_active: mpris_owned
+                && !paths.is_test()
+                && service::active(paths, "soloist-display-mpris.service"),
             mpris_enabled: mpris_owned && service::enabled(paths, "soloist-display-mpris.service"),
             managed,
             display_active: !paths.is_test() && service::active(paths, "soloist-display.service"),

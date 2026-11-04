@@ -257,6 +257,7 @@ async fn put_config(
             | "panelDelayIn"
             | "panelDelayOut" => Some((0., 10000.)),
             "idlePauseDelaySeconds"
+            | "panelHideDelaySeconds"
             | "pauseRetractDelaySecondsVinylCover"
             | "pauseRetractDelaySecondsCdCover" => Some((-1., 86400.)),
             "backgroundDim" => Some((0., 1.)),
@@ -285,6 +286,7 @@ async fn put_config(
             ));
         }
         if (key == "idlePauseDelaySeconds"
+            || key == "panelHideDelaySeconds"
             || key == "pauseRetractDelaySecondsVinylCover"
             || key == "pauseRetractDelaySecondsCdCover")
             && !value

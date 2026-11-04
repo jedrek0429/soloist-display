@@ -9,13 +9,24 @@ fn quote(path: &Path) -> String {
     format!("\"{}\"", path.to_string_lossy().replace('"', "\\\""))
 }
 
+fn task_registered(name: &str) -> Result<bool> {
+    let status = Command::new("schtasks")
+        .args(["/Query", "/TN", name])
+        .status()
+        .context("query scheduled task")?;
+    Ok(status.success())
+}
+
 fn create(paths: &Paths, marker: &Path, name: &str, command: String) -> Result<()> {
     if let Some(parent) = marker.parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::write(marker, &command)?;
     if paths.is_test() {
+        fs::write(marker, &command)?;
         return Ok(());
+    }
+    if task_registered(name)? && !marker.is_file() {
+        return Err(anyhow!("refusing to replace unowned scheduled task {name}"));
     }
     process::run(
         Command::new("schtasks").args([
@@ -24,6 +35,7 @@ fn create(paths: &Paths, marker: &Path, name: &str, command: String) -> Result<(
         "register per-user startup task",
         false,
     )?;
+    fs::write(marker, &command)?;
     process::run(
         Command::new("schtasks").args(["/Run", "/TN", name]),
         "start per-user task",
@@ -58,6 +70,9 @@ pub fn start_display(paths: &Paths) -> Result<()> {
     if paths.is_test() {
         return Ok(());
     }
+    if !paths.display_service.is_file() {
+        return Err(anyhow!("refusing to start an unowned Soloist Display task"));
+    }
     process::run(
         Command::new("schtasks").args(["/Run", "/TN", DISPLAY_TASK]),
         "start Soloist Display",
@@ -65,7 +80,7 @@ pub fn start_display(paths: &Paths) -> Result<()> {
     )
 }
 pub fn stop_display(paths: &Paths) -> Result<()> {
-    if paths.is_test() {
+    if paths.is_test() || !paths.display_service.is_file() {
         return Ok(());
     }
     let _ = Command::new("schtasks")
@@ -82,10 +97,16 @@ pub fn active(paths: &Paths, unit: &str) -> bool {
     } else {
         SOLOIST_TASK
     };
-    Command::new("schtasks")
-        .args(["/Query", "/TN", name])
-        .status()
-        .is_ok_and(|status| status.success())
+    let command = format!(
+        "(Get-ScheduledTask -TaskName '{}' -ErrorAction SilentlyContinue).State",
+        name.replace('\'', "''")
+    );
+    Command::new("powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &command])
+        .output()
+        .is_ok_and(|output| {
+            output.status.success() && String::from_utf8_lossy(&output.stdout).trim() == "Running"
+        })
 }
 pub fn disable_owned(paths: &Paths, unit: &str) -> Result<()> {
     if paths.is_test() {
@@ -96,6 +117,17 @@ pub fn disable_owned(paths: &Paths, unit: &str) -> Result<()> {
     } else {
         SOLOIST_TASK
     };
+    let marker = if unit.contains("display") {
+        &paths.display_service
+    } else {
+        &paths.soloist_service
+    };
+    if !marker.is_file() {
+        return Err(anyhow!("refusing to remove unowned scheduled task {name}"));
+    }
+    if !task_registered(name)? {
+        return Ok(());
+    }
     let _ = Command::new("schtasks")
         .args(["/End", "/TN", name])
         .status();
@@ -103,7 +135,7 @@ pub fn disable_owned(paths: &Paths, unit: &str) -> Result<()> {
         .args(["/Delete", "/F", "/TN", name])
         .output()
         .context("remove per-user startup task")?;
-    if !output.status.success() && active(paths, unit) {
+    if !output.status.success() && task_registered(name)? {
         return Err(anyhow!("could not remove {name}"));
     }
     Ok(())

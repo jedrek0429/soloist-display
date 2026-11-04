@@ -806,6 +806,47 @@ mod tests {
         }
     }
 
+
+    #[tokio::test]
+    async fn validates_panel_hide_delay() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = WebState {
+            path: Arc::new(dir.path().join("config.json")),
+            write_lock: Arc::new(Mutex::new(())),
+        };
+        assert_eq!(read_settings(&state.path)["panelHideDelaySeconds"], -1);
+        for seconds in [-1, 0, 9, 300, 86400] {
+            let mut config = read_settings(&state.path);
+            let tag = config_etag(&config);
+            config["panelHideDelaySeconds"] = Value::from(seconds);
+            let mut headers = HeaderMap::new();
+            headers.insert(header::IF_MATCH, HeaderValue::from_str(&tag).unwrap());
+            assert!(
+                put_config(State(state.clone()), headers, Json(config))
+                    .await
+                    .is_ok(),
+                "valid panel hide delay {seconds}"
+            );
+        }
+        for value in [
+            Value::from(-2),
+            Value::from(86401),
+            Value::from(0.5),
+            Value::from("30"),
+        ] {
+            let mut config = read_settings(&state.path);
+            let tag = config_etag(&config);
+            config["panelHideDelaySeconds"] = value;
+            let mut headers = HeaderMap::new();
+            headers.insert(header::IF_MATCH, HeaderValue::from_str(&tag).unwrap());
+            let error = put_config(State(state.clone()), headers, Json(config))
+                .await
+                .err()
+                .expect("invalid panel hide delay must fail");
+            assert_eq!(error.0, StatusCode::BAD_REQUEST);
+        }
+    }
+
     #[test]
     fn migrates_legacy_transitions_and_dot_without_losing_durations() {
         let path = env::temp_dir().join(format!(

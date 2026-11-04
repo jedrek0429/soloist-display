@@ -43,6 +43,10 @@ jobs:
           SOLOIST_DISPLAY_RUN_SYSTEMD_TEST: '1'
         run: |
           cargo test --locked -p soloist-display-installer restores_previous_live_systemd_user_service -- --nocapture
+      - name: Test optional MPRIS bridge service with live systemd
+        env:
+          SOLOIST_DISPLAY_RUN_SYSTEMD_TEST: '1'
+        run: cargo test --locked -p soloist-display-installer live_mpris_unit_can_start_independently -- --nocapture
       - name: Test live uninstall and original service restoration
         env:
           SOLOIST_DISPLAY_RUN_SYSTEMD_TEST: '1'

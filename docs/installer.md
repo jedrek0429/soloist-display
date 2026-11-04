@@ -6,6 +6,18 @@ Display releases live under `$XDG_DATA_HOME/soloist-display/releases`. The activ
 
 Mutating CLI operations share a lock. Installation, renewal and uninstall use recovery journals. Recovery runs on the next relevant CLI invocation. If the previous build is also broken, manual recovery may be needed. Package-manager changes are not atomically reversible.
 
+## Optional MPRIS add-on
+
+`soloist-display mpris enable` installs only the upstream `soloist-mpris` bridge, not its Soloist installer or its timers. The bridge is independently managed by `soloist-display-mpris.service` and reads the current WebSocket address from the Soloist data directory. It is never installed by default and does not change Managed or External ownership of Soloist.
+
+Files:
+
+- `$XDG_DATA_HOME/soloist-display/addons/mpris/soloist-mpris` and its MIT licence
+- `$XDG_CONFIG_HOME/systemd/user/soloist-display-mpris.service`
+- `$XDG_STATE_HOME/soloist-display/mpris.json`
+
+The add-on's version is pinned separately from Soloist Display releases. Enabling and disabling it leaves Soloist untouched. Soloist Display uninstall stages these owned paths in the existing recovery journal, snapshots the unit state, and restores it on rollback. No third-party MPRIS service or binary is an uninstall target.
+
 ## Soloist ownership
 
 - **Managed:** Display owns the Soloist binary and systemd user service. On migration it saves the old service and clones the existing session; it refuses unsupported systemd settings. Legacy `EnvironmentFile=` accepts absolute paths and `%h/` home-directory paths. The original installation is not deleted.

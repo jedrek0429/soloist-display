@@ -88,6 +88,15 @@ const sections=[
     ]
   },
   {
+    title:'Standby',
+    fields:[
+      ['idleMode','Appearance','select',['clock','vinyl','text']],
+      ['idleText','Custom message','text'],
+      ['idleShowDate','Show date','toggle'],
+      ['idlePauseDelay','After pausing','select',['never','0','30','60','300','600']]
+    ]
+  },
+  {
     title:'Connections',
     fields:[
       ['soloistWebSocket','Soloist','text'],
@@ -186,6 +195,7 @@ function renderSection(){
     (key==='sleeveDuration'&&selectedValue('sleeveTransitionStyle')==='off')||
     (['sleeveDelayIn','sleeveDelayOut'].includes(key)&&selectedValue('sleeveTransitionStyle')==='off')||
     (key==='sleeveAlignment'&&!isCover(draft.discAppearance))||
+    (key==='idleShowDate'&&draft.idleMode!=='clock')||
     (key==='timeLayout'&&draft.timeDisplay==='off')||
     (key==='transitionDuration'&&selectedValue('transitionStyle')==='off')||
     (key==='transitionDelay'&&selectedValue('transitionStyle')==='off')||
@@ -227,12 +237,12 @@ function renderSection(){
     }else if(type==='select'){
       const select=document.createElement('select');
       select.id=key;select.dataset.key=key;
-      for(const choice of min){const option=document.createElement('option');option.value=String(choice);option.textContent=({song:'Song change',album:'Album change',cd:'CD','vinyl-cover':'Vinyl & Cover','cd-cover':'CD & Cover','album-cover':'Album cover'}[choice]||String(choice).replace(/^./,c=>c.toUpperCase()));select.append(option)}
+      for(const choice of min){const option=document.createElement('option');option.value=String(choice);option.textContent=({song:'Song change',album:'Album change',cd:'CD','vinyl-cover':'Vinyl & Cover','cd-cover':'CD & Cover','album-cover':'Album cover',clock:'Clock',vinyl:'Vinyl record',text:'Text only',never:'Never','0':'Immediately','30':'After 30 seconds','60':'After 1 minute','300':'After 5 minutes','600':'After 10 minutes'}[choice]||String(choice).replace(/^./,c=>c.toUpperCase()));select.append(option)}
       select.value=String((key==='centerHoleColor'?draft[selectedHoleColorKey()]:selectedValue(key))??min[0]);
       line.append(select);
       const output=document.createElement('output');output.htmlFor=key;
       const refresh=()=>{const value=typeof min[0]==='number'?Number(select.value):select.value;draft[key==='centerHoleColor'?selectedHoleColorKey():selectedFieldKey(key)]=value;output.textContent=String(value);};
-      select.addEventListener('change',()=>{refresh();if(['discAppearance','cdCoverSide','timeDisplay','transitionStyle','sleeveTransitionStyle','backdropTransitionStyle','panelTransitionStyle'].includes(key)){if(key==='discAppearance')renderNav();renderSection();}status.textContent='Unsaved changes';});
+      select.addEventListener('change',()=>{refresh();if(['discAppearance','cdCoverSide','timeDisplay','transitionStyle','sleeveTransitionStyle','backdropTransitionStyle','panelTransitionStyle','idleMode'].includes(key)){if(key==='discAppearance')renderNav();renderSection();}status.textContent='Unsaved changes';});
       // Rendering a select must not change the configuration. Only user input does.
       output.textContent=select.value;
       controls.append(line);continue;
@@ -247,6 +257,7 @@ function renderSection(){
       input.type='text';
       input.value=draft[key]??'';
       input.spellcheck=false;
+      if(key==='idleText')input.maxLength=80;
       line.append(input);
     }
 
@@ -255,7 +266,7 @@ function renderSection(){
     const refresh=()=>{
       const value=type==='toggle'?input.checked:type==='range'?Number(input.value):input.value;
       draft[key==='centerHole'?selectedHoleKey():key==='discSize'?selectedSizeKey():key==='discOpacity'?selectedOpacityKey():selectedFieldKey(key)]=value;
-      output.textContent=type==='toggle'?(value?'On':'Off'):type==='text'?'Local':format(value,suffix);
+      output.textContent=type==='toggle'?(value?'On':'Off'):type==='text'?'':format(value,suffix);
     };
     input.addEventListener('input',()=>{
       refresh();

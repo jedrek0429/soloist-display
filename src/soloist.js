@@ -49,3 +49,9 @@ export function isEmptyPlayback(event){
 export function positionMs(position){if(typeof position==='number')return position;return Number(position?.position_ms??position?.position??position?.ms??0)}
 export function durationMs(item){return Number(item?.decorations?.playback?.duration_ms??item?.duration_ms??0)}
 export function playing(status){return status===true||status==='playing'||status==='play'||status?.state==='playing'}
+
+export function pauseDelayMs(value){
+  if(value==='never'||value==null)return null;
+  const seconds=Number(value);
+  return Number.isFinite(seconds)&&[0,30,60,300,600].includes(seconds)?seconds*1000:null;
+}

@@ -1,4 +1,4 @@
-import {artistFor,albumKeyFor,coverFor,normalize,positionMs,durationMs,playing as isPlaying,isEmptyPlayback} from './soloist.js';
+import {artistFor,albumKeyFor,coverFor,normalize,positionMs,durationMs,playing as isPlaying,isEmptyPlayback,pauseDelayMs} from './soloist.js';
 import {DiscDirector} from './motion.js';
 import {Spectrum} from './spectrum.js';
 
@@ -53,6 +53,16 @@ const settings={
 };
 const root=document.documentElement;
 root.dataset.reducedMotion=settings.reducedMotion?'true':'false';
+root.dataset.idleMode=['clock','vinyl','text'].includes(config.idleMode)?config.idleMode:'clock';
+root.dataset.idleShowDate=config.idleShowDate===false?'false':'true';
+$('standby-title').textContent=typeof config.idleText==='string'?config.idleText.slice(0,80):'Ready when you are';
+function updateStandbyClock(){
+  const now=new Date();
+  $('standby-clock').textContent=now.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+  $('standby-date').textContent=now.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});
+}
+updateStandbyClock();
+if(root.dataset.idleMode==='clock')setInterval(updateStandbyClock,1000);
 root.dataset.progressBar=config.progressBar===false?'off':'on';
 root.dataset.timeDisplay=['off','remaining','total'].includes(config.timeDisplay)?config.timeDisplay:'off';
 root.dataset.timeLayout=config.timeLayout==='together'?'together':'split';
@@ -86,20 +96,36 @@ for(const [key,value] of Object.entries({
 const director=new DiscDirector({discs:[$('disc-a'),$('disc-b')],backdrops:[$('backdrop-a'),$('backdrop-b')],info:$('info'),settings});
 const spectrum=new Spectrum($('visualizer'), config.visualizerSensitivity ?? 1, config.visualizerSmoothing ?? 0.7, {autoNormalize:config.visualizerAutoNormalize===true,peakHold:config.visualizerPeakHold===true});
 const standbyCopy={
-  connecting:['CONNECTING','Connecting to Soloist','Checking playback status…'],
-  ready:['CONNECTED','Ready when you are','Play something on Spotify to begin.'],
-  offline:['RECONNECTING','Connection lost','Trying to reconnect automatically…']
+  connecting:['CONNECTING','Checking playback status…'],
+  ready:['READY','Play something on Spotify to begin.'],
+  paused:['PAUSED','Playback is paused.'],
+  offline:['RECONNECTING','Connection lost. Trying again automatically…']
 };
 function setDisplayState(state){
   root.dataset.displayState=state;
   if(state==='playing')return;
-  const [status,title,description]=standbyCopy[state];
+  const [status,description]=standbyCopy[state];
   $('standby-status').textContent=status;
-  $('standby-title').textContent=title;
   $('standby-description').textContent=description;
 }
 let currentUri=null,position=0,positionTime=performance.now(),duration=0,playing=false;
+let pauseTimer=null;
+function cancelPauseTimer(){
+  if(pauseTimer!==null)clearTimeout(pauseTimer);
+  pauseTimer=null;
+}
+function showPausedAfterDelay(){
+  if(pauseTimer!==null||!currentUri)return;
+  const wait=pauseDelayMs(config.idlePauseDelay);
+  if(wait===null)return;
+  if(wait===0){setDisplayState('paused');return;}
+  pauseTimer=setTimeout(()=>{
+    pauseTimer=null;
+    if(!playing&&currentUri)setDisplayState('paused');
+  },wait);
+}
 function clearTrack(){
+  cancelPauseTimer();
   if(currentUri!==null||director.started){
     director.reset();
     currentUri=null;
@@ -110,6 +136,7 @@ function clearTrack(){
     positionTime=performance.now();
   }
   playing=false;
+  director.setPlaying(false);
 }
 
 let lastTrack=null;
@@ -120,6 +147,7 @@ function updateItem(item){
   const uri=item.uri||item.id||[item?.decorations?.identity?.name,coverFor(item)].join('|');
   duration=durationMs(item)||duration;
   if(uri===currentUri)return;
+  cancelPauseTimer();
   position=0;positionTime=performance.now();
   currentUri=uri;
   const albumKey=albumKeyFor(item);
@@ -127,9 +155,11 @@ function updateItem(item){
   currentAlbumKey=albumKey;
   const name=item?.decorations?.identity?.name||item.name||'Not playing';
   const artist=artistFor(item),cover=coverFor(item);
-  const show=()=>{$('track').textContent=name;$('artist').textContent=artist;setDisplayState('playing')};
+  const show=()=>{$('track').textContent=name;$('artist').textContent=artist};
+  if(!director.started)show();
+  setDisplayState('playing');
   if(panelOnly)director.changePanel(show);
-  else director.change(cover,show);
+  else void director.change(cover,show);
 }
 function syncPosition(ms){
   const now=performance.now();
@@ -139,12 +169,27 @@ function syncPosition(ms){
 }
 function handleSoloist(event){
   const {item,position:pos,status}=normalize(event);
-  if(isEmptyPlayback(event)){clearTrack();setDisplayState('ready')}
-  else if(item)updateItem(item);
-  if(status!==null){playing=isPlaying(status);director.setPlaying(playing)}
+  if(isEmptyPlayback(event)){
+    clearTrack();
+    setDisplayState('ready');
+    return;
+  }
+  if(item)updateItem(item);
+  if(status!==null){
+    playing=isPlaying(status);
+    director.setPlaying(playing);
+    if(playing){
+      cancelPauseTimer();
+      if(currentUri)setDisplayState('playing');
+    }else if(currentUri){
+      showPausedAfterDelay();
+    }
+  }
   if(pos!==null){const ms=positionMs(pos);if(Number.isFinite(ms))syncPosition(ms)}
-  if(event.type==='position_sync'||event.type==='position_changed'){const ms=positionMs(event.position??event);if(Number.isFinite(ms))syncPosition(ms)}
-  if(event.type==='playback_changed'&&event.status!==undefined){playing=isPlaying(event.status);director.setPlaying(playing)}
+  if(event.type==='position_sync'||event.type==='position_changed'){
+    const ms=positionMs(event.position??event);
+    if(Number.isFinite(ms))syncPosition(ms);
+  }
 }
 function connect(url,onData,onOpen,onDisconnect){
   let retry=500;
@@ -158,7 +203,7 @@ function connect(url,onData,onOpen,onDisconnect){
   open();
 }
 connect(config.soloistWebSocket||'ws://127.0.0.1:9090',handleSoloist,s=>{
-  if(!currentUri)setDisplayState('ready');
+  if(!currentUri)setDisplayState('connecting');
   s.send(JSON.stringify({type:'command',command:'get_state'}));
 },()=>{
   clearTrack();

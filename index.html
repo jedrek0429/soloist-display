@@ -1,13 +1,13 @@
 <!doctype html>
 <html lang="en" data-display-state="connecting"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#171717"><title>Soloist Display</title><link rel="stylesheet" href="./styles.css"></head>
 <body><main class="stage" id="stage" aria-label="Now playing">
-<section class="standby" id="standby" aria-label="Soloist connection status">
+<section class="standby" id="standby" aria-label="Standby screen">
 <div class="standby-content">
-<div class="standby-brand">SOLOIST <span>DISPLAY</span></div>
+<div class="standby-clock-group"><time class="standby-clock" id="standby-clock">--:--</time><p class="standby-date" id="standby-date"></p></div>
 <div class="standby-record" aria-hidden="true"><div class="standby-label">S</div></div>
+<h1 class="standby-caption" id="standby-title">Ready when you are</h1>
 <div class="standby-indicator" role="status"><span class="standby-light" aria-hidden="true"></span><span id="standby-status">CONNECTING</span></div>
-<h1 id="standby-title">Connecting to Soloist</h1>
-<p id="standby-description">Checking playback status…</p>
+<p id="standby-description">Connecting to Soloist…</p>
 </div>
 </section>
 <div class="backdrop" aria-hidden="true"><div class="backdrop-image" id="backdrop-a"></div><div class="backdrop-image" id="backdrop-b"></div><div class="backdrop-shade"></div></div>

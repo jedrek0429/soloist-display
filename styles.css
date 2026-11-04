@@ -186,26 +186,32 @@
 /* The metadata panel owns the visualiser: both disappear when disabled. */
 :root[data-panel-enabled='off'] .info{display:none!important}
 
-/* Standby is separate from the configurable now-playing panel. */
-.standby{position:absolute;inset:0;z-index:8;display:grid;place-items:center;overflow:hidden;background:radial-gradient(ellipse at 50% 37%,#292824 0%,#1c1c1b 43%,#111212 100%);color:#efece5;transition:opacity .45s ease,visibility .45s}
-.standby-content{position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;gap:clamp(12px,2.2vh,21px);padding:clamp(20px,4vmin,42px);max-width:min(90vw,620px)}
-.standby-brand{font-size:clamp(11px,1.4vmin,15px);font-weight:700;letter-spacing:.37em;line-height:1.3}
-.standby-brand span{font-weight:400;color:#96938d}
-.standby-record{position:relative;display:grid;place-items:center;width:clamp(150px,32vmin,280px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,transparent 0 22%,rgba(0,0,0,.32) 23% 24%,transparent 25% 71%,rgba(255,255,255,.12) 72%,transparent 73%),repeating-radial-gradient(circle,rgba(255,255,255,.055) 0 1px,#181818 2px 4px,#101010 5px 7px),radial-gradient(circle at 30% 21%,#30302e,#0c0c0c 72%);box-shadow:inset 0 0 22px #080808,0 16px 55px rgba(0,0,0,.37);border:1px solid rgba(255,255,255,.07)}
+
+/* The standby screen is independent of the now-playing artwork and panel. */
+.standby{position:absolute;inset:0;z-index:10;display:grid;place-items:center;overflow:hidden;background:radial-gradient(ellipse at 50% 37%,#292824 0%,#1c1c1b 43%,#111212 100%);color:#efece5;transition:opacity .3s ease,visibility .3s}
+.standby-content{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:clamp(12px,2.5vh,24px);padding:clamp(20px,4vmin,42px);width:min(95vw,760px);max-height:100dvh}
+.standby-clock-group{display:flex;flex-direction:column;align-items:center;gap:clamp(2px,1vh,12px)}
+.standby-clock{display:block;font-variant-numeric:tabular-nums;font-weight:300;font-size:clamp(76px,19vmin,148px);letter-spacing:-.065em;line-height:1;white-space:nowrap;text-shadow:0 0 45px rgba(255,255,255,.08)}
+.standby-date{font-size:clamp(14px,2.6vmin,22px);color:#a9a69f;letter-spacing:.025em}
+.standby-caption{margin:0;max-width:100%;font-size:clamp(22px,3.5vmin,34px);font-weight:500;letter-spacing:-.025em;line-height:1.2;overflow-wrap:anywhere;text-wrap:balance}
+.standby-record{display:none;position:relative;place-items:center;width:clamp(150px,31vmin,280px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,transparent 0 22%,rgba(0,0,0,.32) 23% 24%,transparent 25% 71%,rgba(255,255,255,.12) 72%,transparent 73%),repeating-radial-gradient(circle,rgba(255,255,255,.055) 0 1px,#181818 2px 4px,#101010 5px 7px),radial-gradient(circle at 30% 21%,#30302e,#0c0c0c 72%);box-shadow:inset 0 0 22px #080808,0 16px 55px rgba(0,0,0,.37);border:1px solid rgba(255,255,255,.07)}
 .standby-record:before{content:'';position:absolute;inset:6%;border-radius:50%;border:1px solid rgba(255,255,255,.05);pointer-events:none}
-.standby-label{display:grid;place-items:center;width:27%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 37% 30%,#c3bdb1,#716f6a 80%);border:5px solid #171717;color:#222;box-shadow:0 0 0 1px rgba(255,255,255,.09);font-size:clamp(18px,3vmin,26px);font-weight:700;line-height:1}
+.standby-label{display:grid;place-items:center;width:27%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 37% 30%,#c3bdb1,#716f6a 80%);border:5px solid #171717;color:#222;box-shadow:0 0 0 1px rgba(255,255,255,.09);font-size:clamp(18px,3vmin,26px);font-weight:700}
 .standby-label:after{content:'';position:absolute;width:5px;height:5px;border-radius:50%;background:#202020;transform:translateY(15px)}
-.standby-indicator{display:flex;align-items:center;justify-content:center;gap:9px;font-size:clamp(10px,1.25vmin,13px);letter-spacing:.22em;font-weight:600;color:#a6a29a}
+.standby-indicator{display:flex;align-items:center;justify-content:center;gap:9px;font-size:clamp(10px,1.3vmin,13px);letter-spacing:.19em;font-weight:600;color:#a6a29a}
 .standby-light{width:7px;height:7px;border-radius:50%;background:#c19d64;box-shadow:0 0 9px rgba(193,157,100,.2)}
-:root[data-display-state='ready'] .standby-light{background:#91a994;box-shadow:0 0 9px rgba(145,169,148,.2)}
-:root:not([data-display-state='ready']) .standby-light{animation:standby-pulse 2s ease-in-out infinite}
-.standby h1{margin:0;font-size:clamp(25px,3.8vmin,41px);font-weight:550;letter-spacing:-.025em;line-height:1.15}
-.standby p{margin:0;font-size:clamp(14px,1.85vmin,18px);color:#aaa7a0;line-height:1.4}
+:root[data-display-state='ready'] .standby-light,:root[data-display-state='paused'] .standby-light{background:#91a994;box-shadow:0 0 9px rgba(145,169,148,.2)}
+:root:not([data-display-state='ready']):not([data-display-state='paused']) .standby-light{animation:standby-pulse 2s ease-in-out infinite}
+.standby #standby-description{font-size:clamp(12px,1.7vmin,17px);color:#96938c;line-height:1.4}
+:root[data-idle-mode='vinyl'] .standby-record{display:grid}
+:root[data-idle-mode='vinyl'] .standby-clock-group,:root[data-idle-mode='text'] .standby-clock-group{display:none}
+:root[data-idle-mode='text'] .standby-caption{font-size:clamp(36px,8vmin,74px);font-weight:350}
+:root[data-idle-show-date='false'] .standby-date{display:none}
 :root[data-display-state='playing'] .standby{visibility:hidden;opacity:0;pointer-events:none}
-:root:not([data-display-state='playing']) .disc-stage,:root:not([data-display-state='playing']) .info{visibility:hidden}
+:root:not([data-display-state='playing']) .disc-stage,:root:not([data-display-state='playing']) .info,:root:not([data-display-state='playing']) .backdrop{visibility:hidden!important}
 :root.burn-in-protection .standby-content{animation:standby-drift 180s ease-in-out infinite alternate}
-@keyframes standby-pulse{50%{opacity:.42}}
-@keyframes standby-drift{from{transform:translate(-15px,-9px)}to{transform:translate(15px,9px)}}
-@media(max-height:420px){.standby-content{gap:8px}.standby-record{width:min(26vh,135px)}.standby h1{font-size:21px}.standby p{font-size:12px}}
+@keyframes standby-pulse{50%{opacity:.4}}
+@keyframes standby-drift{from{transform:translate(-10px,-7px)}to{transform:translate(10px,7px)}}
+@media(max-height:420px){.standby-content{gap:8px}.standby-clock{font-size:min(18vh,85px)}.standby-record{width:min(28vh,120px)}.standby-caption{font-size:21px}.standby #standby-description{font-size:12px}}
 @media(prefers-reduced-motion:reduce){.standby,.standby-light,:root.burn-in-protection .standby-content{animation:none!important;transition:none!important}}
 :root[data-reduced-motion='true'] .standby,:root[data-reduced-motion='true'] .standby-light,:root[data-reduced-motion='true'].burn-in-protection .standby-content{animation:none!important;transition:none!important}

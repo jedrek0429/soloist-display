@@ -59,6 +59,33 @@ export class DiscDirector{
     this.info.style.opacity='';
   }
   setPlaying(value){this.playing=value}
+  async enterFirst(incoming,backdrop,onShow,token){
+    const style=this.motionEnabled?this.settings.transitionStyle:'off';
+    const duration=this.motionEnabled?this.settings.transitionDuration:0;
+    const wait=this.motionEnabled?this.settings.transitionDelay:0;
+    const from=style==='fly'
+      ?'translate(55%,-115%) scale(.72) rotateX(65deg)'
+      :'translate(65%,-50%)';
+    const to='translate(-50%,-50%)';
+    this.started=true;
+    this.changing=style==='fly'||style==='slide';
+    if(style==='fade')incoming.style.opacity='0';
+    if(style==='fly'||style==='slide')incoming.style.transform=from;
+    incoming.classList.add('active');
+    backdrop.classList.add('active');
+    backdrop.style.opacity='1';
+    onShow();
+    if(style!=='off'){
+      if(wait>0)await delay(wait);
+      if(token!==this.token)return;
+      if(style==='fade')await this.animate(incoming,[{opacity:0},{opacity:1}],duration,token);
+      else await this.animate(incoming,[{transform:from},{transform:to}],duration,token);
+    }
+    if(token!==this.token)return;
+    incoming.style.transform='';
+    incoming.style.opacity='';
+    this.changing=false;
+  }
   async after(wait,token,work){
     if(wait>0)await delay(wait);
     if(token!==this.token)return false;
@@ -173,7 +200,7 @@ export class DiscDirector{
     newSleeve.style.backgroundImage=imageStyle(url);
     nextBg.style.backgroundImage=imageStyle(url);
     incoming.dataset.angleOffset=String(this.angle);
-    newTrack.style.transform=sleeveOn?'translateX(0)':'translateX(50%)';
+    newTrack.style.transform=sleeveOn&&this.started?'translateX(0)':'translateX(50%)';
     if(!this.started)oldTrack.style.transform='translateX(50%)';
 
     const commit=()=>{
@@ -194,7 +221,9 @@ export class DiscDirector{
       this.changing=false;
     };
     if(!this.started){
-      this.started=true;commit();onShow();return;
+      await this.enterFirst(incoming,nextBg,onShow,token);
+      if(token===this.token)commit();
+      return;
     }
     void this.transitionPanel(onShow);
     const duration=this.motionEnabled?this.settings.transitionDuration:0;
@@ -288,7 +317,11 @@ export class DiscDirector{
       this.changing=false;this.pendingShow=null;
 
     };
-    if(!this.started){this.started=true;commit();onShow();return}
+    if(!this.started){
+      await this.enterFirst(incoming,nextBg,onShow,token);
+      if(token===this.token)commit();
+      return;
+    }
     // Panel timing is independent of the disc and backdrop transitions.
     void this.transitionPanel(onShow);
     const duration=this.motionEnabled?this.settings.transitionDuration:0;

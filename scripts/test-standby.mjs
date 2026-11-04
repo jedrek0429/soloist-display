@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {isEmptyPlayback} from '../src/soloist.js';
+import {isEmptyPlayback,pauseDelayMs} from '../src/soloist.js';
 
 test('fresh state without a track enters standby',()=>{
   assert.equal(isEmptyPlayback({type:'state',state:{item:null,status:'paused'}}),true);
@@ -17,4 +17,15 @@ test('pausing does not remove the artwork',()=>{
 test('a track wins over an inconsistent empty outer field',()=>{
   assert.equal(isEmptyPlayback({item:null,playback:{item:{uri:'spotify:track:a'},status:'playing'}}),false);
   assert.equal(isEmptyPlayback({item:{uri:'spotify:track:b'},status:'stopped'}),false);
+});
+
+test('pause delays are bounded and never is the default',()=>{
+  assert.equal(pauseDelayMs('never'),null);
+  assert.equal(pauseDelayMs(undefined),null);
+  assert.equal(pauseDelayMs('0'),0);
+  assert.equal(pauseDelayMs('30'),30_000);
+  assert.equal(pauseDelayMs('60'),60_000);
+  assert.equal(pauseDelayMs('300'),300_000);
+  assert.equal(pauseDelayMs('600'),600_000);
+  assert.equal(pauseDelayMs('3600'),null);
 });

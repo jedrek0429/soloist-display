@@ -125,7 +125,9 @@ pub fn start_display(paths: &Paths) -> Result<()> {
         return Ok(());
     }
     if !paths.display_service.is_file() {
-        return Err(anyhow!("refusing to start an unowned Soloist Display agent"));
+        return Err(anyhow!(
+            "refusing to start an unowned Soloist Display agent"
+        ));
     }
     process::run(
         Command::new("launchctl").args([

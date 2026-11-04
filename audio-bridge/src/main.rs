@@ -536,7 +536,7 @@ async fn capture(
     loop {
         stdout.read_exact(&mut raw).await?;
         let mut samples = [0.; HOP];
-        for (sample, bytes) in samples.iter_mut().zip(raw.chunks_exact(2)) {
+        for (sample, bytes) in samples.iter_mut().zip(raw.as_chunks::<2>().0) {
             *sample = i16::from_le_bytes([bytes[0], bytes[1]]) as f32 / 32768.;
             peak = peak.max(sample.abs());
         }

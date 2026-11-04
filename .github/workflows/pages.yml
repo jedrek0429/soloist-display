@@ -5,9 +5,7 @@ on:
     paths: ['site/**', 'index.html', 'styles.css', 'src/motion.js', 'src/spectrum.js', 'install.sh', '.github/workflows/pages.yml']
   release:
     types: [published]
-  workflow_run:
-    workflows: [Signed release]
-    types: [completed]
+  workflow_call:
   workflow_dispatch:
 permissions:
   contents: write
@@ -17,7 +15,6 @@ concurrency:
 
 jobs:
   publish:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7

@@ -222,6 +222,17 @@ test('standby markup matches the standalone preview and has no decorative status
   assert.ok(!standby(app).includes('>S<'));
 });
 
+test('default standby message is blank in config, display and preview',()=>{
+  const config=JSON.parse(fs.readFileSync(new URL('../config.json',import.meta.url),'utf8'));
+  const main=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
+  const app=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
+  const preview=fs.readFileSync(new URL('../docs/idle-preview.html',import.meta.url),'utf8');
+  assert.equal(config.idleText,'');
+  assert.match(main,/config\\.idleText\\.slice\\(0,80\\):''/);
+  for(const html of [app,preview])assert.match(html,/<h1 class="standby-caption" id="standby-title"><\\/h1>/);
+  assert.match(preview,/<input id="caption" type="text" maxlength="80" value="">/);
+});
+
 test('standby stays hidden until the first playback state arrives',()=>{
   const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
   const css=fs.readFileSync(new URL('../styles.css',import.meta.url),'utf8');

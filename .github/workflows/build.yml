@@ -135,6 +135,7 @@ jobs:
           .\target\debug\soloist-display.exe --version
           .\target\debug\soloist-display.exe --help
           $env:SOLOIST_DISPLAY_TEST_ROOT = "$env:RUNNER_TEMP\soloist display smoke"
+          $PSNativeCommandUseErrorActionPreference = $false
           .\target\debug\soloist-display.exe doctor
           if ($LASTEXITCODE -ne 1) { throw "doctor should report an absent installation" }
       - name: CLI smoke test (macOS)

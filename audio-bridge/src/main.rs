@@ -29,10 +29,27 @@ struct WebState {
 }
 
 fn config_path() -> PathBuf {
-    let base = env::var_os("XDG_CONFIG_HOME")
+    let home = env::var_os("HOME")
+        .or_else(|| env::var_os("USERPROFILE"))
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(env::var_os("HOME").unwrap_or_default()).join(".config"));
-    base.join("soloist-display/config.json")
+        .unwrap_or_default();
+    #[cfg(target_os = "linux")]
+    let base = env::var_os("XDG_CONFIG_HOME")
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| home.join(".config"));
+    #[cfg(target_os = "macos")]
+    let base = home.join("Library/Application Support");
+    #[cfg(windows)]
+    let base = env::var_os("APPDATA")
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| home.join("AppData/Roaming"));
+    #[cfg(target_os = "linux")]
+    let app = "soloist-display";
+    #[cfg(not(target_os = "linux"))]
+    let app = "Soloist Display";
+    base.join(app).join("config.json")
 }
 
 fn read_settings(path: &PathBuf) -> Value {

@@ -67,8 +67,11 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
+  systemd-integration:
+    uses: ./.github/workflows/installer-integration.yml
+
   sign:
-    needs: build
+    needs: [build, systemd-integration]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7

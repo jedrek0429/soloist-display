@@ -1,5 +1,6 @@
 name: Installer integration
 on:
+  workflow_call:
   pull_request:
     paths:
       - 'installer/**'
@@ -34,6 +35,10 @@ jobs:
           sudo systemctl start "user@$(id -u).service"
           echo "XDG_RUNTIME_DIR=/run/user/$(id -u)" >> "$GITHUB_ENV"
           echo "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus" >> "$GITHUB_ENV"
+      - name: Test generated Soloist service with live systemd
+        env:
+          SOLOIST_DISPLAY_RUN_SYSTEMD_TEST: '1'
+        run: cargo test --locked -p soloist-display-installer generated_soloist_unit_passes_credentials_to_live_systemd -- --nocapture
       - name: Test live Soloist unit restoration
         env:
           SOLOIST_DISPLAY_RUN_SYSTEMD_TEST: '1'

@@ -43,7 +43,7 @@ journalctl --user -u soloist-display-renew.service -n 100 --no-pager
 soloist-display renew-soloist
 ```
 
-The timer checks every six hours. `renew-soloist` only works for Managed. A failed build should roll back; `doctor` can reveal a broken service. `--force` bypasses the unchanged-build shortcut, not safety checks.
+The timer checks weekly. `renew-soloist` only works for Managed. A failed build should roll back; `doctor` can reveal a broken service. `--force` bypasses the unchanged-build shortcut, not safety checks.
 
 An unreachable CDN leaves the existing build installed. A healthy WebSocket alone does not prove the right binary started; the manager also checks the systemd process.
 

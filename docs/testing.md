@@ -25,7 +25,7 @@ SOLOIST_DISPLAY_AUDIO_PORT=9191 \
 
 Open http://127.0.0.1:8088. Point `audioWebSocket` at `ws://127.0.0.1:9191` in test settings. Soloist still defaults to port `9090`.
 
-## Optional MPRIS add-on
+## MPRIS tests
 
 The installer unit tests cover MPRIS service quoting, checksum validation, ELF architecture rejection, and unsupported ARMv7. `Installer integration` also exercises the generated unit under a live disposable systemd user manager. It runs a stand-in process, not Spotify Soloist.
 

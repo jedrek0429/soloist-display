@@ -149,11 +149,10 @@ mod tests {
         }
         let (device, loopback) = output_device().expect("find requested monitor source");
         assert!(!loopback);
-        assert_eq!(
-            device.id().expect("device id").id(),
-            "soloist_ci.monitor"
-        );
-        let supported = device.default_input_config().expect("monitor stream format");
+        assert_eq!(device.id().expect("device id").id(), "soloist_ci.monitor");
+        let supported = device
+            .default_input_config()
+            .expect("monitor stream format");
         let (tx, rx) = mpsc::sync_channel(1);
         let stream = device
             .build_input_stream_raw(

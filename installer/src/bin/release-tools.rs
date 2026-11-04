@@ -123,10 +123,16 @@ fn render_bootstrap(template: &Path, manifest: &Path, base: &str) -> Result<()> 
             bail!("invalid bootstrap manifest record");
         }
         let (target, sha, url) = (fields[0], fields[1], fields[2]);
-        if (!TARGETS.contains(&target) && !LEGACY_TARGETS.contains(&target))
-            || sha.len() != 64
-            || !sha.bytes().all(|b| b.is_ascii_hexdigit())
-            || !url.starts_with(&format!("{base}/soloist-display-{target}"))
+        let mapped = if let Some(index) = TARGETS.iter().position(|current| *current == target) {
+            TARGETS[index]
+        } else if let Some(index) = LEGACY_TARGETS.iter().position(|old| *old == target) {
+            TARGETS[index]
+        } else {
+            bail!("unsupported bootstrap target: {target}");
+        };
+        if sha.len() != 64
+            || !sha.bytes().all(|byte| byte.is_ascii_hexdigit())
+            || url != format!("{base}/soloist-display-{mapped}")
         {
             bail!("invalid bootstrap record for {target}");
         }

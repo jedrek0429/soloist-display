@@ -137,3 +137,37 @@ pub fn run(sender: broadcast::Sender<String>) -> CaptureResult<()> {
         }
     }
 }
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pulseaudio_null_sink_monitor_captures_audio() {
+        if env::var_os("SOLOIST_DISPLAY_CPAL_MONITOR_SMOKE").is_none() {
+            return;
+        }
+        let (device, loopback) = output_device().expect("find requested monitor source");
+        assert!(!loopback);
+        assert_eq!(
+            device.id().expect("device id").id(),
+            "soloist_ci.monitor"
+        );
+        let supported = device.default_input_config().expect("monitor stream format");
+        let (tx, rx) = mpsc::sync_channel(1);
+        let stream = device
+            .build_input_stream_raw(
+                supported.config(),
+                supported.sample_format(),
+                move |_, _| {
+                    let _ = tx.try_send(());
+                },
+                |error| panic!("PulseAudio monitor stream error: {error}"),
+                Some(Duration::from_secs(5)),
+            )
+            .expect("open PulseAudio monitor stream");
+        stream.play().expect("start PulseAudio monitor");
+        rx.recv_timeout(Duration::from_secs(5))
+            .expect("monitor should yield captured audio, even silence");
+    }
+}

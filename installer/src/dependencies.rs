@@ -4,23 +4,26 @@ use std::process::Command;
 
 pub fn required(platform: &Platform) -> Vec<&'static str> {
     match platform.distro {
-        Distro::Arch => vec!["ca-certificates", "xdg-utils", "libpulse", "firefox"],
+        Distro::Arch => vec!["ca-certificates", "xdg-utils", "libpulse", "alsa-lib", "firefox"],
         Distro::Ubuntu => vec![
             "ca-certificates",
             "xdg-utils",
             "pulseaudio-utils",
+            "libasound2t64",
             "firefox",
         ],
         Distro::Debian => vec![
             "ca-certificates",
             "xdg-utils",
             "pulseaudio-utils",
+            "libasound2t64",
             "firefox-esr",
         ],
         Distro::Fedora => vec![
             "ca-certificates",
             "xdg-utils",
             "pulseaudio-utils",
+            "alsa-lib",
             "firefox",
         ],
     }
@@ -34,8 +37,19 @@ fn command_exists(name: &str) -> bool {
         .unwrap_or(false)
 }
 
+fn alsa_runtime_ready() -> bool {
+    Command::new("ldconfig")
+        .arg("-p")
+        .output()
+        .is_ok_and(|result| {
+            result.status.success()
+                && String::from_utf8_lossy(&result.stdout).contains("libasound.so.2")
+        })
+}
+
 pub fn runtime_ready() -> bool {
-    ["pactl", "parec", "xdg-open", "systemctl"]
+    alsa_runtime_ready()
+        && ["pactl", "xdg-open", "systemctl"]
         .iter()
         .all(|name| command_exists(name))
         && [
@@ -108,6 +122,9 @@ mod tests {
             let packages = required(&platform(distro));
             assert!(packages.contains(&"ca-certificates"));
             assert!(packages.iter().any(|package| package.contains("pulse")));
+            assert!(packages
+                .iter()
+                .any(|package| package.contains("asound") || *package == "alsa-lib"));
         }
     }
 

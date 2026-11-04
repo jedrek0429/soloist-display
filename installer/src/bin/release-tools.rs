@@ -304,7 +304,9 @@ mod tests {
                 .unwrap();
         let artifacts = parsed["artifacts"].as_array().unwrap();
         assert_eq!(artifacts.len(), 6);
-        assert!(artifacts.iter().all(|artifact| artifact["kind"] != "soloist"));
+        assert!(artifacts
+            .iter()
+            .all(|artifact| artifact["kind"] != "soloist"));
     }
 
     #[test]

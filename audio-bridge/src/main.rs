@@ -279,7 +279,9 @@ async fn put_config(
             ));
         }
         if key == "idlePauseDelaySeconds"
-            && !value.as_i64().is_some_and(|seconds| seconds == -1 || (0..=86400).contains(&seconds))
+            && !value
+                .as_i64()
+                .is_some_and(|seconds| seconds == -1 || (0..=86400).contains(&seconds))
         {
             return Err((
                 StatusCode::BAD_REQUEST,

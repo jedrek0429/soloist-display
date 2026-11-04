@@ -1,7 +1,7 @@
 name: Distribution smoke tests
 on:
   push:
-    branches: [main]
+    branches: [main, beta/cpal-integration]
     paths:
       - 'installer/**'
       - 'audio-bridge/**'

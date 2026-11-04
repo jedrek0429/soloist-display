@@ -1,7 +1,7 @@
 name: Documentation checks
 on:
   push:
-    branches: [main]
+    branches: [main, beta/cpal-integration]
     paths: ['README.md', 'docs/**', '.github/workflows/docs.yml']
   pull_request:
     paths: ['README.md', 'docs/**', '.github/workflows/docs.yml']

@@ -268,17 +268,24 @@ fn integrate_zshrc(existing: &str, directory: &Path) -> String {
     output
 }
 
+fn completion_script(binary: &Path) -> Result<Vec<u8>> {
+    let output = Command::new(binary)
+        .args(["completions", "zsh"])
+        .output()
+        .with_context(|| format!("generate Zsh completion from {}", binary.display()))?;
+    if !output.status.success() {
+        bail!(
+            "Zsh completion generation failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+    Ok(output.stdout)
+}
+
 fn install_completion(paths: &Paths) -> Result<()> {
-    use clap::CommandFactory;
     let directory = completion_directory(paths);
     fs::create_dir_all(&directory)?;
-    let mut script = Vec::new();
-    clap_complete::generate(
-        clap_complete::Shell::Zsh,
-        &mut crate::Cli::command(),
-        "soloist-display",
-        &mut script,
-    );
+    let script = completion_script(&paths.current.join("bin/soloist-display"))?;
     fs::write(directory.join("_soloist-display"), script)?;
     let rc = paths.home.join(".zshrc");
     if rc.is_symlink() {
@@ -332,6 +339,20 @@ fn install_visible_command(paths: &Paths) -> Result<()> {
 #[cfg(test)]
 mod completion_tests {
     use super::*;
+
+    #[test]
+    fn completion_uses_the_active_binary() {
+        let dir = tempfile::tempdir().unwrap();
+        let binary = dir.path().join("soloist-display");
+        fs::write(&binary, "#!/bin/sh\necho active-release-completions\n").unwrap();
+        let mut permissions = fs::metadata(&binary).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&binary, permissions).unwrap();
+        assert_eq!(
+            completion_script(&binary).unwrap(),
+            b"active-release-completions\n"
+        );
+    }
 
     #[test]
     fn inserts_before_existing_compinit_without_duplicating_it() {
@@ -1099,6 +1120,9 @@ pub fn update(
             });
             next.save(paths)?;
         }
+        if let Err(error) = install_completion(paths) {
+            eprintln!("warning: could not refresh Zsh completion: {error:#}");
+        }
         crate::terminal::success(format!("Soloist Display {} is up to date.", state.version));
         return Ok(());
     }
@@ -1168,6 +1192,9 @@ pub fn update(
         return Err(error.context("update failed; restored the previous release"));
     }
     drop(progress);
+    if let Err(error) = install_completion(paths) {
+        eprintln!("warning: could not refresh Zsh completion: {error:#}");
+    }
     if !quiet {
         println!("Updated Soloist Display to {}.", manifest.version);
         if state.suppress_updates {

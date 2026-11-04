@@ -14,14 +14,14 @@ use std::{
 const DISPLAY_UNIT: &str = r#"[Unit]
 Description=Soloist Display local server and audio spectrum
 After=sound.target pipewire.service pipewire-pulse.service pulseaudio.service
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
 ExecStart=__BRIDGE__
 Restart=on-failure
 RestartSec=3
-StartLimitIntervalSec=60
-StartLimitBurst=5
 
 [Install]
 WantedBy=default.target
@@ -35,6 +35,17 @@ fn unit_quote(path: &Path) -> String {
             .replace('\\', "\\\\")
             .replace('"', "\\\"")
     )
+}
+
+fn environment_file_path(path: &Path) -> Result<String> {
+    if !path.is_absolute() {
+        bail!("Soloist EnvironmentFile path must be absolute");
+    }
+    let value = path_string(path);
+    if value.contains(['\n', '\r', '\0']) {
+        bail!("Soloist EnvironmentFile path contains an invalid character");
+    }
+    Ok(value.replace('%', "%%"))
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -130,6 +141,8 @@ impl ManagedRuntime {
 const SOLOIST_UNIT: &str = r#"[Unit]
 Description=Spotify Soloist playback
 After=sound.target pipewire.service pipewire-pulse.service pulseaudio.service
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -137,8 +150,6 @@ EnvironmentFile=__ENV__
 ExecStart=__SOLOIST__ --device-name ${SOLOIST_NAME} --api-key ${SOLOIST_API_KEY} --ws __WS__ --data-dir __DATA__ --cache-dir __CACHE____EXTRA__
 Restart=on-failure
 RestartSec=5
-StartLimitIntervalSec=60
-StartLimitBurst=5
 
 [Install]
 WantedBy=default.target
@@ -195,7 +206,7 @@ pub fn install_display(paths: &Paths) -> Result<()> {
 pub fn install_soloist(paths: &Paths, executable: &Path) -> Result<()> {
     let runtime = ManagedRuntime::load(paths)?;
     let unit = SOLOIST_UNIT
-        .replace("__ENV__", &unit_quote(&paths.soloist_env))
+        .replace("__ENV__", &environment_file_path(&paths.soloist_env)?)
         .replace("__SOLOIST__", &unit_quote(executable))
         .replace("__WS__", &unit_quote(Path::new(&runtime.websocket_bind()?)))
         .replace("__DATA__", &unit_quote(&runtime.data_dir))

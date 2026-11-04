@@ -6,7 +6,9 @@ use axum::{
     Json, Router,
 };
 use futures_util::SinkExt;
+mod pcm;
 mod spectrum;
+use pcm::PcmInput;
 use serde_json::Value;
 use spectrum::{Spectrum, HOP, RATE};
 use std::{env, path::PathBuf, process::Stdio, sync::Arc, time::Instant};
@@ -527,6 +529,7 @@ async fn capture(
     let mut child = cmd.spawn()?;
     let mut stdout = child.stdout.take().ok_or("No audio stream")?;
     let mut spectrum = Spectrum::new();
+    let mut pcm = PcmInput::new();
     let mut raw = [0u8; HOP * 2];
     let mut peak = 0f32;
     let mut frames = 0u64;
@@ -540,7 +543,8 @@ async fn capture(
             *sample = i16::from_le_bytes([bytes[0], bytes[1]]) as f32 / 32768.;
             peak = peak.max(sample.abs());
         }
-        let Some(bands) = spectrum.push_mono(&samples).into_iter().next() else {
+        let mono = pcm.push(&samples, RATE as u32, 1)?;
+        let Some(bands) = spectrum.push_mono(mono.as_ref()).into_iter().next() else {
             continue;
         };
         let now = Instant::now();

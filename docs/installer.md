@@ -49,7 +49,7 @@ export PATH="${XDG_DATA_HOME:-$HOME/.local/share}/soloist-display/soloist/curren
 
 Put that line in `~/.bashrc` or `~/.zshrc` to make it persistent. The systemd service does not need this. External Soloist uses its existing installation paths.
 
-Managed Soloist checks Spotify's CDN every six hours using `soloist-display-renew.timer`. You can run `soloist-display renew-soloist` yourself. Before accepting a build, the manager checks the archive, ELF target and SHA-256. After restart it checks the systemd process, executable and WebSocket listener. Failed activation restores the previous build.
+Managed Soloist checks Spotify's CDN weekly using `soloist-display-renew.timer` (with up to one hour of random delay). Missed checks run after downtime. You can run `soloist-display renew-soloist` yourself. Before accepting a build, the manager checks the archive, ELF target and SHA-256. After restart it checks the systemd process, executable and WebSocket listener. Failed activation restores the previous build.
 
 Display release artefacts are verified against signed manifests. **Spotify's rolling builds are different:** initial Managed installation and automatic renewal both download the current build directly from Spotify's HTTPS CDN. The installer limits the download size and verifies the archive and executable architecture; the build is not pinned to an old Display release manifest. Spotify does not provide an independently verified upstream signature. When prompted, obtain a Soloist API key from [Spotify for Developers](https://developer.spotify.com/dashboard/soloist).
 

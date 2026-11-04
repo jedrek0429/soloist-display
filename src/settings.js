@@ -83,6 +83,12 @@ const sections=[
     ]
   },
   {
+    title:'Idle motion',
+    fields:[
+      ['idleFadeDuration','Fade duration','range',0,10000,50,'ms']
+    ]
+  },
+  {
     title:'Display',
     fields:[
       ['burnInProtection','Screen burn-in protection','toggle']
@@ -120,7 +126,7 @@ let activeSection=0;
 let motionExpanded=false;
 let previousPauseSeconds=300;
 const previousDurationValues=new Map();
-const motionPages=new Set(['Sleeve motion','Disc motion','Backdrop motion','Panel motion']);
+const motionPages=new Set(['Sleeve motion','Disc motion','Backdrop motion','Panel motion','Idle motion']);
 const isCover=style=>style==='vinyl-cover'||style==='cd-cover';
 const motionVisible=title=>title!=='Sleeve motion'||isCover(draft.discAppearance);
 const motionLabel=title=>title==='Disc motion'&&draft.discAppearance==='album-cover'?'Album cover':title.replace(' motion','');

@@ -39,16 +39,14 @@ test('old metadata placeholders cannot flash during startup or reconnect',()=>{
   assert.match(demo,/root\.dataset\.metadataReady='true'/);
 });
 
-test('landing shows a static poster before the animated iframe is ready',()=>{
+test('landing shows only the real renderer, with a black loading frame',()=>{
   const landing=read('../site/index.html');
   const demo=read('../site/demo.js');
   assert.match(landing,/<link rel="preload" as="image" href="\.\/kind-of-blue\.jpg" fetchpriority="high">/);
-  assert.match(landing,/<div class="preview-poster" aria-hidden="true">/);
-  assert.match(landing,/<img class="poster-cover" src="\.\/kind-of-blue\.jpg"/);
-  assert.match(landing,/<div class="poster-meta">So What<span>Miles Davis<\/span><\/div>/);
-  assert.match(landing,/\.preview iframe\{[^}]*opacity:0/);
-  assert.match(landing,/\.preview\[data-ready='true'\] iframe\{opacity:1\}/);
-  assert.match(landing,/event\.origin!==location\.origin\|\|event\.source!==previewFrame\.contentWindow/);
-  assert.match(demo,/image\.decode\(\)\.catch\(\(\)=>\{\}\)\.then\(show\)/);
-  assert.match(demo,/postMessage\('soloist-demo-ready'/);
+  assert.match(landing,/<link rel="preload" as="style" href="\.\/styles\.css">/);
+  assert.match(landing,/\.preview\{[^}]*background:#151515/);
+  assert.match(landing,/<iframe src="\.\/preview\.html"[^>]*loading="eager"/);
+  assert.doesNotMatch(landing,/preview-poster|poster-art|poster-vinyl|poster-cover|poster-meta|data-ready|postMessage/);
+  assert.doesNotMatch(demo,/soloist-demo-ready|image\.decode\(\)/);
+  assert.match(demo,/root\.dataset\.displayState='playing'/);
 });

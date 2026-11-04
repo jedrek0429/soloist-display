@@ -56,12 +56,3 @@ function visualizer(now){
 }
 requestAnimationFrame(visualizer);
 
-if(window.parent!==window){
- const image=new Image();
- image.src=cover;
- const show=()=>requestAnimationFrame(()=>requestAnimationFrame(()=>{
-   window.parent.postMessage('soloist-demo-ready',location.origin==='null'?'*':location.origin);
- }));
- if(image.decode)image.decode().catch(()=>{}).then(show);
- else show();
-}

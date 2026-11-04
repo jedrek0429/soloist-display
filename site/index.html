@@ -7,6 +7,7 @@
 <meta name="description" content="Soloist Display — a beautiful now-playing display powered by Spotify Soloist.">
 <title>Soloist Display</title>
 <link rel="preload" as="image" href="./kind-of-blue.jpg" fetchpriority="high">
+<link rel="preload" as="style" href="./styles.css">
 <style>
 :root{color-scheme:dark;font:15px Arial,Helvetica,sans-serif;background:#101010;color:#f2f2f2;--ink:#f2f2f2;--bg:#101010;--line:#555}
 *{box-sizing:border-box}
@@ -26,17 +27,7 @@ h1{font-size:clamp(40px,4.6vw,72px);font-weight:600;letter-spacing:-.055em;line-
 .description{color:#aaa;margin:0 0 13px;font-size:clamp(17px,1.6vw,22px);line-height:1.35;max-width:490px}.powered{color:#aaa;margin:0;font-size:15px}
 .powered a{color:var(--ink);text-underline-offset:3px;text-decoration:underline}
 .preview{margin:0;position:relative;aspect-ratio:4/3;width:100%;overflow:hidden;border:1px solid var(--line);background:#151515}
-.preview iframe{position:absolute;inset:0;z-index:2;display:block;width:100%;height:100%;border:0;pointer-events:none;opacity:0;transition:opacity .16s ease}
-.preview-poster{position:absolute;inset:0;overflow:hidden;background:#151515;color:#fff;transition:opacity .16s ease}
-.preview-poster:before{content:'';position:absolute;inset:-20%;background:url('./kind-of-blue.jpg') center/cover no-repeat;filter:blur(28px) brightness(.3);transform:scale(1.1)}
-.poster-art{position:absolute;width:61%;aspect-ratio:1;left:13%;top:50%;transform:translateY(-50%)}
-.poster-vinyl{position:absolute;inset:0;left:50%;border-radius:50%;background:repeating-radial-gradient(circle,#121212 0 2px,#272727 3px,#121212 5px);box-shadow:0 4px 25px #0009}
-.poster-vinyl:after{content:'';position:absolute;inset:36%;border-radius:50%;background:#191919;box-shadow:0 0 0 1px #444}
-.poster-cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.poster-meta{position:absolute;right:3%;bottom:6%;width:43%;padding:clamp(12px,2.3vw,25px);background:rgba(13,13,13,.75);font:600 clamp(16px,2.4vw,32px)/1.15 Arial,Helvetica,sans-serif}
-.poster-meta span{display:block;margin-top:8px;color:#ddd;font-size:.67em;font-weight:400}
-.preview[data-ready='true'] iframe{opacity:1}
-.preview[data-ready='true'] .preview-poster{opacity:0;visibility:hidden}
+.preview iframe{display:block;width:100%;height:100%;border:0;pointer-events:none}
 
 .install{margin-top:34px}
 .label{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#aaa;margin-bottom:12px}
@@ -50,7 +41,7 @@ h1{font-size:clamp(40px,4.6vw,72px);font-weight:600;letter-spacing:-.055em;line-
 @media(min-width:801px) and (max-height:710px){.topbar{padding:14px 0}main{padding:14px 0}.preview{max-height:calc(100dvh - 105px);width:auto;justify-self:center;max-width:100%}.install{margin-top:22px}}
 @media(max-width:800px){.shell{width:calc(100% - 40px)}main{display:flex;flex-direction:column;align-items:stretch;gap:32px;padding:42px 0}.hero{width:100%}h1{font-size:clamp(38px,8vw,60px)}.preview{width:100%;max-width:680px;align-self:center}}
 @media(max-width:560px){.shell{width:calc(100% - 32px)}.topbar{padding:20px 0}.brand{font-size:22px}main{padding-top:38px;gap:28px}.command{flex-direction:column}.command button{padding:12px;border-left:0;border-top:1px solid var(--line)}}
-@media(prefers-reduced-motion:reduce){.preview iframe,.preview-poster{transition:none}}
+@media(prefers-reduced-motion:reduce){.preview iframe{visibility:visible}}
 </style>
 </head>
 <body>
@@ -58,23 +49,11 @@ h1{font-size:clamp(40px,4.6vw,72px);font-weight:600;letter-spacing:-.055em;line-
 <header class="topbar"><a class="brand" href="./" aria-label="Soloist Display home">Soloist Display</a><a class="nav-link" href="https://github.com/jedrek0429/soloist-display">GitHub</a></header>
 <main>
 <section class="hero"><h1>Your music deserves a display.</h1><p class="description">Turn any device into a Spotify Connect speaker with a beautiful display.</p><p class="powered">Powered by <a href="https://developer.spotify.com/documentation/soloist">Soloist</a>.</p><section class="install" id="install"><span class="label">Install</span><div class="command"><code id="command">curl -fsSL https://jedrek0429.github.io/soloist-display/install.sh | sh</code><button type="button" id="copy">Copy</button></div><!-- release-version --></section></section>
-<figure class="preview" aria-label="Live Soloist Display preview: Miles Davis, So What">
-<div class="preview-poster" aria-hidden="true">
-<div class="poster-art"><div class="poster-vinyl"></div><img class="poster-cover" src="./kind-of-blue.jpg" alt="" width="500" height="500" fetchpriority="high"></div>
-<div class="poster-meta">So What<span>Miles Davis</span></div>
-</div>
-<iframe src="./preview.html" title="Animated Soloist Display showing So What by Miles Davis" loading="eager" tabindex="-1"></iframe>
-</figure>
+<figure class="preview" aria-label="Live Soloist Display preview: Miles Davis, So What"><iframe src="./preview.html" title="Animated Soloist Display showing So What by Miles Davis" loading="eager" tabindex="-1"></iframe></figure>
 </main>
 </div>
 <script>
 const command=document.querySelector('#command').textContent;
-const preview=document.querySelector('.preview');
-const previewFrame=preview.querySelector('iframe');
-window.addEventListener('message',event=>{
- if(event.origin!==location.origin||event.source!==previewFrame.contentWindow||event.data!=='soloist-demo-ready')return;
- preview.dataset.ready='true';
-});
 document.querySelector('#copy').addEventListener('click',async event=>{
  try{await navigator.clipboard.writeText(command);event.currentTarget.textContent='Copied'}
  catch{event.currentTarget.textContent='Copy failed'}

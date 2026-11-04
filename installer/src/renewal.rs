@@ -216,7 +216,11 @@ fn archive_name(platform: &Platform) -> &'static str {
     }
 }
 
-pub fn download_current_archive(paths: &Paths, platform: &Platform, destination: &Path) -> Result<()> {
+pub fn download_current_archive(
+    paths: &Paths,
+    platform: &Platform,
+    destination: &Path,
+) -> Result<()> {
     if paths.is_test() {
         let fixture = std::env::var_os("SOLOIST_DISPLAY_TEST_SOLOIST_ARCHIVE")
             .context("test Soloist archive fixture is required")?;
@@ -237,7 +241,10 @@ pub fn download_current_archive(paths: &Paths, platform: &Platform, destination:
     for attempt in 1..=3 {
         let downloaded = (|| -> Result<()> {
             let response = ensure_official_response(client.get(&url).send()?)?;
-            if response.content_length().is_some_and(|size| size == 0 || size > MAX_ARCHIVE) {
+            if response
+                .content_length()
+                .is_some_and(|size| size == 0 || size > MAX_ARCHIVE)
+            {
                 bail!("Soloist archive exceeds size limit or is empty");
             }
             let mut output = fs::OpenOptions::new()

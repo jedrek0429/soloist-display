@@ -1618,7 +1618,7 @@ dependencies = [
 
 [[package]]
 name = "soloist-audio-bridge"
-version = "1.0.0-alpha.3"
+version = "1.0.0-alpha.4"
 dependencies = [
  "axum",
  "futures-util",
@@ -1631,7 +1631,7 @@ dependencies = [
 
 [[package]]
 name = "soloist-display-installer"
-version = "1.0.0-alpha.3"
+version = "1.0.0-alpha.4"
 dependencies = [
  "anyhow",
  "base64 0.22.1",

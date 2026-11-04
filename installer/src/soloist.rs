@@ -456,7 +456,11 @@ mod tests {
     #[serial]
     fn distinguishes_independent_broken_and_installer_owned_soloist() {
         let (_directory, paths) = paths();
-        let executable_name = if cfg!(windows) { "soloist.exe" } else { "soloist" };
+        let executable_name = if cfg!(windows) {
+            "soloist.exe"
+        } else {
+            "soloist"
+        };
         let independent = paths.home.join(".local/bin").join(executable_name);
         fs::create_dir_all(independent.parent().unwrap()).unwrap();
         fs::write(&independent, b"independent").unwrap();

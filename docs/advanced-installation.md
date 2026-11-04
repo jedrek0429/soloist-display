@@ -64,6 +64,8 @@ For External Soloist using a non-default data directory, specify the directory c
 soloist-display mpris enable --data-dir /absolute/path/to/soloist-data
 ```
 
+Alternatively, you can install Soloist and its MPRIS bridge with the [soloist-mpris installer](https://github.com/TobiasVeiga00/soloist-mpris) by TobiasVeiga00, then connect Soloist Display in **External** mode. The upstream installer already runs `soloist-mpris.service`, so **do not enable** `soloist-display mpris` as well. Upstream Soloist uses a dynamically assigned WebSocket port (`--ws 127.0.0.1:0`); pass its current address from `ws.addr` and `ws.port` using `--soloist-ws`, not the default port `9090`. Soloist Display currently stores that address, so a restart that changes the port requires updating the External connection.
+
 Managed Soloist uses its configured data directory automatically. External Soloist defaults to `$XDG_DATA_HOME/soloist` (usually `~/.local/share/soloist`). Start Soloist first so the WebSocket address files exist. Only x86_64 and ARM64 upstream binaries are available; ARMv7 is not currently supported by this add-on. A working systemd user session and D-Bus are required.
 
 The bridge runs separately from Soloist and reconnects after Soloist restarts. Enabling it never installs another Soloist instance, and an existing MPRIS bridge is not replaced. Removing Soloist Display also removes its own bridge without changing External Soloist.

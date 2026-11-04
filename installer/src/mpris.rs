@@ -63,7 +63,9 @@ fn read_state(paths: &Paths) -> Result<Option<MprisState>> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error.into()),
     };
-    Ok(Some(serde_json::from_slice(&content).context("read MPRIS installation state")?))
+    Ok(Some(
+        serde_json::from_slice(&content).context("read MPRIS installation state")?,
+    ))
 }
 
 fn save_state(paths: &Paths, state: &MprisState) -> Result<()> {
@@ -156,8 +158,8 @@ fn check_conflicts(paths: &Paths) -> Result<()> {
 }
 
 fn resolve_data_dir(paths: &Paths, requested: Option<PathBuf>) -> Result<PathBuf> {
-    let state = InstallState::load(paths)?
-        .ok_or_else(|| anyhow!("Soloist Display is not installed"))?;
+    let state =
+        InstallState::load(paths)?.ok_or_else(|| anyhow!("Soloist Display is not installed"))?;
     let dir = match state.soloist.ownership {
         SoloistOwnership::Installer => {
             if requested.is_some() {
@@ -370,7 +372,11 @@ pub fn enable(paths: &Paths, platform: &Platform, requested: Option<PathBuf>) ->
         create_file(&addon_dir(paths).join("LICENSE"), LICENSE.as_bytes(), 0o644)?;
         let unit = unit_path(paths);
         fs::create_dir_all(unit.parent().context("missing systemd unit directory")?)?;
-        create_file(&unit, render_unit(paths, &state.data_dir)?.as_bytes(), 0o644)?;
+        create_file(
+            &unit,
+            render_unit(paths, &state.data_dir)?.as_bytes(),
+            0o644,
+        )?;
         activate(paths)?;
         save_state(
             paths,
@@ -389,8 +395,7 @@ pub fn enable(paths: &Paths, platform: &Platform, requested: Option<PathBuf>) ->
 }
 
 pub fn stop_for_uninstall(paths: &Paths) -> Result<()> {
-    let state = read_state(paths)?
-        .ok_or_else(|| anyhow!("MPRIS metadata is missing"))?;
+    let state = read_state(paths)?.ok_or_else(|| anyhow!("MPRIS metadata is missing"))?;
     check_ownership(paths, &state.data_dir)?;
     systemctl(paths, &["disable", "--now", UNIT])
 }
@@ -427,7 +432,14 @@ pub fn status(paths: &Paths) -> Result<()> {
     match read_state(paths)? {
         None => println!("MPRIS bridge: not installed"),
         Some(state) => {
-            println!("MPRIS bridge: {}", if state.phase == Phase::Pending { "incomplete" } else { "installed" });
+            println!(
+                "MPRIS bridge: {}",
+                if state.phase == Phase::Pending {
+                    "incomplete"
+                } else {
+                    "installed"
+                }
+            );
             println!("Upstream version: {}", state.version);
             println!("Soloist data: {}", state.data_dir.display());
             println!("Service enabled: {}", service::enabled(paths, UNIT));
@@ -473,7 +485,9 @@ mod tests {
         };
         let unit = render_unit(&paths, Path::new("/home/a b/100%/soloist")).unwrap();
         assert!(unit.contains("Environment=\"SOLOIST_DATA_DIR=/home/a b/100%%/soloist\""));
-        assert!(unit.contains("ExecStart=\"/home/a b/.local/share/soloist-display/addons/mpris/soloist-mpris\""));
+        assert!(unit.contains(
+            "ExecStart=\"/home/a b/.local/share/soloist-display/addons/mpris/soloist-mpris\""
+        ));
         assert!(unit.contains("WantedBy=default.target"));
         assert!(!unit.contains("PartOf=soloist.service"));
         assert!(!unit.contains("Wants=soloist.service"));
@@ -483,9 +497,21 @@ mod tests {
     fn checksum_is_exact_and_filename_bound() {
         let archive = b"archive";
         let digest = hex::encode(Sha256::digest(archive));
-        assert!(verify_checksum(archive, &format!("{digest}  bridge.tar.gz"), "bridge.tar.gz").is_ok());
-        assert!(verify_checksum(archive, &format!("{digest}  other.tar.gz"), "bridge.tar.gz").is_err());
-        assert!(verify_checksum(b"wrong", &format!("{digest}  bridge.tar.gz"), "bridge.tar.gz").is_err());
+        assert!(verify_checksum(
+            archive,
+            &format!("{digest}  bridge.tar.gz"),
+            "bridge.tar.gz"
+        )
+        .is_ok());
+        assert!(
+            verify_checksum(archive, &format!("{digest}  other.tar.gz"), "bridge.tar.gz").is_err()
+        );
+        assert!(verify_checksum(
+            b"wrong",
+            &format!("{digest}  bridge.tar.gz"),
+            "bridge.tar.gz"
+        )
+        .is_err());
     }
 
     #[test]
@@ -494,7 +520,6 @@ mod tests {
         assert!(release_asset(&Architecture::X86_64).is_ok());
         assert!(release_asset(&Architecture::Aarch64).is_ok());
     }
-
 
     #[test]
     #[serial_test::serial]
@@ -537,11 +562,7 @@ mod tests {
         assert!(!addon_dir(&paths).exists());
         let result = (|| -> Result<()> {
             fs::create_dir_all(addon_dir(&paths))?;
-            create_file(
-                &binary_path(&paths),
-                b"#!/bin/sh\nexec sleep 60\n",
-                0o755,
-            )?;
+            create_file(&binary_path(&paths), b"#!/bin/sh\nexec sleep 60\n", 0o755)?;
             let unit = unit_path(&paths);
             fs::create_dir_all(unit.parent().context("no unit directory")?)?;
             create_file(

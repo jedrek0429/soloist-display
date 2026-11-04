@@ -29,10 +29,6 @@ Open http://127.0.0.1:8088. Point `audioWebSocket` at `ws://127.0.0.1:9191` in t
 
 Open `docs/idle-preview.html` in a browser directly. No server or Spotify session is needed. The page uses the display's real standby markup and stylesheet, with controls for all five appearances, a custom message, and connection status. Press **P** to hide or show the preview controls.
 
-## Standby fade
-
-In **Motion → Idle**, select **Transition → Fade**, then test **Duration** at 0, 300 and 2000 ms. Check entry and exit, including **After pausing → 0** and **Pure black**. Set **Transition → Off** and verify both directions are instant and Duration is hidden. Reduced motion must still skip the transition.
-
 ## Test the installer
 
 Use a disposable Linux user or VM. The live systemd tests can create, start and remove `soloist.service`. **Do not run them on your usual setup.**

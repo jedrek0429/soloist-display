@@ -42,6 +42,7 @@ impl PcmInput {
         if sample_rate == 0 || channels == 0 {
             return Err(PcmError::InvalidFormat);
         }
+        let format = (sample_rate, channels);
         let channels = usize::from(channels);
         if !samples.len().is_multiple_of(channels) {
             return Err(PcmError::IncompleteFrame);
@@ -50,7 +51,6 @@ impl PcmInput {
             return Err(PcmError::NonFiniteSample);
         }
 
-        let format = (sample_rate, channels as u16);
         if self.format != Some(format) {
             self.format = Some(format);
             self.previous = None;

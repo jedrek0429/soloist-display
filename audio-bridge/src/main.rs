@@ -252,7 +252,8 @@ async fn put_config(
             | "panelTransitionDelay"
             | "panelDelayIn"
             | "panelDelayOut" => Some((0., 10000.)),
-            "idlePauseDelaySeconds" | "pauseRetractDelaySecondsVinylCover"
+            "idlePauseDelaySeconds"
+            | "pauseRetractDelaySecondsVinylCover"
             | "pauseRetractDelaySecondsCdCover" => Some((-1., 86400.)),
             "backgroundDim" => Some((0., 1.)),
             "backgroundBlur" => Some((0., 150.)),

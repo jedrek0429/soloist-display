@@ -2,6 +2,7 @@ mod dependencies;
 mod legacy;
 mod lock;
 mod manager;
+mod mpris;
 mod migrations;
 mod paths;
 mod platform;
@@ -20,6 +21,7 @@ use clap_complete::{generate, Shell};
 use lock::InstallLock;
 use manager::{DisplayDataRemoval, SoloistRemoval, UninstallOptions};
 use paths::Paths;
+use std::path::PathBuf;
 use platform::Platform;
 use release::ReleaseChannel;
 use std::{
@@ -62,6 +64,22 @@ enum NotificationSetting {
 }
 
 #[derive(Subcommand, Debug)]
+enum MprisCommand {
+    /// Install or start the optional MPRIS bridge.
+    Enable {
+        /// Soloist data directory, needed for non-default External installations.
+        #[arg(long)]
+        data_dir: Option<PathBuf>,
+    },
+    /// Stop the bridge and disable it at login without removing its files.
+    Disable,
+    /// Report the bridge version and service state.
+    Status,
+    /// Remove only the Soloist Display-owned bridge.
+    Remove,
+}
+
+#[derive(Subcommand, Debug)]
 enum Command {
     /// Generate shell completion script (e.g. `soloist-display completions zsh`).
     Completions { shell: Shell },
@@ -79,6 +97,11 @@ enum Command {
         soloist_ws: Option<String>,
         #[arg(long, requires = "external_soloist")]
         start_external: bool,
+    },
+    /// Manage the optional Linux MPRIS bridge (media keys and playerctl).
+    Mpris {
+        #[command(subcommand)]
+        command: MprisCommand,
     },
     /// Open the now-playing display.
     Launch,
@@ -124,6 +147,7 @@ fn locked<T>(paths: &Paths, operation: impl FnOnce() -> Result<T>) -> Result<T> 
     uninstall_tx::recover(paths)?;
     manager::recover(paths)?;
     renewal::recover(paths)?;
+    mpris::recover(paths)?;
     operation()
 }
 
@@ -188,6 +212,15 @@ fn run() -> Result<i32> {
                 )
             })?;
         }
+        Command::Mpris { command } => match command {
+            MprisCommand::Enable { data_dir } => {
+                let platform = Platform::detect()?;
+                locked(&paths, || mpris::enable(&paths, &platform, data_dir))?;
+            }
+            MprisCommand::Disable => locked(&paths, || mpris::disable(&paths))?,
+            MprisCommand::Status => mpris::status(&paths)?,
+            MprisCommand::Remove => locked(&paths, || mpris::remove(&paths))?,
+        },
         Command::Launch => manager::launch(&paths, false)?,
         Command::Settings => manager::launch(&paths, true)?,
         Command::Completions { .. } => unreachable!("handled before path discovery"),

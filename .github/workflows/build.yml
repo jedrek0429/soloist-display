@@ -46,14 +46,19 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
-      - name: CPAL system libraries and lockfile validation
+      - name: CPAL build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libasound2-dev libpulse-dev
-          cargo generate-lockfile
-          echo __CPAL_LOCK_BEGIN__
-          cat Cargo.lock
-          echo __CPAL_LOCK_END__
+          sudo apt-get install -y libasound2-dev libpulse-dev pulseaudio pulseaudio-utils
+      - name: CPAL PulseAudio output monitor smoke test
+        run: |
+          pulseaudio --start --exit-idle-time=-1
+          pactl load-module module-null-sink sink_name=soloist_ci
+          pactl set-default-sink soloist_ci
+          pactl list short sources | grep -F 'soloist_ci.monitor'
+          SOLOIST_DISPLAY_MONITOR=soloist_ci.monitor \
+          SOLOIST_DISPLAY_CPAL_MONITOR_SMOKE=1 \
+            cargo test --locked -p soloist-audio-bridge pulseaudio_null_sink_monitor_captures_audio -- --nocapture
       - run: cargo fmt --all -- --check
       - run: cargo test --workspace --all-targets
       - run: cargo clippy --workspace --all-targets -- -D warnings
@@ -136,3 +141,34 @@ jobs:
             aarch64-*) sudo apt-get update && sudo apt-get install -y qemu-user-static; qemu-aarch64-static "$binary" --version ;;
             armv7-*) sudo apt-get update && sudo apt-get install -y qemu-user-static; qemu-arm-static "$binary" --version ;;
           esac
+
+  cpal-musl-probe:
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/cpal-system-loopback'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x86_64-unknown-linux-musl, aarch64-unknown-linux-musl, armv7-unknown-linux-musleabihf]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.13.0
+      - uses: taiki-e/install-action@cargo-zigbuild
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: cpal-${{ matrix.target }}
+      - name: Native build headers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libpulse-dev
+      - name: Test static release build with CPAL
+        run: cargo zigbuild -p soloist-audio-bridge --locked --release --target ${{ matrix.target }}
+      - name: Inspect resulting binary
+        run: |
+          file target/${{ matrix.target }}/release/soloist-audio-bridge
+          readelf -l target/${{ matrix.target }}/release/soloist-audio-bridge | tee /tmp/cpal-elf.txt
+          ! grep -q INTERP /tmp/cpal-elf.txt

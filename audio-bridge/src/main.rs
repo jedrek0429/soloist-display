@@ -315,8 +315,7 @@ async fn put_config(
                 "Unsupported backdrop transition".into(),
             ));
         }
-        if key == "idleTransitionStyle"
-            && !["fade", "off"].contains(&value.as_str().unwrap_or(""))
+        if key == "idleTransitionStyle" && !["fade", "off"].contains(&value.as_str().unwrap_or(""))
         {
             return Err((
                 StatusCode::BAD_REQUEST,
@@ -730,7 +729,11 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert(header::IF_MATCH, HeaderValue::from_str(&tag).unwrap());
         assert_eq!(
-            put_config(State(state.clone()), headers, Json(config)).await.err().expect("invalid idle transition must fail").0,
+            put_config(State(state.clone()), headers, Json(config))
+                .await
+                .err()
+                .expect("invalid idle transition must fail")
+                .0,
             StatusCode::BAD_REQUEST
         );
         for duration in [0, 50, 300, 10000] {

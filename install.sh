@@ -3,10 +3,10 @@
 set -eu
 
 BOOTSTRAP_VERSION=1
-PIN_RELEASE_BASE='https://github.com/jedrek0429/soloist-display/releases/download/v1.0.0-alpha.4'
-PIN_X86_64='c20ecaa12b445b4ff416535b125605683cc2d746a41cda6f78bfdf9b81231381'
-PIN_AARCH64='adb42c913d3abca6bff934d185731aa5208b6796514181dd09bfa79906d3e444'
-PIN_ARMV7='4cad8ef8bf2e023391f6596b3993bf8f8b5cf8d9c5bdc61b2be227f1eb6c345e'
+PIN_RELEASE_BASE='https://github.com/jedrek0429/soloist-display/releases/download/v1.0.0-alpha.5'
+PIN_X86_64='20919789664c275afd9c7bd844d722b9fb9805bafec737d4d94cccfdafea3af7'
+PIN_AARCH64='43224a3df2c3a13cb9914cd19491b10bb4659133fc1137c64aa40cec18643c8e'
+PIN_ARMV7='b5a2d7d2c8bbb7eb53a2cad61e6c285c3aa4220c144fd0fb5cf0cb228b1900d0'
 version=${SOLOIST_DISPLAY_VERSION-latest}
 case "$version" in
   latest)

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import * as fs from 'node:fs';
 import {isEmptyPlayback,pauseDelayMs} from '../src/soloist.js';
 
 test('fresh state without a track enters standby',()=>{
@@ -178,4 +179,30 @@ test('pause retraction is delayed, cancellable, and independent of plain discs',
     globalThis.document=previousDoc;
     globalThis.requestAnimationFrame=previousFrame;
   }
+});
+
+test('standby markup matches the standalone preview and has no decorative status indicators',()=>{
+  const {readFileSync}=fs;
+  const app=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+  const preview=readFileSync(new URL('../docs/idle-preview.html',import.meta.url),'utf8');
+  const standby=source=>source.match(/<section class="standby"[^]*?<\/section>/)?.[0];
+  assert.ok(standby(app));
+  assert.equal(standby(app),standby(preview));
+  assert.ok(!standby(app).includes('standby-indicator'));
+  assert.ok(!standby(app).includes('standby-pin'));
+  assert.ok(!standby(app).includes('standby-description'));
+  assert.ok(!standby(app).includes('standby-second'));
+  assert.ok(!standby(app).includes('>S<'));
+});
+
+test('standby has flat settings background and no redundant connection copy',()=>{
+  const app=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
+  const style=fs.readFileSync(new URL('../styles.css',import.meta.url),'utf8');
+  assert.match(style,/\.standby\{[^}]*background:#101010/);
+  assert.match(style,/\.standby\{[^}]*font-family:Arial,Helvetica,sans-serif/);
+  assert.match(style,/\.standby-clock\{[^}]*font-weight:600/);
+  assert.match(style,/\.standby-record\{[^}]*width:min\(90vw,calc\(100dvh - 7rem\)\)/);
+  assert.doesNotMatch(app,/Play something on Spotify to begin/);
+  assert.doesNotMatch(app,/'PAUSED'|'READY'|standby-status|standby-description/);
+  assert.match(app,/state==='offline'\?'Disconnected':state==='reconnecting'\?'Reconnecting…'/);
 });

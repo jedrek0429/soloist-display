@@ -65,7 +65,6 @@ function updateStandbyClock(){
   const minute=now.getMinutes()+now.getSeconds()/60;
   $('standby-record').style.setProperty('--standby-hour-angle',hour*30+'deg');
   $('standby-record').style.setProperty('--standby-minute-angle',minute*6+'deg');
-  $('standby-record').style.setProperty('--standby-second-angle',now.getSeconds()*6+'deg');
 }
 updateStandbyClock();
 if(['digital-clock','vinyl-clock'].includes(root.dataset.idleAppearance))setInterval(updateStandbyClock,1000);
@@ -101,18 +100,9 @@ for(const [key,value] of Object.entries({
 }))root.style.setProperty(key,value);
 const director=new DiscDirector({discs:[$('disc-a'),$('disc-b')],backdrops:[$('backdrop-a'),$('backdrop-b')],info:$('info'),settings});
 const spectrum=new Spectrum($('visualizer'), config.visualizerSensitivity ?? 1, config.visualizerSmoothing ?? 0.7, {autoNormalize:config.visualizerAutoNormalize===true,peakHold:config.visualizerPeakHold===true});
-const standbyCopy={
-  connecting:['CONNECTING','Checking playback status…'],
-  ready:['READY','Play something on Spotify to begin.'],
-  paused:['PAUSED','Playback is paused.'],
-  offline:['RECONNECTING','Connection lost. Trying again automatically…']
-};
 function setDisplayState(state){
   root.dataset.displayState=state;
-  if(state==='playing')return;
-  const [status,description]=standbyCopy[state];
-  $('standby-status').textContent=status;
-  $('standby-description').textContent=description;
+  $('standby-connection').textContent=state==='offline'?'Disconnected':state==='reconnecting'?'Reconnecting…':'';
 }
 let currentUri=null,position=0,positionTime=performance.now(),duration=0,playing=false;
 let pauseTimer=null;
@@ -198,12 +188,18 @@ function handleSoloist(event){
   }
 }
 function connect(url,onData,onOpen,onDisconnect){
-  let retry=500;
+  let retry=500,connected=false;
+  function lost(){
+    onDisconnect?.(connected?'reconnecting':'offline');
+    setTimeout(open,retry);
+    retry=Math.min(retry*1.7,12000);
+  }
   function open(){
-    let socket;try{socket=new WebSocket(url)}catch{onDisconnect?.();setTimeout(open,retry);return}
-    socket.onopen=()=>{retry=500;onOpen?.(socket)};
+    let socket;
+    try{socket=new WebSocket(url)}catch{lost();return}
+    socket.onopen=()=>{connected=true;retry=500;onOpen?.(socket)};
     socket.onmessage=e=>{try{onData(JSON.parse(e.data))}catch(err){console.warn('WebSocket event',err)}};
-    socket.onclose=()=>{onDisconnect?.();setTimeout(open,retry);retry=Math.min(retry*1.7,12000)};
+    socket.onclose=lost;
     socket.onerror=()=>socket.close();
   }
   open();
@@ -211,9 +207,9 @@ function connect(url,onData,onOpen,onDisconnect){
 connect(config.soloistWebSocket||'ws://127.0.0.1:9090',handleSoloist,s=>{
   if(!currentUri)setDisplayState('connecting');
   s.send(JSON.stringify({type:'command',command:'get_state'}));
-},()=>{
+},state=>{
   clearTrack();
-  setDisplayState('offline');
+  setDisplayState(state);
 });
 if(config.visualizer!==false&&settings.panelEnabled){
   let retry=500;

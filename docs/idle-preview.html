@@ -6,15 +6,16 @@
 <title>Soloist Display — Idle preview</title>
 <link rel="stylesheet" href="../styles.css">
 <style>
-.preview-controls{position:fixed;top:16px;right:16px;z-index:20;width:min(320px,calc(100vw - 32px));padding:18px;background:#111e;border:1px solid #666a;border-radius:8px;backdrop-filter:blur(15px);box-shadow:0 10px 35px #0006;font:14px/1.4 system-ui,sans-serif;color:#fff}
+.preview-controls{position:fixed;top:16px;right:16px;z-index:20;width:min(320px,calc(100vw - 32px));padding:18px;background:#101010;border:1px solid #555;font:14px/1.4 Arial,Helvetica,sans-serif;color:#f2f2f2}
 .preview-controls[hidden]{display:none}
-.preview-controls h2{font-size:14px;font-weight:600;margin:0 0 12px}
+.preview-controls h2{font-size:16px;font-weight:600;margin:0 0 12px}
 .preview-controls label{display:block;margin:10px 0}
-.preview-controls select,.preview-controls input[type=text]{width:100%;padding:7px;margin-top:4px;border:1px solid #777;border-radius:4px;background:#252525;color:#fff;font:inherit}
-.preview-controls input[type=checkbox]{accent-color:#ddd}
-.preview-controls button{margin-top:8px;padding:7px 10px;border:1px solid #aaa;border-radius:4px;background:transparent;color:#fff;cursor:pointer}
-.preview-controls button:focus-visible,.preview-controls select:focus-visible,.preview-controls input:focus-visible{outline:2px solid white;outline-offset:3px}
-.preview-hint{font-size:12px;color:#bbb;margin:12px 0 0}
+.preview-controls select,.preview-controls input[type=text]{width:100%;padding:8px;margin-top:4px;border:1px solid #555;border-radius:0;background:#101010;color:#f2f2f2;font:inherit}
+.preview-controls input[type=checkbox]{accent-color:#f2f2f2}
+.preview-controls button{margin-top:8px;padding:9px 14px;border:1px solid #555;border-radius:0;background:#101010;color:#f2f2f2;cursor:pointer;font:inherit}
+.preview-controls button:hover{background:#f2f2f2;color:#101010}
+.preview-controls button:focus-visible,.preview-controls select:focus-visible,.preview-controls input:focus-visible{outline:2px solid #f2f2f2;outline-offset:3px}
+.preview-hint{font-size:12px;color:#aaa;margin:12px 0 0}
 </style>
 </head>
 <body>
@@ -22,12 +23,11 @@
 <section class="standby" id="standby" aria-label="Standby screen">
 <div class="standby-content">
 <div class="standby-clock-group"><time class="standby-clock" id="standby-clock">--:--</time></div>
-<div class="standby-record" id="standby-record" aria-hidden="true"><div class="standby-label">S</div><span class="standby-hand standby-hour"></span><span class="standby-hand standby-minute"></span><span class="standby-hand standby-second"></span><span class="standby-pin"></span></div>
+<div class="standby-record" id="standby-record" aria-hidden="true"><div class="standby-label"></div><span class="standby-hand standby-hour"></span><span class="standby-hand standby-minute"></span></div>
 <p class="standby-date" id="standby-date"></p>
 <h1 class="standby-caption" id="standby-title">Ready when you are</h1>
-<div class="standby-indicator" role="status"><span class="standby-light" aria-hidden="true"></span><span id="standby-status">CONNECTING</span></div>
-<p id="standby-description">Connecting to Soloist…</p>
 </div>
+<p class="standby-connection" id="standby-connection" role="status" aria-live="polite"></p>
 </section>
 </main>
 <aside class="preview-controls" id="preview-controls" aria-label="Preview controls">
@@ -47,6 +47,7 @@
 <option value="paused">Paused</option>
 <option value="connecting">Connecting</option>
 <option value="offline">Disconnected</option>
+<option value="reconnecting">Reconnecting</option>
 </select>
 </label>
 <label>Custom message
@@ -59,20 +60,13 @@
 <script>
 const $=id=>document.getElementById(id);
 const root=document.documentElement;
-const copy={
-  ready:['READY','Play something on Spotify to begin.'],
-  paused:['PAUSED','Playback is paused.'],
-  connecting:['CONNECTING','Checking playback status…'],
-  offline:['RECONNECTING','Connection lost. Trying again automatically…']
-};
 function render(){
   root.dataset.idleAppearance=$('appearance').value;
   root.dataset.idleShowDate=$('date').checked?'true':'false';
-  root.dataset.displayState=$('connection').value;
+  const state=$('connection').value;
+  root.dataset.displayState=state;
   $('standby-title').textContent=$('caption').value;
-  const [status,description]=copy[$('connection').value];
-  $('standby-status').textContent=status;
-  $('standby-description').textContent=description;
+  $('standby-connection').textContent=state==='offline'?'Disconnected':state==='reconnecting'?'Reconnecting…':'';
 }
 function clock(){
   const now=new Date();
@@ -82,7 +76,6 @@ function clock(){
   const minute=now.getMinutes()+now.getSeconds()/60;
   $('standby-record').style.setProperty('--standby-hour-angle',hour*30+'deg');
   $('standby-record').style.setProperty('--standby-minute-angle',minute*6+'deg');
-  $('standby-record').style.setProperty('--standby-second-angle',now.getSeconds()*6+'deg');
 }
 for(const id of ['appearance','connection','caption','date'])$(id).addEventListener('input',render);
 function toggleControls(){$('preview-controls').hidden=!$('preview-controls').hidden}

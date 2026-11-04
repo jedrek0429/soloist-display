@@ -209,6 +209,7 @@
 .standby-connection{position:absolute;right:clamp(16px,3vw,36px);bottom:clamp(14px,3dvh,32px);margin:0;font-size:clamp(12px,1.5vmin,15px);font-weight:400;line-height:1.3;text-align:right;color:#aaa}
 .standby-connection:empty{display:none}
 :root[data-idle-appearance='black'] .standby{background:#000}
+:root[data-idle-transition='off'] .standby{transition:none}
 :root[data-idle-appearance='black'] .standby-content,:root[data-idle-appearance='black'] .standby-connection{display:none}
 :root[data-display-state='connecting'] .standby,:root[data-display-state='playing'] .standby{visibility:hidden;opacity:0;pointer-events:none}
 :root:not([data-display-state='playing']) .disc-stage,:root:not([data-display-state='playing']) .info,:root:not([data-display-state='playing']) .backdrop{visibility:hidden!important}

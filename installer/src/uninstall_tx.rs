@@ -1,4 +1,4 @@
-use crate::{paths::Paths, service, state::atomic_json};
+use crate::{mpris, paths::Paths, service, state::atomic_json};
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -28,6 +28,14 @@ pub struct UninstallTransaction {
     previous_soloist_env: Option<Vec<u8>>,
     previous_timer_unit: Option<Vec<u8>>,
     previous_timer_service: Option<Vec<u8>>,
+    #[serde(default)]
+    previous_mpris_unit: Option<Vec<u8>>,
+    #[serde(default)]
+    mpris_owned: bool,
+    #[serde(default)]
+    mpris_active: bool,
+    #[serde(default)]
+    mpris_enabled: bool,
     managed: bool,
     display_active: bool,
     display_enabled: bool,
@@ -95,6 +103,7 @@ impl UninstallTransaction {
             .soloist_service
             .parent()
             .context("missing systemd unit directory")?;
+        let mpris_owned = mpris::is_installed(paths)?;
         let result = Self {
             phase: Phase::Preparing,
             moved: Vec::new(),
@@ -111,6 +120,14 @@ impl UninstallTransaction {
             },
             previous_timer_unit: bytes(&unit_dir.join("soloist-display-renew.timer"))?,
             previous_timer_service: bytes(&unit_dir.join("soloist-display-renew.service"))?,
+            previous_mpris_unit: if mpris_owned {
+                bytes(&mpris::unit_path(paths))?
+            } else {
+                None
+            },
+            mpris_owned,
+            mpris_active: mpris_owned && !paths.is_test() && service::active(paths, "soloist-display-mpris.service"),
+            mpris_enabled: mpris_owned && service::enabled(paths, "soloist-display-mpris.service"),
             managed,
             display_active: !paths.is_test() && service::active(paths, "soloist-display.service"),
             display_enabled: service::enabled(paths, "soloist-display.service"),
@@ -237,7 +254,22 @@ fn restore_services(paths: &Paths, tx: &UninstallTransaction) -> Result<()> {
         tx.previous_timer_service.as_deref(),
         0o644,
     )?;
+    if tx.mpris_owned {
+        restore_file(
+            &mpris::unit_path(paths),
+            tx.previous_mpris_unit.as_deref(),
+            0o644,
+        )?;
+    }
     service::daemon_reload(paths)?;
+    if tx.mpris_owned && tx.previous_mpris_unit.is_some() {
+        service::restore_unit_state(
+            paths,
+            "soloist-display-mpris.service",
+            tx.mpris_enabled,
+            tx.mpris_active,
+        )?;
+    }
     if tx.managed && tx.previous_soloist_unit.is_some() {
         service::restore_unit_state(
             paths,

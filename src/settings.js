@@ -53,7 +53,8 @@ const sections=[
       ['sleeveAlignment','Alignment','select',['left','center']],
       ['sleeveDuration','Duration','range',100,10000,50,'ms'],
       ['sleeveDelayIn','Delay in','range',0,10000,50,'ms'],
-      ['sleeveDelayOut','Delay out','range',0,10000,50,'ms']
+      ['sleeveDelayOut','Delay out','range',0,10000,50,'ms'],
+      ['pauseRetractDelaySeconds','Retract after pause','duration']
     ]
   },
   {
@@ -88,6 +89,15 @@ const sections=[
     ]
   },
   {
+    title:'Standby',
+    fields:[
+      ['idleAppearance','Appearance','select',['digital-clock','vinyl-clock','vinyl','text','black']],
+      ['idleText','Custom message','text'],
+      ['idleShowDate','Show date','toggle'],
+      ['idlePauseDelaySeconds','After pausing','duration']
+    ]
+  },
+  {
     title:'Connections',
     fields:[
       ['soloistWebSocket','Soloist','text'],
@@ -104,6 +114,8 @@ let configEtag=null;
 const snapshot=config=>JSON.stringify(Object.keys(config).sort().map(key=>[key,config[key]]));
 let activeSection=0;
 let motionExpanded=false;
+let previousPauseSeconds=300;
+const previousDurationValues=new Map();
 const motionPages=new Set(['Sleeve motion','Disc motion','Backdrop motion','Panel motion']);
 const isCover=style=>style==='vinyl-cover'||style==='cd-cover';
 const motionVisible=title=>title!=='Sleeve motion'||isCover(draft.discAppearance);
@@ -113,7 +125,7 @@ const selectedOpacityKey=()=>({basic:'discOpacityBasic',cd:'discOpacityCd',vinyl
 const selectedHoleKey=()=>holeKey(draft.discAppearance||'basic');
 const appearanceSuffix=()=>({basic:'Basic',cd:'Cd',vinyl:'Vinyl','vinyl-cover':'VinylCover','cd-cover':'CdCover','album-cover':'AlbumCover'})[draft.discAppearance||'vinyl-cover'];
 const selectedSizeKey=()=>`discSize${appearanceSuffix()}`;
-const presetKeys=new Set(['transitionStyle','transitionDuration','transitionDelay','sleeveTransitionStyle','sleeveAlignment','sleeveDuration','sleeveDelayIn','sleeveDelayOut']);
+const presetKeys=new Set(['transitionStyle','transitionDuration','transitionDelay','sleeveTransitionStyle','sleeveAlignment','sleeveDuration','sleeveDelayIn','sleeveDelayOut','pauseRetractDelaySeconds']);
 const selectedFieldKey=key=>presetKeys.has(key)&&(!key.startsWith('sleeve')||isCover(draft.discAppearance))?key+appearanceSuffix():key;
 const selectedValue=key=>draft[selectedFieldKey(key)]??draft[key];
 const selectedHoleColorKey=()=>selectedHoleKey().replace('centerHole','centerHoleColor');
@@ -186,6 +198,8 @@ function renderSection(){
     (key==='sleeveDuration'&&selectedValue('sleeveTransitionStyle')==='off')||
     (['sleeveDelayIn','sleeveDelayOut'].includes(key)&&selectedValue('sleeveTransitionStyle')==='off')||
     (key==='sleeveAlignment'&&!isCover(draft.discAppearance))||
+    (key==='idleShowDate'&&!['digital-clock','vinyl-clock'].includes(draft.idleAppearance))||
+    (key==='idleText'&&draft.idleAppearance==='black')||
     (key==='timeLayout'&&draft.timeDisplay==='off')||
     (key==='transitionDuration'&&selectedValue('transitionStyle')==='off')||
     (key==='transitionDelay'&&selectedValue('transitionStyle')==='off')||
@@ -211,6 +225,76 @@ function renderSection(){
     if(key==='transitionStyle')line.classList.add('transition-disc');
     if(key==='backdropTransitionStyle')line.classList.add('transition-backdrop');
 
+
+    if(type==='duration'){
+      const wrap=document.createElement('div');
+      wrap.className='duration-control';
+      const valueInput=document.createElement('input');
+      valueInput.id=key;
+      valueInput.type='number';
+      valueInput.min='0';
+      valueInput.step='any';
+      valueInput.setAttribute('aria-label',label+' value');
+      const unit=document.createElement('select');
+      unit.setAttribute('aria-label',label+' unit');
+      for(const [seconds,title] of [[1,'Seconds'],[60,'Minutes'],[3600,'Hours']]){
+        const option=document.createElement('option');
+        option.value=String(seconds);
+        option.textContent=title;
+        unit.append(option);
+      }
+      const neverLabel=document.createElement('label');
+      neverLabel.className='duration-never';
+      const never=document.createElement('input');
+      never.type='checkbox';
+      const fieldKey=selectedFieldKey(key);
+      const remembered=()=>previousDurationValues.get(fieldKey)??300;
+      const saveRemembered=value=>{
+        previousDurationValues.set(fieldKey,value);
+        if(fieldKey==='idlePauseDelaySeconds')previousPauseSeconds=value;
+      };
+      never.checked=draft[fieldKey]===-1;
+      neverLabel.append(never,document.createTextNode('Never'));
+      const stored=draft[fieldKey]>=0?draft[fieldKey]:fieldKey==='idlePauseDelaySeconds'?previousPauseSeconds:remembered();
+      const preferred=stored!==0&&stored%3600===0?3600:stored!==0&&stored%60===0?60:1;
+      unit.value=String(preferred);
+      valueInput.value=String(stored/preferred);
+      const update=()=>{
+        const amount=Number(valueInput.value);
+        const seconds=Math.round(amount*Number(unit.value));
+        const valid=valueInput.value.trim()!==''&&Number.isFinite(amount)&&amount>=0&&Number.isSafeInteger(seconds)&&seconds<=86400;
+        valueInput.setCustomValidity(valid?'':'Choose a time from 0 seconds to 24 hours');
+        if(valid){draft[fieldKey]=seconds;saveRemembered(seconds)}
+        status.textContent=valid?'Unsaved changes':'Choose a time from 0 seconds to 24 hours';
+      };
+      never.addEventListener('change',()=>{
+        valueInput.disabled=never.checked;
+        unit.disabled=never.checked;
+        if(never.checked){
+          valueInput.setCustomValidity('');
+          draft[fieldKey]=-1;
+          status.textContent='Unsaved changes';
+        }else{
+          const previous=fieldKey==='idlePauseDelaySeconds'?previousPauseSeconds:remembered();
+          draft[fieldKey]=previous;
+          unit.value=previous!==0&&previous%60===0?'60':'1';
+          valueInput.value=String(previous/Number(unit.value));
+          update();
+        }
+      });
+      valueInput.disabled=never.checked;
+      unit.disabled=never.checked;
+      valueInput.addEventListener('input',()=>{if(!never.checked)update()});
+      unit.addEventListener('change',()=>{
+        const current=draft[fieldKey]===-1?fieldKey==='idlePauseDelaySeconds'?previousPauseSeconds:remembered():draft[fieldKey];
+        valueInput.value=String(current/Number(unit.value));
+        if(!never.checked)update();
+      });
+      wrap.append(valueInput,unit,neverLabel);
+      line.append(wrap);
+      controls.append(line);
+      continue;
+    }
     const input=document.createElement('input');
     input.id=key;
     input.dataset.key=key;
@@ -227,12 +311,12 @@ function renderSection(){
     }else if(type==='select'){
       const select=document.createElement('select');
       select.id=key;select.dataset.key=key;
-      for(const choice of min){const option=document.createElement('option');option.value=String(choice);option.textContent=({song:'Song change',album:'Album change',cd:'CD','vinyl-cover':'Vinyl & Cover','cd-cover':'CD & Cover','album-cover':'Album cover'}[choice]||String(choice).replace(/^./,c=>c.toUpperCase()));select.append(option)}
+      for(const choice of min){const option=document.createElement('option');option.value=String(choice);option.textContent=({song:'Song change',album:'Album change',cd:'CD','vinyl-cover':'Vinyl & Cover','cd-cover':'CD & Cover','album-cover':'Album cover','digital-clock':'Digital clock','vinyl-clock':'Vinyl clock',vinyl:'Vinyl standby',text:'Text only',black:'Pure black'}[choice]||String(choice).replace(/^./,c=>c.toUpperCase()));select.append(option)}
       select.value=String((key==='centerHoleColor'?draft[selectedHoleColorKey()]:selectedValue(key))??min[0]);
       line.append(select);
       const output=document.createElement('output');output.htmlFor=key;
       const refresh=()=>{const value=typeof min[0]==='number'?Number(select.value):select.value;draft[key==='centerHoleColor'?selectedHoleColorKey():selectedFieldKey(key)]=value;output.textContent=String(value);};
-      select.addEventListener('change',()=>{refresh();if(['discAppearance','cdCoverSide','timeDisplay','transitionStyle','sleeveTransitionStyle','backdropTransitionStyle','panelTransitionStyle'].includes(key)){if(key==='discAppearance')renderNav();renderSection();}status.textContent='Unsaved changes';});
+      select.addEventListener('change',()=>{refresh();if(['discAppearance','cdCoverSide','timeDisplay','transitionStyle','sleeveTransitionStyle','backdropTransitionStyle','panelTransitionStyle','idleAppearance'].includes(key)){if(key==='discAppearance')renderNav();renderSection();}status.textContent='Unsaved changes';});
       // Rendering a select must not change the configuration. Only user input does.
       output.textContent=select.value;
       controls.append(line);continue;
@@ -247,6 +331,7 @@ function renderSection(){
       input.type='text';
       input.value=draft[key]??'';
       input.spellcheck=false;
+      if(key==='idleText')input.maxLength=80;
       line.append(input);
     }
 
@@ -255,7 +340,7 @@ function renderSection(){
     const refresh=()=>{
       const value=type==='toggle'?input.checked:type==='range'?Number(input.value):input.value;
       draft[key==='centerHole'?selectedHoleKey():key==='discSize'?selectedSizeKey():key==='discOpacity'?selectedOpacityKey():selectedFieldKey(key)]=value;
-      output.textContent=type==='toggle'?(value?'On':'Off'):type==='text'?'Local':format(value,suffix);
+      output.textContent=type==='toggle'?(value?'On':'Off'):type==='text'?'':format(value,suffix);
     };
     input.addEventListener('input',()=>{
       refresh();
@@ -278,6 +363,7 @@ async function load(){
   if(!response.ok)throw Error('Cannot load settings');
   configEtag=response.headers.get('ETag');
   draft=await response.json();
+  if(Number.isInteger(draft.idlePauseDelaySeconds)&&draft.idlePauseDelaySeconds>=0)previousPauseSeconds=draft.idlePauseDelaySeconds;
   lastLoadedConfig=snapshot(draft);
   delete draft['centerHoleColorAlbum-cover'];
   delete draft['centerHoleAlbum-cover'];
@@ -292,6 +378,7 @@ async function load(){
 document.querySelector('#save').addEventListener('click',async()=>{
   try{
     if(!configEtag)throw Error('Missing settings revision; reload before saving');
+    if(controls.querySelector(':invalid'))throw Error('Check the highlighted settings before saving');
     const response=await fetch('/config.json',{
       method:'PUT',
       headers:{'Content-Type':'application/json','If-Match':configEtag},
@@ -300,6 +387,7 @@ document.querySelector('#save').addEventListener('click',async()=>{
     if(!response.ok)throw Error(await response.text());
     configEtag=response.headers.get('ETag');
     draft=await response.json();
+    if(Number.isInteger(draft.idlePauseDelaySeconds)&&draft.idlePauseDelaySeconds>=0)previousPauseSeconds=draft.idlePauseDelaySeconds;
     lastLoadedConfig=snapshot(draft);
     delete draft['centerHoleColorAlbum-cover'];
     delete draft['centerHoleAlbum-cover'];

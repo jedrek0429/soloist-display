@@ -1,4 +1,4 @@
-import {artistFor,albumKeyFor,coverFor,normalize,positionMs,durationMs,playing as isPlaying} from './soloist.js';
+import {artistFor,albumKeyFor,coverFor,normalize,positionMs,durationMs,playing as isPlaying,isEmptyPlayback,pauseDelayMs} from './soloist.js';
 import {DiscDirector} from './motion.js';
 import {Spectrum} from './spectrum.js';
 
@@ -43,6 +43,7 @@ const settings={
   transitionStyle:motionValue('transitionStyle')||'fly',
   sleeveTransitionStyle:motionValue('sleeveTransitionStyle')||'in-out',
   sleeveDuration:bounded(motionValue('sleeveDuration'),1000,100,10000),
+  pauseRetractMs:pauseDelayMs(motionValue('pauseRetractDelaySeconds')??-1),
   sleeveAlignment:motionValue('sleeveAlignment')==='left'?'left':'center',
   sleeveDelayIn:bounded(motionValue('sleeveDelayIn'),0,0,10000),
   sleeveDelayOut:bounded(motionValue('sleeveDelayOut'),950,0,10000),
@@ -52,6 +53,21 @@ const settings={
   panelDelayOut:bounded(config.panelDelayOut,0,0,10000)
 };
 const root=document.documentElement;
+root.dataset.reducedMotion=settings.reducedMotion?'true':'false';
+root.dataset.idleAppearance=['digital-clock','vinyl-clock','vinyl','text','black'].includes(config.idleAppearance)?config.idleAppearance:'digital-clock';
+root.dataset.idleShowDate=config.idleShowDate===false?'false':'true';
+$('standby-title').textContent=typeof config.idleText==='string'?config.idleText.slice(0,80):'Ready when you are';
+function updateStandbyClock(){
+  const now=new Date();
+  $('standby-clock').textContent=now.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+  $('standby-date').textContent=now.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});
+  const hour=(now.getHours()%12)+now.getMinutes()/60+now.getSeconds()/3600;
+  const minute=now.getMinutes()+now.getSeconds()/60;
+  $('standby-record').style.setProperty('--standby-hour-angle',hour*30+'deg');
+  $('standby-record').style.setProperty('--standby-minute-angle',minute*6+'deg');
+}
+updateStandbyClock();
+if(['digital-clock','vinyl-clock'].includes(root.dataset.idleAppearance))setInterval(updateStandbyClock,1000);
 root.dataset.progressBar=config.progressBar===false?'off':'on';
 root.dataset.timeDisplay=['off','remaining','total'].includes(config.timeDisplay)?config.timeDisplay:'off';
 root.dataset.timeLayout=config.timeLayout==='together'?'together':'split';
@@ -84,7 +100,41 @@ for(const [key,value] of Object.entries({
 }))root.style.setProperty(key,value);
 const director=new DiscDirector({discs:[$('disc-a'),$('disc-b')],backdrops:[$('backdrop-a'),$('backdrop-b')],info:$('info'),settings});
 const spectrum=new Spectrum($('visualizer'), config.visualizerSensitivity ?? 1, config.visualizerSmoothing ?? 0.7, {autoNormalize:config.visualizerAutoNormalize===true,peakHold:config.visualizerPeakHold===true});
+function setDisplayState(state){
+  root.dataset.displayState=state;
+  $('standby-connection').textContent=state==='offline'?'Disconnected':state==='reconnecting'?'Reconnecting':'';
+}
 let currentUri=null,position=0,positionTime=performance.now(),duration=0,playing=false;
+let pauseTimer=null;
+function cancelPauseTimer(){
+  if(pauseTimer!==null)clearTimeout(pauseTimer);
+  pauseTimer=null;
+}
+function showPausedAfterDelay(){
+  if(pauseTimer!==null||!currentUri)return;
+  const wait=pauseDelayMs(config.idlePauseDelaySeconds??300);
+  if(wait===null)return;
+  if(wait===0){setDisplayState('paused');return;}
+  pauseTimer=setTimeout(()=>{
+    pauseTimer=null;
+    if(!playing&&currentUri)setDisplayState('paused');
+  },wait);
+}
+function clearTrack(){
+  cancelPauseTimer();
+  if(currentUri!==null||director.started){
+    director.reset();
+    currentUri=null;
+    currentAlbumKey=null;
+    lastTrack=null;
+    position=0;
+    duration=0;
+    positionTime=performance.now();
+  }
+  playing=false;
+  director.setPlaying(false);
+}
+
 let lastTrack=null;
 let currentAlbumKey=null;
 function updateItem(item){
@@ -93,6 +143,7 @@ function updateItem(item){
   const uri=item.uri||item.id||[item?.decorations?.identity?.name,coverFor(item)].join('|');
   duration=durationMs(item)||duration;
   if(uri===currentUri)return;
+  cancelPauseTimer();
   position=0;positionTime=performance.now();
   currentUri=uri;
   const albumKey=albumKeyFor(item);
@@ -101,8 +152,10 @@ function updateItem(item){
   const name=item?.decorations?.identity?.name||item.name||'Not playing';
   const artist=artistFor(item),cover=coverFor(item);
   const show=()=>{$('track').textContent=name;$('artist').textContent=artist};
+  if(!director.started)show();
+  setDisplayState('playing');
   if(panelOnly)director.changePanel(show);
-  else director.change(cover,show);
+  else void director.change(cover,show);
 }
 function syncPosition(ms){
   const now=performance.now();
@@ -112,30 +165,51 @@ function syncPosition(ms){
 }
 function handleSoloist(event){
   const {item,position:pos,status}=normalize(event);
+  if(isEmptyPlayback(event)){
+    clearTrack();
+    setDisplayState('ready');
+    return;
+  }
   if(item)updateItem(item);
-  if(status!==null){playing=isPlaying(status);director.setPlaying(playing)}
+  if(status!==null){
+    playing=isPlaying(status);
+    director.setPlaying(playing);
+    if(playing){
+      cancelPauseTimer();
+      if(currentUri)setDisplayState('playing');
+    }else if(currentUri){
+      showPausedAfterDelay();
+    }
+  }
   if(pos!==null){const ms=positionMs(pos);if(Number.isFinite(ms))syncPosition(ms)}
-  if(event.type==='position_sync'||event.type==='position_changed'){const ms=positionMs(event.position??event);if(Number.isFinite(ms))syncPosition(ms)}
-  if(event.type==='playback_changed'&&event.status!==undefined){playing=isPlaying(event.status);director.setPlaying(playing)}
+  if(event.type==='position_sync'||event.type==='position_changed'){
+    const ms=positionMs(event.position??event);
+    if(Number.isFinite(ms))syncPosition(ms);
+  }
 }
 function connect(url,onData,onOpen,onDisconnect){
-  let retry=500;
+  let retry=500,connected=false;
+  function lost(){
+    onDisconnect?.(connected?'reconnecting':'offline');
+    setTimeout(open,retry);
+    retry=Math.min(retry*1.7,12000);
+  }
   function open(){
-    let socket;try{socket=new WebSocket(url)}catch{onDisconnect?.();setTimeout(open,retry);return}
-    socket.onopen=()=>{retry=500;onOpen?.(socket)};
+    let socket;
+    try{socket=new WebSocket(url)}catch{lost();return}
+    socket.onopen=()=>{connected=true;retry=500;onOpen?.(socket)};
     socket.onmessage=e=>{try{onData(JSON.parse(e.data))}catch(err){console.warn('WebSocket event',err)}};
-    socket.onclose=()=>{onDisconnect?.();setTimeout(open,retry);retry=Math.min(retry*1.7,12000)};
+    socket.onclose=lost;
     socket.onerror=()=>socket.close();
   }
   open();
 }
 connect(config.soloistWebSocket||'ws://127.0.0.1:9090',handleSoloist,s=>{
-  $('track').textContent=currentUri?$('track').textContent:'Waiting for playback';
+  if(!currentUri)setDisplayState('connecting');
   s.send(JSON.stringify({type:'command',command:'get_state'}));
-},()=>{
-  playing=false;director.setPlaying(false);currentUri=null;
-  $('track').textContent='Soloist disconnected';
-  $('artist').textContent='Reconnecting automatically…';
+},state=>{
+  clearTrack();
+  setDisplayState(state);
 });
 if(config.visualizer!==false&&settings.panelEnabled){
   let retry=500;

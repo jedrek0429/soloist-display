@@ -252,6 +252,9 @@ async fn put_config(
             | "panelTransitionDelay"
             | "panelDelayIn"
             | "panelDelayOut" => Some((0., 10000.)),
+            "idlePauseDelaySeconds"
+            | "pauseRetractDelaySecondsVinylCover"
+            | "pauseRetractDelaySecondsCdCover" => Some((-1., 86400.)),
             "backgroundDim" => Some((0., 1.)),
             "backgroundBlur" => Some((0., 150.)),
             "metadataOpacity" => Some((0., 1.)),
@@ -267,6 +270,30 @@ async fn put_config(
             if !value.as_f64().is_some_and(|n| n >= lo && n <= hi) {
                 return Err((StatusCode::BAD_REQUEST, format!("Out of range: {key}")));
             }
+        }
+        if key == "idleAppearance"
+            && !["digital-clock", "vinyl-clock", "vinyl", "text", "black"]
+                .contains(&value.as_str().unwrap_or(""))
+        {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Unsupported standby appearance".into(),
+            ));
+        }
+        if (key == "idlePauseDelaySeconds"
+            || key == "pauseRetractDelaySecondsVinylCover"
+            || key == "pauseRetractDelaySecondsCdCover")
+            && !value
+                .as_i64()
+                .is_some_and(|seconds| seconds == -1 || (0..=86400).contains(&seconds))
+        {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Pause delay must be an integer from 0 to 86400, or -1".into(),
+            ));
+        }
+        if key == "idleText" && value.as_str().unwrap_or("").chars().count() > 80 {
+            return Err((StatusCode::BAD_REQUEST, "Standby text is too long".into()));
         }
         if key.starts_with("transitionStyle")
             && !["fly", "slide", "fade", "off"].contains(&value.as_str().unwrap_or(""))
@@ -621,6 +648,86 @@ mod tests {
             b.err().unwrap()
         };
         assert_eq!(stale.0, StatusCode::PRECONDITION_FAILED);
+    }
+
+    #[tokio::test]
+    async fn accepts_custom_pause_timeout_and_rejects_invalid_values() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = WebState {
+            path: Arc::new(dir.path().join("config.json")),
+            write_lock: Arc::new(Mutex::new(())),
+        };
+        assert_eq!(read_settings(&state.path)["idlePauseDelaySeconds"], 300);
+        for delay in [-1, 0, 17, 90, 300, 3600, 86400] {
+            let mut config = read_settings(&state.path);
+            let tag = config_etag(&config);
+            config["idlePauseDelaySeconds"] = Value::from(delay);
+            let mut headers = HeaderMap::new();
+            headers.insert(header::IF_MATCH, HeaderValue::from_str(&tag).unwrap());
+            assert!(
+                put_config(State(state.clone()), headers, Json(config))
+                    .await
+                    .is_ok(),
+                "valid pause timeout {delay}"
+            );
+        }
+        for value in [
+            Value::from(-2),
+            Value::from(86401),
+            Value::from(3.5),
+            Value::from("300"),
+        ] {
+            let mut config = read_settings(&state.path);
+            let tag = config_etag(&config);
+            config["idlePauseDelaySeconds"] = value;
+            let mut headers = HeaderMap::new();
+            headers.insert(header::IF_MATCH, HeaderValue::from_str(&tag).unwrap());
+            let error = put_config(State(state.clone()), headers, Json(config))
+                .await
+                .err()
+                .expect("invalid value must fail");
+            assert_eq!(error.0, StatusCode::BAD_REQUEST);
+        }
+    }
+
+    #[tokio::test]
+    async fn validates_sleeve_pause_retraction_delay() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = WebState {
+            path: Arc::new(dir.path().join("config.json")),
+            write_lock: Arc::new(Mutex::new(())),
+        };
+        for key in [
+            "pauseRetractDelaySecondsVinylCover",
+            "pauseRetractDelaySecondsCdCover",
+        ] {
+            assert_eq!(read_settings(&state.path)[key], -1);
+            for delay in [-1, 0, 9, 120, 86400] {
+                let mut config = read_settings(&state.path);
+                let tag = config_etag(&config);
+                config[key] = Value::from(delay);
+                let mut headers = HeaderMap::new();
+                headers.insert(header::IF_MATCH, HeaderValue::from_str(&tag).unwrap());
+                assert!(
+                    put_config(State(state.clone()), headers, Json(config))
+                        .await
+                        .is_ok(),
+                    "valid {key} = {delay}"
+                );
+            }
+            for bad in [-2, 86401] {
+                let mut config = read_settings(&state.path);
+                let tag = config_etag(&config);
+                config[key] = Value::from(bad);
+                let mut headers = HeaderMap::new();
+                headers.insert(header::IF_MATCH, HeaderValue::from_str(&tag).unwrap());
+                let error = put_config(State(state.clone()), headers, Json(config))
+                    .await
+                    .err()
+                    .expect("invalid pause delay must fail");
+                assert_eq!(error.0, StatusCode::BAD_REQUEST);
+            }
+        }
     }
 
     #[test]

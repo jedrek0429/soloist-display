@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en" data-display-state="ready" data-idle-appearance="digital-clock" data-idle-show-date="true">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Soloist Display — Idle preview</title>
+<link rel="stylesheet" href="../styles.css">
+<style>
+.preview-controls{position:fixed;top:16px;right:16px;z-index:20;width:min(320px,calc(100vw - 32px));padding:18px;background:#101010;border:1px solid #555;font:14px/1.4 Arial,Helvetica,sans-serif;color:#f2f2f2}
+.preview-controls[hidden]{display:none}
+.preview-controls h2{font-size:16px;font-weight:600;margin:0 0 12px}
+.preview-controls label{display:block;margin:10px 0}
+.preview-controls select,.preview-controls input[type=text]{width:100%;padding:8px;margin-top:4px;border:1px solid #555;border-radius:0;background:#101010;color:#f2f2f2;font:inherit}
+.preview-controls input[type=checkbox]{accent-color:#f2f2f2}
+.preview-controls button{margin-top:8px;padding:9px 14px;border:1px solid #555;border-radius:0;background:#101010;color:#f2f2f2;cursor:pointer;font:inherit}
+.preview-controls button:hover{background:#f2f2f2;color:#101010}
+.preview-controls button:focus-visible,.preview-controls select:focus-visible,.preview-controls input:focus-visible{outline:2px solid #f2f2f2;outline-offset:3px}
+.preview-hint{font-size:12px;color:#aaa;margin:12px 0 0}
+</style>
+</head>
+<body>
+<main class="stage" aria-label="Idle preview">
+<section class="standby" id="standby" aria-label="Standby screen">
+<div class="standby-content">
+<div class="standby-clock-group"><time class="standby-clock" id="standby-clock">--:--</time></div>
+<div class="standby-record" id="standby-record" aria-hidden="true"><div class="standby-label"></div><span class="standby-hand standby-hour"></span><span class="standby-hand standby-minute"></span></div>
+<p class="standby-date" id="standby-date"></p>
+<h1 class="standby-caption" id="standby-title">Ready when you are</h1>
+</div>
+<p class="standby-connection" id="standby-connection" role="status" aria-live="polite"></p>
+</section>
+</main>
+<aside class="preview-controls" id="preview-controls" aria-label="Preview controls">
+<h2>Idle preview — PR #77</h2>
+<label>Appearance
+<select id="appearance">
+<option value="digital-clock">Digital clock</option>
+<option value="vinyl-clock">Vinyl clock</option>
+<option value="vinyl">Vinyl standby</option>
+<option value="text">Text only</option>
+<option value="black">Pure black</option>
+</select>
+</label>
+<label>Connection state
+<select id="connection">
+<option value="ready">Ready</option>
+<option value="paused">Paused</option>
+<option value="connecting">Connecting</option>
+<option value="offline">Disconnected</option>
+<option value="reconnecting">Reconnecting</option>
+</select>
+</label>
+<label>Custom message
+<input id="caption" type="text" maxlength="80" value="Ready when you are">
+</label>
+<label><input id="date" type="checkbox" checked> Show date</label>
+<button type="button" id="hide">Hide controls</button>
+<p class="preview-hint">Press P to show or hide controls. This is the actual standby markup and stylesheet from the PR. It does not connect to Spotify.</p>
+</aside>
+<script>
+const $=id=>document.getElementById(id);
+const root=document.documentElement;
+function render(){
+  root.dataset.idleAppearance=$('appearance').value;
+  root.dataset.idleShowDate=$('date').checked?'true':'false';
+  const state=$('connection').value;
+  root.dataset.displayState=state;
+  $('standby-title').textContent=$('caption').value;
+  $('standby-connection').textContent=state==='offline'?'Disconnected':state==='reconnecting'?'Reconnecting':'';
+}
+function clock(){
+  const now=new Date();
+  $('standby-clock').textContent=now.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+  $('standby-date').textContent=now.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});
+  const hour=(now.getHours()%12)+now.getMinutes()/60+now.getSeconds()/3600;
+  const minute=now.getMinutes()+now.getSeconds()/60;
+  $('standby-record').style.setProperty('--standby-hour-angle',hour*30+'deg');
+  $('standby-record').style.setProperty('--standby-minute-angle',minute*6+'deg');
+}
+for(const id of ['appearance','connection','caption','date'])$(id).addEventListener('input',render);
+function toggleControls(){$('preview-controls').hidden=!$('preview-controls').hidden}
+$('hide').addEventListener('click',toggleControls);
+window.addEventListener('keydown',event=>{
+  if(event.key.toLowerCase()!=='p'||event.ctrlKey||event.altKey||event.metaKey||['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName))return;
+  toggleControls();
+});
+render();
+clock();
+setInterval(clock,1000);
+</script>
+</body>
+</html>

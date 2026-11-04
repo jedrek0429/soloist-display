@@ -104,29 +104,40 @@ test('first song animates only the arriving disc in every appearance',async()=>{
   }
 });
 
-test('cover playback retracts on pause and restores without moving the sleeve',()=>{
+test('cover playback retracts and resumes with the selected sleeve alignment',()=>{
   const previousDoc=globalThis.document,previousFrame=globalThis.requestAnimationFrame;
   globalThis.requestAnimationFrame=()=>0;
   try{
     for(const appearance of ['vinyl-cover','cd-cover']){
-      const discs=[element('disc-a',[]),element('disc-b',[])];
-      globalThis.document={documentElement:{dataset:{discAppearance:appearance}}};
-      const director=new DiscDirector({
-        discs,backdrops:[element('bg-a',[]),element('bg-b',[])],info:element('info',[]),
-        settings:{pauseRetractMs:0}
-      });
-      director.started=true;
-      const record=discs[0].querySelector('.record-track');
-      const cover=discs[0].querySelector('.record-sleeve');
-      record.style.transform='translateX(50%)';
-      director.setPlaying(false);
-      assert.equal(record.style.transform,'translateX(0)',appearance);
-      assert.equal(cover.style.transform,undefined,appearance);
-      director.setPlaying(true);
-      assert.equal(record.style.transform,'translateX(50%)',appearance);
-      director.reset();
-      assert.equal(director.pauseRetractTimer,null);
-      assert.equal(director.pauseRetracted,false);
+      for(const alignment of ['left','center']){
+        for(const reducedMotion of [false,true]){
+          const discs=[element('disc-a',[]),element('disc-b',[])];
+          globalThis.document={documentElement:{dataset:{discAppearance:appearance}}};
+          const director=new DiscDirector({
+            discs,backdrops:[element('bg-a',[]),element('bg-b',[])],info:element('info',[]),
+            settings:{pauseRetractMs:0,sleeveAlignment:alignment,reducedMotion}
+          });
+          director.started=true;
+          const record=discs[0].querySelector('.record-track');
+          const cover=discs[0].querySelector('.record-sleeve');
+          record.style.transform='translateX(50%)';
+          director.setPlaying(false);
+          assert.equal(record.style.transform,'translateX(0)',appearance+':'+alignment);
+          assert.equal(record.style.translate,alignment==='center'?'25% 0':'0% 0');
+          assert.equal(cover.style.translate,alignment==='center'?'25% 0':'0% 0');
+          assert.equal(cover.style.transform,undefined);
+          assert.equal(record.style.transition,reducedMotion?'none':'transform 450ms ease-in-out, translate 450ms ease-in-out');
+          assert.equal(cover.style.transition,reducedMotion?'none':'translate 450ms ease-in-out');
+          director.setPlaying(true);
+          assert.equal(record.style.transform,'translateX(50%)');
+          assert.equal(record.style.translate,'0% 0');
+          assert.equal(cover.style.translate,'0% 0');
+          director.reset();
+          assert.equal(director.pauseRetractTimer,null);
+          assert.equal(director.pauseRetracted,false);
+          assert.equal(cover.style.transition,'');
+        }
+      }
     }
   }finally{
     globalThis.document=previousDoc;

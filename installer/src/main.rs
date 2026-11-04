@@ -2,8 +2,8 @@ mod dependencies;
 mod legacy;
 mod lock;
 mod manager;
-mod mpris;
 mod migrations;
+mod mpris;
 mod paths;
 mod platform;
 mod process;
@@ -21,9 +21,9 @@ use clap_complete::{generate, Shell};
 use lock::InstallLock;
 use manager::{DisplayDataRemoval, SoloistRemoval, UninstallOptions};
 use paths::Paths;
-use std::path::PathBuf;
 use platform::Platform;
 use release::ReleaseChannel;
+use std::path::PathBuf;
 use std::{
     fs,
     io::{IsTerminal, Write},

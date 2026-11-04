@@ -35,6 +35,18 @@ soloist-display doctor           # check what's wrong
 
 Managed Soloist checks for new builds every six hours. External Soloist is left alone.
 
+## Optional media keys (MPRIS)
+
+On Linux x86_64 or ARM64, enable the optional [soloist-mpris](https://github.com/TobiasVeiga00/soloist-mpris) bridge to expose Soloist through D-Bus/MPRIS:
+
+```sh
+soloist-display mpris enable
+soloist-display mpris status
+playerctl -p soloist play-pause
+```
+
+The add-on uses only the upstream bridge binary. It never runs the upstream installer or installs another Soloist instance. Disable or remove it with `soloist-display mpris disable` or `soloist-display mpris remove`. Desktop environments may handle media keys automatically; standalone window managers still need a binding to `playerctl`. See [advanced installation](docs/advanced-installation.md#optional-mpris-bridge).
+
 ## Uninstall
 
 ```sh

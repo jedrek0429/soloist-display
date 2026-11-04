@@ -53,16 +53,21 @@ const settings={
 };
 const root=document.documentElement;
 root.dataset.reducedMotion=settings.reducedMotion?'true':'false';
-root.dataset.idleMode=['clock','vinyl','text'].includes(config.idleMode)?config.idleMode:'clock';
+root.dataset.idleAppearance=['digital-clock','vinyl-clock','vinyl','text','black'].includes(config.idleAppearance)?config.idleAppearance:'digital-clock';
 root.dataset.idleShowDate=config.idleShowDate===false?'false':'true';
 $('standby-title').textContent=typeof config.idleText==='string'?config.idleText.slice(0,80):'Ready when you are';
 function updateStandbyClock(){
   const now=new Date();
   $('standby-clock').textContent=now.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
   $('standby-date').textContent=now.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});
+  const hour=(now.getHours()%12)+now.getMinutes()/60+now.getSeconds()/3600;
+  const minute=now.getMinutes()+now.getSeconds()/60;
+  $('standby-record').style.setProperty('--standby-hour-angle',hour*30+'deg');
+  $('standby-record').style.setProperty('--standby-minute-angle',minute*6+'deg');
+  $('standby-record').style.setProperty('--standby-second-angle',now.getSeconds()*6+'deg');
 }
 updateStandbyClock();
-if(root.dataset.idleMode==='clock')setInterval(updateStandbyClock,1000);
+if(['digital-clock','vinyl-clock'].includes(root.dataset.idleAppearance))setInterval(updateStandbyClock,1000);
 root.dataset.progressBar=config.progressBar===false?'off':'on';
 root.dataset.timeDisplay=['off','remaining','total'].includes(config.timeDisplay)?config.timeDisplay:'off';
 root.dataset.timeLayout=config.timeLayout==='together'?'together':'split';
@@ -116,7 +121,7 @@ function cancelPauseTimer(){
 }
 function showPausedAfterDelay(){
   if(pauseTimer!==null||!currentUri)return;
-  const wait=pauseDelayMs(config.idlePauseDelay);
+  const wait=pauseDelayMs(config.idlePauseDelaySeconds??300);
   if(wait===null)return;
   if(wait===0){setDisplayState('paused');return;}
   pauseTimer=setTimeout(()=>{

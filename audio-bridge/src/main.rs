@@ -252,6 +252,7 @@ async fn put_config(
             | "panelTransitionDelay"
             | "panelDelayIn"
             | "panelDelayOut" => Some((0., 10000.)),
+            "idlePauseDelaySeconds" => Some((-1., 86400.)),
             "backgroundDim" => Some((0., 1.)),
             "backgroundBlur" => Some((0., 150.)),
             "metadataOpacity" => Some((0., 1.)),
@@ -268,19 +269,21 @@ async fn put_config(
                 return Err((StatusCode::BAD_REQUEST, format!("Out of range: {key}")));
             }
         }
-        if key == "idleMode" && !["clock", "vinyl", "text"].contains(&value.as_str().unwrap_or(""))
+        if key == "idleAppearance"
+            && !["digital-clock", "vinyl-clock", "vinyl", "text", "black"]
+                .contains(&value.as_str().unwrap_or(""))
         {
             return Err((
                 StatusCode::BAD_REQUEST,
                 "Unsupported standby appearance".into(),
             ));
         }
-        if key == "idlePauseDelay"
-            && !["never", "0", "30", "60", "300", "600"].contains(&value.as_str().unwrap_or(""))
+        if key == "idlePauseDelaySeconds"
+            && !value.as_i64().is_some_and(|seconds| seconds == -1 || (0..=86400).contains(&seconds))
         {
             return Err((
                 StatusCode::BAD_REQUEST,
-                "Unsupported standby pause delay".into(),
+                "Standby pause delay must be an integer from 0 to 86400, or -1".into(),
             ));
         }
         if key == "idleText" && value.as_str().unwrap_or("").chars().count() > 80 {

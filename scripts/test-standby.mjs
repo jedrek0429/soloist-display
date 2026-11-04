@@ -19,15 +19,20 @@ test('a track wins over an inconsistent empty outer field',()=>{
   assert.equal(isEmptyPlayback({item:{uri:'spotify:track:b'},status:'stopped'}),false);
 });
 
-test('pause delays are bounded and never is the default',()=>{
-  assert.equal(pauseDelayMs('never'),null);
+test('pause delay supports any whole second up to a day, or never',()=>{
+  assert.equal(pauseDelayMs(-1),null);
   assert.equal(pauseDelayMs(undefined),null);
-  assert.equal(pauseDelayMs('0'),0);
-  assert.equal(pauseDelayMs('30'),30_000);
-  assert.equal(pauseDelayMs('60'),60_000);
-  assert.equal(pauseDelayMs('300'),300_000);
-  assert.equal(pauseDelayMs('600'),600_000);
-  assert.equal(pauseDelayMs('3600'),null);
+  assert.equal(pauseDelayMs(0),0);
+  assert.equal(pauseDelayMs(1),1000);
+  assert.equal(pauseDelayMs(42),42000);
+  assert.equal(pauseDelayMs(90),90000);
+  assert.equal(pauseDelayMs(300),300000);
+  assert.equal(pauseDelayMs(3600),3600000);
+  assert.equal(pauseDelayMs(86400),86400000);
+  assert.equal(pauseDelayMs(86401),null);
+  assert.equal(pauseDelayMs(-2),null);
+  assert.equal(pauseDelayMs(1.5),null);
+  assert.equal(pauseDelayMs('300'),null);
 });
 
 import {DiscDirector} from '../src/motion.js';

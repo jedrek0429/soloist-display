@@ -51,7 +51,7 @@ export function durationMs(item){return Number(item?.decorations?.playback?.dura
 export function playing(status){return status===true||status==='playing'||status==='play'||status?.state==='playing'}
 
 export function pauseDelayMs(value){
-  if(value==='never'||value==null)return null;
-  const seconds=Number(value);
-  return Number.isFinite(seconds)&&[0,30,60,300,600].includes(seconds)?seconds*1000:null;
+  if(value===-1)return null;
+  if(!Number.isSafeInteger(value)||value<0||value>86400)return null;
+  return value*1000;
 }

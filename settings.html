@@ -10,7 +10,7 @@
 *{box-sizing:border-box}
 body{margin:0;min-height:100vh;background:var(--bg)}
 button,input,select,a{font:inherit}
-button,select,input[type=text]{border:1px solid var(--line);border-radius:0;background:var(--bg);color:var(--ink)}
+button,select,input[type=text],input[type=number]{border:1px solid var(--line);border-radius:0;background:var(--bg);color:var(--ink)}
 button,a{cursor:pointer}
 button:hover,a:hover{background:var(--ink);color:var(--bg)}
 button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
@@ -39,6 +39,12 @@ h1{font-size:26px;font-weight:600;letter-spacing:-.03em;margin:0}
 .field-label{font-size:14px}
 .field input[type=range]{width:100%;accent-color:var(--ink)}
 .field input[type=text],.field select{min-width:0;width:100%;padding:8px}
+.duration-control{display:flex;flex-wrap:wrap;align-items:center;gap:10px;min-width:0}
+.duration-control input[type=number]{width:90px;min-width:0;padding:8px}
+.duration-control select{width:auto;min-width:105px}
+.duration-never{display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:14px}
+.duration-never input{accent-color:var(--ink)}
+.duration-control input:invalid{border-color:#d66b6b}
 .field select:disabled{opacity:.4;cursor:not-allowed}.link-button{padding:6px 12px;justify-self:start;font-size:13px}.link-button[aria-pressed=true]{background:var(--ink);color:var(--bg)}.transition-disc{border-bottom:0}.linked-field{min-height:35px;border-bottom:0}.linked-field .field-label{font-size:12px;color:#aaa}.transition-backdrop{border-top:0}.field output{text-align:right;font:13px Arial,Helvetica,sans-serif}
 .field:has(.switch) output{display:none}
 .switch{justify-self:start;position:relative;width:42px;height:22px;cursor:pointer;border:1px solid var(--ink)}
@@ -53,7 +59,8 @@ h1{font-size:26px;font-weight:600;letter-spacing:-.03em;margin:0}
 .actions button{padding:10px 15px}
 #save{background:var(--ink);color:var(--bg)}
 #save:hover{background:var(--bg);color:var(--ink)}
-@media(max-width:650px){.shell{padding:20px 16px}.workspace{display:block;padding-top:14px}.section-nav{flex-direction:row;align-items:flex-start;overflow-x:auto;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:12px}.nav-group{flex:none}.nav-subnav{padding-left:0}.nav-subbutton{font-size:13px;padding:8px 12px}.nav-button{white-space:nowrap;border-left:0;border-bottom:2px solid transparent}.nav-button[aria-current=page]{border-bottom-color:var(--ink)}.field{grid-template-columns:1fr auto;gap:8px 12px;padding:12px 0}.field input[type=range],.field input[type=text],.field select{grid-column:1/-1;grid-row:2}.field output{grid-column:2;grid-row:1}.footer{align-items:stretch;flex-direction:column}.actions button{flex:1}}
+@media(max-width:650px){.shell{padding:20px 16px}.workspace{display:block;padding-top:14px}.section-nav{flex-direction:row;align-items:flex-start;overflow-x:auto;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:12px}.nav-group{flex:none}.nav-subnav{padding-left:0}.nav-subbutton{font-size:13px;padding:8px 12px}.nav-button{white-space:nowrap;border-left:0;border-bottom:2px solid transparent}.nav-button[aria-current=page]{border-bottom-color:var(--ink)}.field{grid-template-columns:1fr auto;gap:8px 12px;padding:12px 0}.field input[type=range],.field input[type=text],.field select,.field .duration-control{grid-column:1/-1;grid-row:2}
+.duration-control input[type=number],.duration-control select{grid-column:auto;grid-row:auto}.field output{grid-column:2;grid-row:1}.footer{align-items:stretch;flex-direction:column}.actions button{flex:1}}
 </style>
 </head>
 <body>

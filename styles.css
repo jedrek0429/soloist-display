@@ -203,9 +203,20 @@
 :root[data-display-state='ready'] .standby-light,:root[data-display-state='paused'] .standby-light{background:#91a994;box-shadow:0 0 9px rgba(145,169,148,.2)}
 :root:not([data-display-state='ready']):not([data-display-state='paused']) .standby-light{animation:standby-pulse 2s ease-in-out infinite}
 .standby #standby-description{font-size:clamp(12px,1.7vmin,17px);color:#96938c;line-height:1.4}
-:root[data-idle-mode='vinyl'] .standby-record{display:grid}
-:root[data-idle-mode='vinyl'] .standby-clock-group,:root[data-idle-mode='text'] .standby-clock-group{display:none}
-:root[data-idle-mode='text'] .standby-caption{font-size:clamp(36px,8vmin,74px);font-weight:350}
+:root[data-idle-appearance='vinyl'] .standby-record,:root[data-idle-appearance='vinyl-clock'] .standby-record{display:grid}
+:root:not([data-idle-appearance='digital-clock']) .standby-clock-group{display:none}
+:root[data-idle-appearance='text'] .standby-caption{font-size:clamp(36px,8vmin,74px);font-weight:350}
+:root:not([data-idle-appearance='digital-clock']):not([data-idle-appearance='vinyl-clock']) .standby-date{display:none}
+.standby-hand,.standby-pin{display:none}
+:root[data-idle-appearance='vinyl-clock'] .standby-hand{display:block;position:absolute;left:50%;top:50%;border-radius:999px;background:#efece5;transform-origin:center bottom;z-index:5;box-shadow:0 0 4px rgba(0,0,0,.8)}
+:root[data-idle-appearance='vinyl-clock'] .standby-hour{width:5px;height:20%;transform:translate(-50%,-100%) rotate(var(--standby-hour-angle,0deg))}
+:root[data-idle-appearance='vinyl-clock'] .standby-minute{width:3px;height:29%;transform:translate(-50%,-100%) rotate(var(--standby-minute-angle,0deg))}
+:root[data-idle-appearance='vinyl-clock'] .standby-second{width:1px;height:34%;background:#cb8768;transform:translate(-50%,-100%) rotate(var(--standby-second-angle,0deg))}
+:root[data-idle-appearance='vinyl-clock'] .standby-label{color:transparent}
+:root[data-idle-appearance='vinyl-clock'] .standby-label:after{display:none}
+:root[data-idle-appearance='vinyl-clock'] .standby-pin{display:block;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:9px;height:9px;border-radius:50%;background:#d7d3cb;z-index:6}
+:root[data-idle-appearance='black'] .standby{background:#000;transition:none}
+:root[data-idle-appearance='black'] .standby-content{display:none}
 :root[data-idle-show-date='false'] .standby-date{display:none}
 :root[data-display-state='playing'] .standby{visibility:hidden;opacity:0;pointer-events:none}
 :root:not([data-display-state='playing']) .disc-stage,:root:not([data-display-state='playing']) .info,:root:not([data-display-state='playing']) .backdrop{visibility:hidden!important}

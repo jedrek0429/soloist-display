@@ -4,28 +4,28 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#101010">
-<meta name="description" content="Free, open-source Spotify Connect display for Linux and Raspberry Pi. See album artwork, animated vinyl, track details and a live audio spectrum.">
+<meta name="description" content="Turn a Linux PC or Raspberry Pi into a Spotify Connect speaker with a full-screen music display, album artwork and a live audio spectrum.">
 <meta name="robots" content="index,follow,max-image-preview:large">
 <link rel="canonical" href="https://jedrek0429.github.io/soloist-display/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Soloist Display">
-<meta property="og:title" content="Spotify Connect Now Playing Display | Soloist Display">
-<meta property="og:description" content="Turn a Linux PC or Raspberry Pi into a beautiful Spotify Connect display with animated vinyl, album artwork and a live audio visualizer.">
+<meta property="og:title" content="Spotify Connect Speaker & Display | Soloist Display">
+<meta property="og:description" content="Turn a Linux PC or Raspberry Pi into a Spotify Connect speaker with a beautiful display, animated vinyl, album artwork and a live audio spectrum.">
 <meta property="og:url" content="https://jedrek0429.github.io/soloist-display/">
 <meta property="og:image" content="https://jedrek0429.github.io/soloist-display/og-image.webp">
 <meta property="og:image:alt" content="Soloist Display showing album art, vinyl record and now-playing information">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Spotify Connect Now Playing Display | Soloist Display">
-<meta name="twitter:description" content="Open-source Spotify Connect display for Linux and Raspberry Pi, with album art, vinyl animation and a live visualizer.">
+<meta name="twitter:title" content="Spotify Connect Speaker & Display | Soloist Display">
+<meta name="twitter:description" content="Spotify Connect speaker and music display for Linux and Raspberry Pi. Play music and see album art, animated vinyl and a live spectrum.">
 <meta name="twitter:image" content="https://jedrek0429.github.io/soloist-display/og-image.webp">
-<title>Spotify Connect Now Playing Display | Soloist Display</title>
+<title>Spotify Connect Speaker & Display | Soloist Display</title>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "Soloist Display",
   "url": "https://jedrek0429.github.io/soloist-display/",
-  "description": "Free, open-source Spotify Connect now-playing display for Linux and Raspberry Pi with animated vinyl, cover art, track details and a live audio spectrum.",
+  "description": "Free, open-source software that turns a Linux PC or Raspberry Pi into a Spotify Connect speaker with a full-screen music display, animated vinyl, album art and live audio spectrum.",
   "applicationCategory": "MultimediaApplication",
   "operatingSystem": "Linux",
   "softwareRequirements": "Linux with systemd and glibc 2.38 or later; Spotify Premium",
@@ -59,7 +59,7 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--ink);outline-offset
 main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:clamp(30px,5vw,76px);align-items:center;padding:28px 0}
 .hero{text-align:left;min-width:0}
 h1{font-size:clamp(40px,4.6vw,72px);font-weight:600;letter-spacing:-.055em;line-height:1.05;margin:0 0 16px;text-wrap:balance}
-.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#aaa;margin:0 0 16px}.description{color:#aaa;margin:0 0 13px;font-size:clamp(17px,1.6vw,22px);line-height:1.35;max-width:490px}.powered{color:#aaa;margin:0;font-size:15px}
+.description{color:#aaa;margin:0 0 13px;font-size:clamp(17px,1.6vw,22px);line-height:1.35;max-width:490px}.powered{color:#aaa;margin:0;font-size:15px}
 .powered a{color:var(--ink);text-underline-offset:3px;text-decoration:underline}
 .preview{margin:0;position:relative;aspect-ratio:4/3;width:100%;overflow:hidden;border:1px solid var(--line);background:#151515}
 .preview iframe{display:block;width:100%;height:100%;border:0;pointer-events:none}
@@ -72,17 +72,10 @@ h1{font-size:clamp(40px,4.6vw,72px);font-weight:600;letter-spacing:-.055em;line-
 .command button:hover{background:var(--ink);color:var(--bg)}
 .version{display:inline-block;margin-top:10px;font-size:12px;color:#888}
 
-.features{width:min(1320px,calc(100% - 72px));margin:0 auto;padding:36px 0 60px;border-top:1px solid var(--line)}
-.features h2{font-size:24px;line-height:1.2;letter-spacing:-.035em;margin:0 0 24px}
-.feature-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(24px,4vw,64px)}
-.features h3{font-size:16px;font-weight:600;margin:0 0 9px}
-.features p{font-size:15px;line-height:1.5;color:#aaa;margin:0}
-.features .feature-note{margin-top:24px;font-size:13px}
-.features a{text-decoration:underline;text-underline-offset:3px;color:var(--ink)}
 [hidden]{display:none!important}
 @media(min-width:801px) and (max-height:710px){.topbar{padding:14px 0}main{padding:14px 0}.preview{max-height:calc(100dvh - 105px);width:auto;justify-self:center;max-width:100%}.install{margin-top:22px}}
-@media(max-width:800px){.shell,.features{width:calc(100% - 40px)}main{display:flex;flex-direction:column;align-items:stretch;gap:32px;padding:42px 0}.hero{width:100%}h1{font-size:clamp(38px,8vw,60px)}.preview{width:100%;max-width:680px;align-self:center}.feature-grid{grid-template-columns:1fr;gap:24px}}
-@media(max-width:560px){.shell,.features{width:calc(100% - 32px)}.topbar{padding:20px 0}.brand{font-size:22px}main{padding-top:38px;gap:28px}.command{flex-direction:column}.command button{padding:12px;border-left:0;border-top:1px solid var(--line)}}
+@media(max-width:800px){.shell{width:calc(100% - 40px)}main{display:flex;flex-direction:column;align-items:stretch;gap:32px;padding:42px 0}.hero{width:100%}h1{font-size:clamp(38px,8vw,60px)}.preview{width:100%;max-width:680px;align-self:center}}
+@media(max-width:560px){.shell{width:calc(100% - 32px)}.topbar{padding:20px 0}.brand{font-size:22px}main{padding-top:38px;gap:28px}.command{flex-direction:column}.command button{padding:12px;border-left:0;border-top:1px solid var(--line)}}
 @media(prefers-reduced-motion:reduce){.preview iframe{visibility:visible}}
 </style>
 </head>
@@ -90,19 +83,10 @@ h1{font-size:clamp(40px,4.6vw,72px);font-weight:600;letter-spacing:-.055em;line-
 <div class="shell">
 <header class="topbar"><a class="brand" href="./" aria-label="Soloist Display home">Soloist Display</a><a class="nav-link" href="https://github.com/jedrek0429/soloist-display">GitHub</a></header>
 <main>
-<section class="hero"><p class="eyebrow">Spotify Connect now-playing display</p><h1>Your music deserves a display.</h1><p class="description">Free, open-source Spotify now-playing software for Linux and Raspberry Pi. Show album artwork, animated vinyl, track information and a live audio spectrum.</p><p class="powered">Powered by <a href="https://developer.spotify.com/documentation/soloist">Soloist</a>.</p><section class="install" id="install"><span class="label">Install</span><div class="command"><code id="command">curl -fsSL https://jedrek0429.github.io/soloist-display/install.sh | sh</code><button type="button" id="copy">Copy</button></div><!-- release-version --></section></section>
+<section class="hero"><h1>Your music deserves a display.</h1><p class="description">Turn any device into a Spotify Connect speaker with a beautiful display.</p><p class="powered">Powered by <a href="https://developer.spotify.com/documentation/soloist">Soloist</a>.</p><section class="install" id="install"><span class="label">Install</span><div class="command"><code id="command">curl -fsSL https://jedrek0429.github.io/soloist-display/install.sh | sh</code><button type="button" id="copy">Copy</button></div><!-- release-version --></section></section>
 <figure class="preview" aria-label="Live Soloist Display preview: Miles Davis, So What"><iframe src="./preview.html" title="Animated Soloist Display showing So What by Miles Davis" loading="eager" tabindex="-1"></iframe></figure>
 </main>
 </div>
-<section class="features" aria-labelledby="features-heading">
-<h2 id="features-heading">A Spotify display for your own setup</h2>
-<div class="feature-grid">
-<article><h3>Album art and spinning vinyl</h3><p>See cover artwork, song titles and artists on a full-screen music display, with animated record and sleeve options.</p></article>
-<article><h3>Live audio visualizer</h3><p>Watch the audio spectrum react to your music while controlling playback from the Spotify app on your phone or computer.</p></article>
-<article><h3>Linux PC or Raspberry Pi</h3><p>Use compatible x86_64, ARM64 or ARMv7 Linux hardware with Spotify Soloist. Spotify Premium is required.</p></article>
-</div>
-<p class="feature-note">Open source under the <a href="https://github.com/jedrek0429/soloist-display/blob/main/LICENSE">MIT License</a>. See the <a href="https://github.com/jedrek0429/soloist-display#install">installation requirements</a> before installing.</p>
-</section>
 <script>
 const command=document.querySelector('#command').textContent;
 document.querySelector('#copy').addEventListener('click',async event=>{

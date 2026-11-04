@@ -35,6 +35,12 @@ soloist-display doctor           # check what's wrong
 
 Managed Soloist checks for new builds every six hours. External Soloist is left alone.
 
+## Media keys (optional)
+
+Enable MPRIS support for media keys and `playerctl` with `soloist-display mpris enable`. See [MPRIS setup](docs/advanced-installation.md#optional-mpris-bridge).
+
+Thanks to [@TobiasVeiga00](https://github.com/TobiasVeiga00) for creating [soloist-mpris](https://github.com/TobiasVeiga00/soloist-mpris), the bridge behind this integration.
+
 ## Uninstall
 
 ```sh

@@ -6,6 +6,20 @@ Display releases live under `$XDG_DATA_HOME/soloist-display/releases`. The activ
 
 Mutating CLI operations share a lock. Installation, renewal and uninstall use recovery journals. Recovery runs on the next relevant CLI invocation. If the previous build is also broken, manual recovery may be needed. Package-manager changes are not atomically reversible.
 
+## MPRIS bridge lifecycle
+
+The opt-in add-on downloads only the [soloist-mpris](https://github.com/TobiasVeiga00/soloist-mpris) binary (currently pinned to v0.2.2); it never runs upstream's installer, replaces `soloist.service`, changes credentials or creates upstream update timers. The manager checks the downloaded archive against upstream's SHA-256 file, validates its ELF architecture and stores the upstream MIT licence alongside the executable. The checksum is published beside the archive: it detects corruption, **not** author authenticity.
+
+Owned files:
+
+- `$XDG_DATA_HOME/soloist-display/addons/mpris/soloist-mpris` and `LICENSE`
+- `$XDG_CONFIG_HOME/systemd/user/soloist-display-mpris.service`
+- `$XDG_STATE_HOME/soloist-display/mpris.json`
+
+The separate `soloist-display-mpris.service` publishes `org.mpris.MediaPlayer2.soloist` on the session D-Bus. `SOLOIST_DATA_DIR` points to Soloist's data directory; the bridge reads `ws.addr` and `ws.port` there and reconnects after restarts. Managed uses its configured data directory; External can specify one. The add-on is supported on x86_64 and ARM64, but **not on ARMv7**.
+
+Installation refuses to overwrite existing services, unmanaged add-on files or another owner of the MPRIS name. Interrupted installation is recovered on the next manager operation. Soloist Display uninstall stages the owned files in its recovery journal, snapshots the bridge service state and restores it on rollback. External Soloist and independently installed bridges are not uninstall targets. See [advanced installation](advanced-installation.md#optional-mpris-bridge) for user commands.
+
 ## Soloist ownership
 
 - **Managed:** Display owns the Soloist binary and systemd user service. On migration it saves the old service and clones the existing session; it refuses unsupported systemd settings. Legacy `EnvironmentFile=` accepts absolute paths and `%h/` home-directory paths. The original installation is not deleted.

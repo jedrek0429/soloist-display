@@ -112,7 +112,9 @@ mod tests {
         let mut spectrum = Spectrum::new();
         let frames = spectrum.push_mono(&[0.; WINDOW + 4 * HOP]);
         assert_eq!(frames.len(), 5);
-        assert!(frames.iter().all(|bands| bands.iter().all(|level| *level == 0.)));
+        assert!(frames
+            .iter()
+            .all(|bands| bands.iter().all(|level| *level == 0.)));
     }
 
     #[test]

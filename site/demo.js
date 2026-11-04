@@ -3,6 +3,7 @@ import {Spectrum} from './spectrum.js';
 
 // This is the exact production HTML, CSS and display renderer; only its data source is mocked.
 const root=document.documentElement;
+root.dataset.displayState='playing';
 root.dataset.discAppearance='vinyl-cover';
 root.dataset.panelPosition='bottom-right';
 root.dataset.progressBar='off';

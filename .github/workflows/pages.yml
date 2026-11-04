@@ -44,7 +44,11 @@ jobs:
             git show origin/gh-pages:kind-of-blue.jpg > "$RUNNER_TEMP/pages/kind-of-blue.jpg"
             test -s "$RUNNER_TEMP/pages/kind-of-blue.jpg"
           fi
-          sed 's@src="./src/main.js"@src="./src/demo.js"@' index.html > "$RUNNER_TEMP/pages/preview.html"
+          sed -e 's@data-display-state="connecting"@data-display-state="playing"@' \
+              -e 's@src="./src/main.js"@src="./src/demo.js"@' \
+              index.html > "$RUNNER_TEMP/pages/preview.html"
+          grep -Fq 'data-display-state="playing"' "$RUNNER_TEMP/pages/preview.html"
+          grep -Fq 'src="./src/demo.js"' "$RUNNER_TEMP/pages/preview.html"
           if [ -n "$RELEASE_TAG" ]; then
             curl --fail --location --retry 3 --silent --show-error \
               "https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/install.sh" \

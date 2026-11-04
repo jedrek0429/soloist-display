@@ -53,6 +53,7 @@ export class DiscDirector{
       disc.querySelector('.record-track').style.transition='';
       disc.querySelector('.record-track').style.translate='';
       disc.querySelector('.record-sleeve').style.translate='';
+      disc.querySelector('.record-sleeve').style.transition='';
     }
     for(const backdrop of this.backdrops){
       backdrop.classList.remove('active');
@@ -76,12 +77,20 @@ export class DiscDirector{
     this.pauseStartedAt=null;
     this.pauseRetracted=false;
   }
+  positionPausedSleeve(retracted){
+    const track=this.activeTrack();
+    const sleeve=this.discs[this.current].querySelector('.record-sleeve');
+    track.style.transition=this.motionEnabled?'transform 450ms ease-in-out, translate 450ms ease-in-out':'none';
+    sleeve.style.transition=this.motionEnabled?'translate 450ms ease-in-out':'none';
+    const offset=retracted&&this.settings.sleeveAlignment==='center'?'25% 0':'0% 0';
+    track.style.transform=retracted?'translateX(0)':'translateX(50%)';
+    track.style.translate=offset;
+    sleeve.style.translate=offset;
+  }
   retractPausedTrack(){
     if(this.playing||!this.isSleeve()||!this.started||this.artworkChanging||this.pauseRetracted)return;
     this.pauseRetracted=true;
-    const track=this.activeTrack();
-    track.style.transition=this.motionEnabled?'transform 450ms ease-in-out':'none';
-    track.style.transform='translateX(0)';
+    this.positionPausedSleeve(true);
   }
   schedulePauseRetraction(){
     if(!this.isSleeve()||this.settings.pauseRetractMs===null||this.pauseStartedAt===null)return;
@@ -103,9 +112,7 @@ export class DiscDirector{
       this.pauseRetractTimer=null;
       this.pauseStartedAt=null;
       if(this.pauseRetracted&&this.isSleeve()&&this.started&&!this.artworkChanging){
-        const track=this.activeTrack();
-        track.style.transition=this.motionEnabled?'transform 450ms ease-in-out':'none';
-        track.style.transform='translateX(50%)';
+        this.positionPausedSleeve(false);
       }
       this.pauseRetracted=false;
       return;
@@ -247,6 +254,7 @@ export class DiscDirector{
       disc.style.transform='';disc.style.opacity='';
       disc.querySelector('.record-track').style.translate='0% 0';
       disc.querySelector('.record-track').style.transition='none';
+      disc.querySelector('.record-sleeve').style.transition='none';
       disc.querySelector('.record-sleeve').style.translate='0% 0';
     }
     for(const bg of this.backdrops){

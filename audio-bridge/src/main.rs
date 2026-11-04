@@ -806,7 +806,6 @@ mod tests {
         }
     }
 
-
     #[tokio::test]
     async fn validates_panel_hide_delay() {
         let dir = tempfile::tempdir().unwrap();

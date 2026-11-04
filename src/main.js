@@ -96,7 +96,8 @@ for(const [key,value] of Object.entries({
   '--background-blur':settings.backgroundBlur+'px',
   '--metadata-opacity':settings.metadataOpacity,
   '--metadata-font-size':settings.panelFontSize,
-  '--metadata-scale':settings.metadataScale
+  '--metadata-scale':settings.metadataScale,
+  '--idle-fade-duration':bounded(config.idleFadeDuration,300,0,10000)+'ms'
 }))root.style.setProperty(key,value);
 const director=new DiscDirector({discs:[$('disc-a'),$('disc-b')],backdrops:[$('backdrop-a'),$('backdrop-b')],info:$('info'),settings});
 const spectrum=new Spectrum($('visualizer'), config.visualizerSensitivity ?? 1, config.visualizerSmoothing ?? 0.7, {autoNormalize:config.visualizerAutoNormalize===true,peakHold:config.visualizerPeakHold===true});

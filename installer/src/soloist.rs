@@ -1,8 +1,7 @@
 use crate::{
     paths::Paths,
-    process,
-    release::{Artifact, ReleaseClient},
-    service,
+    platform::Platform,
+    process, renewal, service,
     state::{SoloistOwnership, SoloistState},
 };
 use anyhow::{anyhow, bail, Context, Result};
@@ -258,6 +257,7 @@ fn prompt(label: &str, secret: bool) -> Result<String> {
         bail!("{label} is required in non-interactive mode");
     }
     if secret {
+        eprintln!("  Get your key: https://developer.spotify.com/dashboard/soloist");
         return rpassword::prompt_password(format!("{label}: ")).context("read API key");
     }
     eprint!("{label}: ");
@@ -504,8 +504,7 @@ pub fn copy_existing_session(paths: &Paths, source: &Path) -> Result<PathBuf> {
 
 pub fn install(
     paths: &Paths,
-    client: &ReleaseClient,
-    artifact: &Artifact,
+    platform: &Platform,
     version: &str,
     name: Option<String>,
     api_key: Option<String>,
@@ -521,12 +520,7 @@ pub fn install(
     fs::create_dir_all(&version_dir)?;
     fs::create_dir_all(&paths.cache)?;
     let available = fs2::available_space(&paths.cache)?;
-    if available
-        < artifact
-            .size
-            .saturating_mul(2)
-            .saturating_add(16 * 1024 * 1024)
-    {
+    if available < 2 * 160 * 1024 * 1024 + 16 * 1024 * 1024 {
         bail!("insufficient disk space to stage and verify Spotify Soloist");
     }
     let archive_path = paths
@@ -535,14 +529,14 @@ pub fn install(
     if archive_path.exists() {
         fs::remove_file(&archive_path)?;
     }
-    client.download(artifact, &archive_path)?;
+    renewal::download_current_archive(paths, platform, &archive_path)?;
     let executable = version_dir.join("soloist");
     let staged_executable = version_dir.join(format!(".soloist.{}.part", std::process::id()));
     if staged_executable.exists() {
         fs::remove_file(&staged_executable)?;
     }
     safe_extract_soloist(&archive_path, &staged_executable)?;
-    validate_soloist_elf(&staged_executable, &artifact.target)?;
+    validate_soloist_elf(&staged_executable, platform.soloist_archive())?;
     fs::rename(&staged_executable, &executable)?;
     fs::remove_file(&archive_path).ok();
     let temporary = paths

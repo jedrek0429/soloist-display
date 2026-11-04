@@ -216,6 +216,57 @@ fn archive_name(platform: &Platform) -> &'static str {
     }
 }
 
+pub fn download_current_archive(paths: &Paths, platform: &Platform, destination: &Path) -> Result<()> {
+    if paths.is_test() {
+        let fixture = std::env::var_os("SOLOIST_DISPLAY_TEST_SOLOIST_ARCHIVE")
+            .context("test Soloist archive fixture is required")?;
+        let copied = fs::copy(&fixture, destination)?;
+        if copied == 0 || copied > MAX_ARCHIVE {
+            fs::remove_file(destination).ok();
+            bail!("test Soloist archive exceeds size limit or is empty");
+        }
+        return Ok(());
+    }
+    let client = reqwest::blocking::Client::builder()
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(180))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?;
+    let url = format!("{CDN}/{}", archive_name(platform));
+    let mut last_error = None;
+    for attempt in 1..=3 {
+        let downloaded = (|| -> Result<()> {
+            let response = ensure_official_response(client.get(&url).send()?)?;
+            if response.content_length().is_some_and(|size| size == 0 || size > MAX_ARCHIVE) {
+                bail!("Soloist archive exceeds size limit or is empty");
+            }
+            let mut output = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(destination)?;
+            let size = io::copy(&mut response.take(MAX_ARCHIVE + 1), &mut output)?;
+            if size == 0 || size > MAX_ARCHIVE {
+                bail!("Soloist archive exceeds size limit or is empty");
+            }
+            output.sync_all()?;
+            Ok(())
+        })();
+        match downloaded {
+            Ok(()) => return Ok(()),
+            Err(error) => {
+                fs::remove_file(destination).ok();
+                last_error = Some(error.context(format!(
+                    "download current Spotify Soloist archive (attempt {attempt}/3)"
+                )));
+                if attempt < 3 {
+                    std::thread::sleep(Duration::from_millis(250 * attempt));
+                }
+            }
+        }
+    }
+    Err(last_error.context("Spotify Soloist archive download did not run")?)
+}
+
 fn valid_elf(path: &Path, target: &str) -> Result<()> {
     let mut file = fs::File::open(path)?;
     let mut header = [0u8; 40];

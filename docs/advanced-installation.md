@@ -66,11 +66,9 @@ soloist-display mpris enable --data-dir /absolute/path/to/soloist-data
 
 Managed Soloist uses its configured data directory automatically. External Soloist defaults to `$XDG_DATA_HOME/soloist` (usually `~/.local/share/soloist`). Start Soloist first so the WebSocket address files exist. Only x86_64 and ARM64 upstream binaries are available; ARMv7 is not currently supported by this add-on. A working systemd user session and D-Bus are required.
 
-The manager downloads a **pinned** upstream binary (currently `soloist-mpris v0.2.2`), checks the upstream SHA-256 file and ELF architecture, then installs it under `$XDG_DATA_HOME/soloist-display/addons/mpris`. It creates only `$XDG_CONFIG_HOME/systemd/user/soloist-display-mpris.service`. It does not execute the upstream installer, replace `soloist.service`, touch credentials or install upstream update timers. The bridge runs independently and reconnects when Soloist restarts.
+The bridge runs separately from Soloist and reconnects after Soloist restarts. Enabling it never installs another Soloist instance, and an existing MPRIS bridge is not replaced. Removing Soloist Display also removes its own bridge without changing External Soloist.
 
-The checksum detects accidental corruption but is hosted alongside the upstream archive; it is **not** a cryptographic signature of the author. This third-party executable is downloaded and executed only if you explicitly enable the add-on. Its copyright notice is installed alongside the executable. Existing MPRIS bridges are never replaced. Soloist Display uninstall removes only the add-on files and unit it owns; it preserves External Soloist and unrelated MPRIS installations.
-
-If the bridge is enabled but does not appear in `playerctl -l`, check `journalctl --user -u soloist-display-mpris.service -n 100 --no-pager` and `soloist-display mpris status`. In a bare window manager, map `XF86AudioPlay` to `playerctl -p soloist play-pause` and similar keys to `next` and `previous`.
+If the bridge is enabled but does not appear in `playerctl -l`, check `journalctl --user -u soloist-display-mpris.service -n 100 --no-pager` and `soloist-display mpris status`. In a bare window manager, map `XF86AudioPlay` to `playerctl -p soloist play-pause` and similar keys to `next` and `previous`. Installation paths, verification and lifecycle details are documented in [installer internals](installer.md#mpris-bridge-lifecycle).
 
 ## Unattended setup
 

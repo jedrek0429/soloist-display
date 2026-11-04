@@ -55,7 +55,7 @@ test('landing SEO describes the actual Linux Spotify display',()=>{
   const landing=read('../site/index.html');
   const workflow=read('../.github/workflows/pages.yml');
   const sitemap=read('../site/sitemap.xml');
-  assert.match(landing,/<title>Spotify Connect Now Playing Display \| Soloist Display<\/title>/);
+  assert.match(landing,/<title>Spotify Connect Speaker & Display \| Soloist Display<\/title>/);
   assert.match(landing,/<meta name="description" content="[^"]*Raspberry Pi/);
   assert.match(landing,/<link rel="canonical" href="https:\/\/jedrek0429\.github\.io\/soloist-display\/">/);
   assert.match(landing, /<script type="application\/ld\+json">/);
@@ -63,7 +63,9 @@ test('landing SEO describes the actual Linux Spotify display',()=>{
   assert.equal(structuredData['@type'],'SoftwareApplication');
   assert.equal(structuredData.operatingSystem,'Linux');
   assert.equal(structuredData.offers.price,'0');
-  assert.match(landing,/Spotify Premium is required/);
+  assert.match(landing,/Spotify Connect speaker with a beautiful display/);
+  assert.doesNotMatch(landing,/class="eyebrow"|class="features"|Spotify now-playing software/);
+  assert.match(landing,/Spotify Premium/);
   assert.match(landing,/<meta property="og:image" content="https:\/\/jedrek0429\.github\.io\/soloist-display\/og-image\.webp">/);
   assert.match(sitemap,/<loc>https:\/\/jedrek0429\.github\.io\/soloist-display\/<\/loc>/);
   assert.match(workflow,/cp site\/sitemap\.xml/);

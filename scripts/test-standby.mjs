@@ -25,13 +25,19 @@ test('standby fade is adjustable in Motion, including Pure black',()=>{
   const settings=fs.readFileSync(new URL('../src/settings.js',import.meta.url),'utf8');
   const main=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
   const css=fs.readFileSync(new URL('../styles.css',import.meta.url),'utf8');
+  assert.equal(config.idleTransitionStyle,'fade');
   assert.equal(config.idleFadeDuration,300);
   assert.match(settings,/title:'Idle motion'/);
-  assert.match(settings,/\['idleFadeDuration','Fade duration','range',0,10000,50,'ms'\]/);
+  assert.match(settings,/\['idleTransitionStyle','Transition','select',\['fade','off'\]\]/);
+  assert.match(settings,/key==='idleFadeDuration'&&draft\.idleTransitionStyle==='off'/);
+  assert.match(settings,/'idleTransitionStyle','idleAppearance'\]\.includes\(key\)/);
+  assert.match(settings,/\['idleFadeDuration','Duration','range',0,10000,50,'ms'\]/);
+  assert.match(main,/root\.dataset\.idleTransition=config\.idleTransitionStyle==='off'\?'off':'fade'/);
   assert.match(main,/--idle-fade-duration':bounded\(config\.idleFadeDuration,300,0,10000\)\+'ms'/);
   assert.match(css,/\.standby\{[^}]*transition:opacity var\(--idle-fade-duration,300ms\) ease,visibility var\(--idle-fade-duration,300ms\)/);
   assert.match(css,/:root\[data-idle-appearance='black'\] \.standby\{background:#000\}/);
   assert.doesNotMatch(css,/:root\[data-idle-appearance='black'\] \.standby\{transition:none\}/);
+  assert.match(css,/:root\[data-idle-transition='off'\] \.standby\{transition:none\}/);
   assert.match(css,/:root\[data-reduced-motion='true'\] \.standby[^\n]*transition:none!important/);
 });
 

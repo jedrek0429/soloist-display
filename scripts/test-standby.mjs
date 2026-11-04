@@ -183,6 +183,36 @@ test('cover playback retracts and resumes with the selected sleeve alignment',()
   }
 });
 
+test('pause sleeve obeys the existing transition toggle and half-duration',()=>{
+  const previousDoc=globalThis.document,previousFrame=globalThis.requestAnimationFrame;
+  globalThis.requestAnimationFrame=()=>0;
+  try{
+    for(const appearance of ['vinyl-cover','cd-cover']){
+      for(const style of ['in-out','off']){
+        globalThis.document={documentElement:{dataset:{discAppearance:appearance}}};
+        const discs=[element('disc-a',[]),element('disc-b',[])];
+        const director=new DiscDirector({
+          discs,backdrops:[element('bg-a',[]),element('bg-b',[])],info:element('info',[]),
+          settings:{pauseRetractMs:0,sleeveTransitionStyle:style,sleeveDuration:1700}
+        });
+        director.started=true;
+        director.setPlaying(false);
+        const record=discs[0].querySelector('.record-track');
+        const cover=discs[0].querySelector('.record-sleeve');
+        const expected=style==='off'?'none':'transform 850ms ease-in-out, translate 850ms ease-in-out';
+        assert.equal(record.style.transition,expected,appearance+':'+style);
+        assert.equal(cover.style.transition,style==='off'?'none':'translate 850ms ease-in-out');
+        director.setPlaying(true);
+        assert.equal(record.style.transition,expected);
+        director.reset();
+      }
+    }
+  }finally{
+    globalThis.document=previousDoc;
+    globalThis.requestAnimationFrame=previousFrame;
+  }
+});
+
 test('changing a retracted cover leaves it centred and skips the retract wait',async()=>{
   const previousDoc=globalThis.document,previousFrame=globalThis.requestAnimationFrame;
   const previousTimeout=globalThis.setTimeout;

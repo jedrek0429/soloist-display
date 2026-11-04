@@ -138,6 +138,7 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $false
           .\target\debug\soloist-display.exe doctor
           if ($LASTEXITCODE -ne 1) { throw "doctor should report an absent installation" }
+          exit 0
       - name: CLI smoke test (macOS)
         if: runner.os == 'macOS'
         run: |

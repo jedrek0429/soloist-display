@@ -3,6 +3,8 @@ on:
   push:
     branches: [main]
     paths: ['site/**', 'index.html', 'styles.css', 'src/motion.js', 'src/spectrum.js', 'install.sh', '.github/workflows/pages.yml']
+  release:
+    types: [published]
   workflow_run:
     workflows: [Signed release]
     types: [completed]
@@ -52,6 +54,7 @@ jobs:
               -o "$RUNNER_TEMP/pages/install.sh"
             ! grep -q '@SOLOIST_DISPLAY_' "$RUNNER_TEMP/pages/install.sh"
             sh -n "$RUNNER_TEMP/pages/install.sh"
+            grep -Fq "PIN_RELEASE_BASE='https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}'" "$RUNNER_TEMP/pages/install.sh"
           else
             git fetch origin gh-pages:refs/remotes/origin/gh-pages
             git show origin/gh-pages:install.sh > "$RUNNER_TEMP/pages/install.sh"

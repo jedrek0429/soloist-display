@@ -661,7 +661,9 @@ mod tests {
             let mut headers = HeaderMap::new();
             headers.insert(header::IF_MATCH, HeaderValue::from_str(&tag).unwrap());
             assert!(
-                put_config(State(state.clone()), headers, Json(config)).await.is_ok(),
+                put_config(State(state.clone()), headers, Json(config))
+                    .await
+                    .is_ok(),
                 "valid pause timeout {delay}"
             );
         }

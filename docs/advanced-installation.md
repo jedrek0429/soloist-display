@@ -2,6 +2,14 @@
 
 The [README](../README.md) covers normal use.
 
+## Linux audio requirements
+
+The GNU/Linux releases require **glibc 2.38+** and `libasound.so.2`. The installer installs ALSA's runtime library when missing (`alsa-lib` on Arch/Fedora, `libasound2t64` on Ubuntu 24.04 and Debian 13). No ALSA configuration or microphone permission is required for capture.
+
+CPAL records the **output monitor** exposed by PulseAudio or `pipewire-pulse`. It does not record a microphone or require `parec`. The default output monitor is selected automatically; `SOLOIST_DISPLAY_MONITOR` can select another source. The `pactl` command is still used to diagnose the output monitor.
+
+The three release targets are `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu` and `armv7-unknown-linux-gnueabihf` (hard-float). They use the host's ALSA runtime instead of shipping statically linked `musl` executables.
+
 ## Pick a release
 
 The bootstrap selects the latest stable release, or the latest prerelease if there is no stable release yet.

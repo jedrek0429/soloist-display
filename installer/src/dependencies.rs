@@ -4,7 +4,13 @@ use std::process::Command;
 
 pub fn required(platform: &Platform) -> Vec<&'static str> {
     match platform.distro {
-        Distro::Arch => vec!["ca-certificates", "xdg-utils", "libpulse", "alsa-lib", "firefox"],
+        Distro::Arch => vec![
+            "ca-certificates",
+            "xdg-utils",
+            "libpulse",
+            "alsa-lib",
+            "firefox",
+        ],
         Distro::Ubuntu => vec![
             "ca-certificates",
             "xdg-utils",
@@ -50,8 +56,8 @@ fn alsa_runtime_ready() -> bool {
 pub fn runtime_ready() -> bool {
     alsa_runtime_ready()
         && ["pactl", "xdg-open", "systemctl"]
-        .iter()
-        .all(|name| command_exists(name))
+            .iter()
+            .all(|name| command_exists(name))
         && [
             "firefox",
             "firefox-esr",

@@ -188,7 +188,11 @@ mod tests {
 
     #[test]
     fn release_targets_use_glibc_but_keep_legacy_identifiers() {
-        for arch in [Architecture::X86_64, Architecture::Aarch64, Architecture::Armv7] {
+        for arch in [
+            Architecture::X86_64,
+            Architecture::Aarch64,
+            Architecture::Armv7,
+        ] {
             assert!(arch.release_target().contains("-linux-gnu"));
             assert!(arch.legacy_target().contains("-linux-musl"));
             assert_ne!(arch.release_target(), arch.legacy_target());

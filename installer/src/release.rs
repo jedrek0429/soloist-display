@@ -348,7 +348,10 @@ mod tests {
             published_at: String::new(),
             artifacts: vec![legacy.clone()],
         };
-        assert_eq!(manifest.artifact("manager", &platform).unwrap().target, legacy.target);
+        assert_eq!(
+            manifest.artifact("manager", &platform).unwrap().target,
+            legacy.target
+        );
         manifest.artifacts.push(Artifact {
             target: platform.target.clone(),
             ..legacy

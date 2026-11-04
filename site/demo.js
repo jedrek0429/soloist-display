@@ -41,6 +41,7 @@ director.started=true;
 director.current=1;
 document.getElementById('track').textContent='So What';
 document.getElementById('artist').textContent='Miles Davis';
+root.dataset.metadataReady='true';
 director.setPlaying(!window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 const reduce=window.matchMedia('(prefers-reduced-motion: reduce)');
 reduce.addEventListener('change',event=>director.setPlaying(!event.matches));
@@ -54,3 +55,13 @@ function visualizer(now){
  requestAnimationFrame(visualizer);
 }
 requestAnimationFrame(visualizer);
+
+if(window.parent!==window){
+ const image=new Image();
+ image.src=cover;
+ const show=()=>requestAnimationFrame(()=>requestAnimationFrame(()=>{
+   window.parent.postMessage('soloist-demo-ready',location.origin==='null'?'*':location.origin);
+ }));
+ if(image.decode)image.decode().catch(()=>{}).then(show);
+ else show();
+}

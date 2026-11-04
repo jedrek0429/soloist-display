@@ -2,7 +2,7 @@ name: Publish landing page
 on:
   push:
     branches: [main]
-    paths: ['site/**', 'docs/screenshots/now-playing.webp', 'index.html', 'styles.css', 'src/motion.js', 'src/spectrum.js', 'install.sh', '.github/workflows/pages.yml']
+    paths: ['site/**', 'index.html', 'styles.css', 'src/motion.js', 'src/spectrum.js', 'install.sh', '.github/workflows/pages.yml']
   release:
     types: [published]
   workflow_call:
@@ -29,7 +29,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/pages/src"
           cp site/index.html "$RUNNER_TEMP/pages/index.html"
           cp site/sitemap.xml "$RUNNER_TEMP/pages/sitemap.xml"
-          cp docs/screenshots/now-playing.webp "$RUNNER_TEMP/pages/og-image.webp"
+          cp site/og-image.webp "$RUNNER_TEMP/pages/og-image.webp"
           RELEASE_TAG="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
             --jq '[.[] | select(.draft == false)] | sort_by(.published_at) | last | .tag_name // empty')"
           if [ -n "$RELEASE_TAG" ]; then

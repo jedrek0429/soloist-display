@@ -83,6 +83,11 @@ jobs:
         with:
           name: unsigned-release
           path: dist/
+      - name: Restore executable permissions
+        run: |
+          for target in x86_64-unknown-linux-musl aarch64-unknown-linux-musl armv7-unknown-linux-musleabihf; do
+            chmod 755 "dist/soloist-display-$target" "dist/soloist-audio-bridge-$target"
+          done
       - name: Create and sign manifests
         env:
           RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}

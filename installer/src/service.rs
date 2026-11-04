@@ -602,6 +602,67 @@ mod tests {
     use serial_test::serial;
 
     #[test]
+    fn environment_file_path_is_absolute_and_not_quoted() {
+        assert_eq!(
+            environment_file_path(Path::new("/home/admin/.config/soloist-display/soloist.env"))
+                .unwrap(),
+            "/home/admin/.config/soloist-display/soloist.env"
+        );
+        assert_eq!(
+            environment_file_path(Path::new("/home/user with spaces/100%/soloist.env")).unwrap(),
+            "/home/user with spaces/100%%/soloist.env"
+        );
+        assert!(environment_file_path(Path::new("relative/soloist.env")).is_err());
+        assert!(environment_file_path(Path::new("/tmp/unsafe\\npath")).is_err());
+    }
+
+    #[test]
+    #[serial]
+    fn generated_units_pass_systemd_analyze_verify() {
+        let directory = tempfile::Builder::new()
+            .prefix("soloist display ")
+            .tempdir()
+            .unwrap();
+        std::env::set_var("HOME", directory.path());
+        std::env::set_var(
+            "SOLOIST_DISPLAY_TEST_ROOT",
+            directory.path().join("test root"),
+        );
+        let result = (|| -> Result<()> {
+            let paths = Paths::discover()?;
+            paths.ensure_management_dirs()?;
+            fs::create_dir_all(paths.soloist_env.parent().unwrap())?;
+            fs::write(
+                &paths.soloist_env,
+                b"SOLOIST_NAME=Test\\nSOLOIST_API_KEY=test\\n",
+            )?;
+            install_soloist(&paths, Path::new("/bin/true"))?;
+
+            let bridge = paths.current.join("bin/soloist-audio-bridge");
+            fs::create_dir_all(bridge.parent().unwrap())?;
+            fs::write(&bridge, b"#!/bin/sh\\nexit 0\\n")?;
+            fs::set_permissions(&bridge, fs::Permissions::from_mode(0o755))?;
+            install_display(&paths)?;
+
+            for path in [&paths.soloist_service, &paths.display_service] {
+                let output = Command::new("systemd-analyze")
+                    .arg("verify")
+                    .arg(path)
+                    .output()?;
+                assert!(
+                    output.status.success() && output.stderr.is_empty(),
+                    "systemd rejected {}: {}",
+                    path.display(),
+                    String::from_utf8_lossy(&output.stderr)
+                );
+            }
+            Ok(())
+        })();
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+        result.unwrap();
+    }
+
+    #[test]
     #[serial]
     fn restores_previous_live_systemd_user_service() {
         if std::env::var("SOLOIST_DISPLAY_RUN_SYSTEMD_TEST").as_deref() != Ok("1") {

@@ -1,7 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
+import vm from 'node:vm';
 import {isEmptyPlayback,pauseDelayMs} from '../src/soloist.js';
+
+test('disc and standby use separate vinyl labels and setting keys',()=>{
+  const source=fs.readFileSync(new URL('../src/settings.js',import.meta.url),'utf8');
+  const element={addEventListener(){}};
+  const context=vm.createContext({
+    document:{querySelector:()=>element},
+    fetch:async()=>{throw Error('offline');}
+  });
+  vm.runInContext(source,context);
+  assert.equal(vm.runInContext("selectLabel('discAppearance','vinyl')",context),'Vinyl');
+  assert.equal(vm.runInContext("selectLabel('idleAppearance','vinyl')",context),'Vinyl standby');
+  assert.equal(vm.runInContext("selectLabel('discAppearance','vinyl-cover')",context),'Vinyl & Cover');
+  assert.equal(vm.runInContext("sections.find(s=>s.title==='Disc').fields[0][0]",context),'discAppearance');
+  assert.equal(vm.runInContext("sections.find(s=>s.title==='Standby').fields[0][0]",context),'idleAppearance');
+});
 
 test('fresh state without a track enters standby',()=>{
   assert.equal(isEmptyPlayback({type:'state',state:{item:null,status:'paused'}}),true);

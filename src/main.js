@@ -43,6 +43,7 @@ const settings={
   transitionStyle:motionValue('transitionStyle')||'fly',
   sleeveTransitionStyle:motionValue('sleeveTransitionStyle')||'in-out',
   sleeveDuration:bounded(motionValue('sleeveDuration'),1000,100,10000),
+  pauseRetractMs:pauseDelayMs(motionValue('pauseRetractDelaySeconds')??-1),
   sleeveAlignment:motionValue('sleeveAlignment')==='left'?'left':'center',
   sleeveDelayIn:bounded(motionValue('sleeveDelayIn'),0,0,10000),
   sleeveDelayOut:bounded(motionValue('sleeveDelayOut'),950,0,10000),

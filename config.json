@@ -90,6 +90,8 @@
   "sleeveDurationCdCover": 1000,
   "sleeveDelayInCdCover": 0,
   "sleeveDelayOutCdCover": 950,
+  "pauseRetractDelaySecondsVinylCover": -1,
+  "pauseRetractDelaySecondsCdCover": -1,
   "transitionStyleAlbumCover": "fly",
   "transitionDurationAlbumCover": 2000,
   "transitionDelayAlbumCover": 1000

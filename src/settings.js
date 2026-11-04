@@ -53,7 +53,8 @@ const sections=[
       ['sleeveAlignment','Alignment','select',['left','center']],
       ['sleeveDuration','Duration','range',100,10000,50,'ms'],
       ['sleeveDelayIn','Delay in','range',0,10000,50,'ms'],
-      ['sleeveDelayOut','Delay out','range',0,10000,50,'ms']
+      ['sleeveDelayOut','Delay out','range',0,10000,50,'ms'],
+      ['pauseRetractDelaySeconds','Retract after pause','duration']
     ]
   },
   {
@@ -114,6 +115,7 @@ const snapshot=config=>JSON.stringify(Object.keys(config).sort().map(key=>[key,c
 let activeSection=0;
 let motionExpanded=false;
 let previousPauseSeconds=300;
+const previousDurationValues=new Map();
 const motionPages=new Set(['Sleeve motion','Disc motion','Backdrop motion','Panel motion']);
 const isCover=style=>style==='vinyl-cover'||style==='cd-cover';
 const motionVisible=title=>title!=='Sleeve motion'||isCover(draft.discAppearance);
@@ -123,7 +125,7 @@ const selectedOpacityKey=()=>({basic:'discOpacityBasic',cd:'discOpacityCd',vinyl
 const selectedHoleKey=()=>holeKey(draft.discAppearance||'basic');
 const appearanceSuffix=()=>({basic:'Basic',cd:'Cd',vinyl:'Vinyl','vinyl-cover':'VinylCover','cd-cover':'CdCover','album-cover':'AlbumCover'})[draft.discAppearance||'vinyl-cover'];
 const selectedSizeKey=()=>`discSize${appearanceSuffix()}`;
-const presetKeys=new Set(['transitionStyle','transitionDuration','transitionDelay','sleeveTransitionStyle','sleeveAlignment','sleeveDuration','sleeveDelayIn','sleeveDelayOut']);
+const presetKeys=new Set(['transitionStyle','transitionDuration','transitionDelay','sleeveTransitionStyle','sleeveAlignment','sleeveDuration','sleeveDelayIn','sleeveDelayOut','pauseRetractDelaySeconds']);
 const selectedFieldKey=key=>presetKeys.has(key)&&(!key.startsWith('sleeve')||isCover(draft.discAppearance))?key+appearanceSuffix():key;
 const selectedValue=key=>draft[selectedFieldKey(key)]??draft[key];
 const selectedHoleColorKey=()=>selectedHoleKey().replace('centerHole','centerHoleColor');
@@ -232,9 +234,9 @@ function renderSection(){
       valueInput.type='number';
       valueInput.min='0';
       valueInput.step='any';
-      valueInput.setAttribute('aria-label','Pause timeout value');
+      valueInput.setAttribute('aria-label',label+' value');
       const unit=document.createElement('select');
-      unit.setAttribute('aria-label','Pause timeout unit');
+      unit.setAttribute('aria-label',label+' unit');
       for(const [seconds,title] of [[1,'Seconds'],[60,'Minutes'],[3600,'Hours']]){
         const option=document.createElement('option');
         option.value=String(seconds);
@@ -245,9 +247,15 @@ function renderSection(){
       neverLabel.className='duration-never';
       const never=document.createElement('input');
       never.type='checkbox';
-      never.checked=draft[key]===-1;
+      const fieldKey=selectedFieldKey(key);
+      const remembered=()=>previousDurationValues.get(fieldKey)??300;
+      const saveRemembered=value=>{
+        previousDurationValues.set(fieldKey,value);
+        if(fieldKey==='idlePauseDelaySeconds')previousPauseSeconds=value;
+      };
+      never.checked=draft[fieldKey]===-1;
       neverLabel.append(never,document.createTextNode('Never'));
-      const stored=draft[key]>=0?draft[key]:previousPauseSeconds;
+      const stored=draft[fieldKey]>=0?draft[fieldKey]:fieldKey==='idlePauseDelaySeconds'?previousPauseSeconds:remembered();
       const preferred=stored!==0&&stored%3600===0?3600:stored!==0&&stored%60===0?60:1;
       unit.value=String(preferred);
       valueInput.value=String(stored/preferred);
@@ -256,7 +264,7 @@ function renderSection(){
         const seconds=Math.round(amount*Number(unit.value));
         const valid=valueInput.value.trim()!==''&&Number.isFinite(amount)&&amount>=0&&Number.isSafeInteger(seconds)&&seconds<=86400;
         valueInput.setCustomValidity(valid?'':'Choose a time from 0 seconds to 24 hours');
-        if(valid){draft[key]=seconds;previousPauseSeconds=seconds}
+        if(valid){draft[fieldKey]=seconds;saveRemembered(seconds)}
         status.textContent=valid?'Unsaved changes':'Choose a time from 0 seconds to 24 hours';
       };
       never.addEventListener('change',()=>{
@@ -264,12 +272,13 @@ function renderSection(){
         unit.disabled=never.checked;
         if(never.checked){
           valueInput.setCustomValidity('');
-          draft[key]=-1;
+          draft[fieldKey]=-1;
           status.textContent='Unsaved changes';
         }else{
-          draft[key]=previousPauseSeconds;
-          unit.value=previousPauseSeconds!==0&&previousPauseSeconds%60===0?'60':'1';
-          valueInput.value=String(previousPauseSeconds/Number(unit.value));
+          const previous=fieldKey==='idlePauseDelaySeconds'?previousPauseSeconds:remembered();
+          draft[fieldKey]=previous;
+          unit.value=previous!==0&&previous%60===0?'60':'1';
+          valueInput.value=String(previous/Number(unit.value));
           update();
         }
       });
@@ -277,7 +286,7 @@ function renderSection(){
       unit.disabled=never.checked;
       valueInput.addEventListener('input',()=>{if(!never.checked)update()});
       unit.addEventListener('change',()=>{
-        const current=draft[key]===-1?previousPauseSeconds:draft[key];
+        const current=draft[fieldKey]===-1?fieldKey==='idlePauseDelaySeconds'?previousPauseSeconds:remembered():draft[fieldKey];
         valueInput.value=String(current/Number(unit.value));
         if(!never.checked)update();
       });

@@ -252,7 +252,8 @@ async fn put_config(
             | "panelTransitionDelay"
             | "panelDelayIn"
             | "panelDelayOut" => Some((0., 10000.)),
-            "idlePauseDelaySeconds" => Some((-1., 86400.)),
+            "idlePauseDelaySeconds" | "pauseRetractDelaySecondsVinylCover"
+            | "pauseRetractDelaySecondsCdCover" => Some((-1., 86400.)),
             "backgroundDim" => Some((0., 1.)),
             "backgroundBlur" => Some((0., 150.)),
             "metadataOpacity" => Some((0., 1.)),
@@ -278,7 +279,9 @@ async fn put_config(
                 "Unsupported standby appearance".into(),
             ));
         }
-        if key == "idlePauseDelaySeconds"
+        if (key == "idlePauseDelaySeconds"
+            || key == "pauseRetractDelaySecondsVinylCover"
+            || key == "pauseRetractDelaySecondsCdCover")
             && !value
                 .as_i64()
                 .is_some_and(|seconds| seconds == -1 || (0..=86400).contains(&seconds))

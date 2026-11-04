@@ -45,3 +45,9 @@ Before a release, also test with a real Spotify Connect session:
 - Uninstall with `restore`: the old service plays again.
 
 No green tick can replace a real speaker.
+
+## Pause sleeve retraction
+
+With Vinyl & Cover or CD & Cover selected, set **Sleeve motion → Retract after pause** to a time or Never. This is separate from **Standby → After pausing**.
+
+Verify that a paused record slides behind its stationary cover, resuming slides it out, and a track change or disconnect during the slide does not leave the wrong record exposed. Other disc appearances must remain unaffected.

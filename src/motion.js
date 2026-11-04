@@ -10,12 +10,13 @@ function preload(url){
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 export class DiscDirector{
   constructor({discs,backdrops,info,settings={}}){
-    this.settings={discRotationSeconds:12,transitionDuration:2000,backdropTransitionStyle:'fade',backdropTransitionDuration:2000,transitionStyle:'fly',sleeveTransitionStyle:'in-out',sleeveDuration:1000,sleeveDelayIn:0,sleeveDelayOut:950,transitionDelay:1000,backdropTransitionDelay:1000,panelTransitionDelay:0,panelDelayIn:0,panelDelayOut:0,sleeveAlignment:'center',panelTransitionStyle:'slide',panelTransitionDuration:2050,reducedMotion:false,...settings};
+    this.settings={discRotationSeconds:12,transitionDuration:2000,backdropTransitionStyle:'fade',backdropTransitionDuration:2000,transitionStyle:'fly',sleeveTransitionStyle:'in-out',sleeveDuration:1000,sleeveDelayIn:0,sleeveDelayOut:950,transitionDelay:1000,backdropTransitionDelay:1000,panelTransitionDelay:0,panelDelayIn:0,panelDelayOut:0,sleeveAlignment:'center',panelTransitionStyle:'slide',panelTransitionDuration:2050,reducedMotion:false,pauseRetractMs:null,...settings};
     this.motionEnabled=!this.settings.reducedMotion;
     this.discs=discs;this.backdrops=backdrops;this.info=info;
     this.current=0;this.token=0;this.started=false;this.angle=0;
     this.velocity=0;this.playing=false;this.changing=false;this.last=performance.now();
     this.pendingShow=null;this.fadeTimer=null;this.animations=new Set();this.panelAnimation=null;this.panelToken=0;
+    this.pauseRetractTimer=null;this.pauseStartedAt=null;this.pauseRetracted=false;this.artworkChanging=false;
     requestAnimationFrame(t=>this.spin(t));
   }
   spin(now){
@@ -29,6 +30,9 @@ export class DiscDirector{
     requestAnimationFrame(t=>this.spin(t));
   }
   reset(){
+    this.clearPauseRetraction();
+    this.artworkChanging=false;
+    this.wasRetractedAtChange=false;
     ++this.token;
     ++this.panelToken;
     for(const animation of this.animations)animation.cancel();
@@ -45,6 +49,7 @@ export class DiscDirector{
       disc.style.transform='';
       disc.style.opacity='';
       disc.querySelector('.record-track').style.transform='';
+      disc.querySelector('.record-track').style.transition='';
       disc.querySelector('.record-track').style.translate='';
       disc.querySelector('.record-sleeve').style.translate='';
     }
@@ -58,7 +63,55 @@ export class DiscDirector{
     this.info.style.transform='';
     this.info.style.opacity='';
   }
-  setPlaying(value){this.playing=value}
+  isSleeve(){
+    return ['vinyl-cover','cd-cover'].includes(document.documentElement.dataset.discAppearance);
+  }
+  activeTrack(){
+    return this.discs[this.current].querySelector('.record-track');
+  }
+  clearPauseRetraction(){
+    clearTimeout(this.pauseRetractTimer);
+    this.pauseRetractTimer=null;
+    this.pauseStartedAt=null;
+    this.pauseRetracted=false;
+  }
+  retractPausedTrack(){
+    if(this.playing||!this.isSleeve()||!this.started||this.artworkChanging||this.pauseRetracted)return;
+    this.pauseRetracted=true;
+    const track=this.activeTrack();
+    track.style.transition=this.motionEnabled?'transform 450ms ease-in-out':'none';
+    track.style.transform='translateX(0)';
+  }
+  schedulePauseRetraction(){
+    if(!this.isSleeve()||this.settings.pauseRetractMs===null||this.pauseStartedAt===null)return;
+    clearTimeout(this.pauseRetractTimer);
+    this.pauseRetractTimer=null;
+    const remaining=Math.max(0,this.settings.pauseRetractMs-(Date.now()-this.pauseStartedAt));
+    if(remaining===0){this.retractPausedTrack();return;}
+    this.pauseRetractTimer=setTimeout(()=>{
+      this.pauseRetractTimer=null;
+      this.retractPausedTrack();
+    },remaining);
+  }
+  setPlaying(value){
+    this.playing=value;
+    if(value){
+      clearTimeout(this.pauseRetractTimer);
+      this.pauseRetractTimer=null;
+      this.pauseStartedAt=null;
+      if(this.pauseRetracted&&this.isSleeve()&&this.started&&!this.artworkChanging){
+        const track=this.activeTrack();
+        track.style.transition=this.motionEnabled?'transform 450ms ease-in-out':'none';
+        track.style.transform='translateX(50%)';
+      }
+      this.pauseRetracted=false;
+      return;
+    }
+    if(this.pauseStartedAt===null){
+      this.pauseStartedAt=Date.now();
+      this.schedulePauseRetraction();
+    }
+  }
   async enterFirst(incoming,backdrop,onShow,token){
     const style=this.motionEnabled?this.settings.transitionStyle:'off';
     const duration=this.motionEnabled?this.settings.transitionDuration:0;
@@ -190,6 +243,7 @@ export class DiscDirector{
     for(const disc of this.discs){
       disc.style.transform='';disc.style.opacity='';
       disc.querySelector('.record-track').style.translate='0% 0';
+      disc.querySelector('.record-track').style.transition='none';
       disc.querySelector('.record-sleeve').style.translate='0% 0';
     }
     for(const bg of this.backdrops){
@@ -219,6 +273,8 @@ export class DiscDirector{
       previousBg.style.transition='none';nextBg.style.transition='none';
       previousBg.style.zIndex='';nextBg.style.zIndex='';
       this.changing=false;
+      this.artworkChanging=false;
+      if(!this.playing)this.schedulePauseRetraction();
     };
     if(!this.started){
       await this.enterFirst(incoming,nextBg,onShow,token);
@@ -236,7 +292,9 @@ export class DiscDirector{
 
     const jobs=[];
     if(sleeveOn){
-      jobs.push(this.after(sleeveDelayIn,token,()=>this.animate(oldTrack,[{transform:'translateX(50%)'},{transform:'translateX(0)'}],sleeveDuration/2,token)));
+      if(!this.wasRetractedAtChange){
+        jobs.push(this.after(sleeveDelayIn,token,()=>this.animate(oldTrack,[{transform:'translateX(50%)'},{transform:'translateX(0)'}],sleeveDuration/2,token)));
+      }
       if(align){
         jobs.push(this.after(sleeveDelayIn,token,()=>this.animate(oldTrack,[{translate:'0% 0'},{translate:offset+' 0'}],sleeveDuration/2,token)));
         jobs.push(this.after(sleeveDelayIn,token,()=>this.animate(oldSleeve,[{translate:'0% 0'},{translate:offset+' 0'}],sleeveDuration/2,token)));
@@ -288,6 +346,13 @@ export class DiscDirector{
     this.animations.clear();
     clearTimeout(this.fadeTimer);
     this.changing=false;
+    this.artworkChanging=true;
+    this.wasRetractedAtChange=this.pauseRetracted;
+    clearTimeout(this.pauseRetractTimer);
+    this.pauseRetractTimer=null;
+    this.pauseRetracted=false;
+    if(!this.playing&&this.isSleeve())this.pauseStartedAt=Date.now();
+    else this.pauseStartedAt=null;
     await preload(url);
     if(token!==this.token)return;
     if(['vinyl-cover','cd-cover'].includes(document.documentElement.dataset.discAppearance)){
@@ -315,7 +380,8 @@ export class DiscDirector{
       previousBg.style.transform='';previousBg.style.transition='none';previousBg.style.opacity='0';
       nextBg.style.transform='';nextBg.style.transition='none';nextBg.style.opacity='1';
       this.changing=false;this.pendingShow=null;
-
+      this.artworkChanging=false;
+      if(!this.playing)this.schedulePauseRetraction();
     };
     if(!this.started){
       await this.enterFirst(incoming,nextBg,onShow,token);

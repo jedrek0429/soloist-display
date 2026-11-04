@@ -129,8 +129,7 @@ mod tests {
         let converted = input.push(&source, 48_000, 1).unwrap();
         assert_eq!(converted.len(), RATE);
         for (i, &sample) in converted.iter().enumerate() {
-            let expected =
-                (2. * std::f32::consts::PI * 440. * i as f32 / RATE as f32).sin() * 0.6;
+            let expected = (2. * std::f32::consts::PI * 440. * i as f32 / RATE as f32).sin() * 0.6;
             assert!((sample - expected).abs() < 0.003, "sample {i} drifted");
         }
     }
@@ -155,7 +154,12 @@ mod tests {
         let mut input = PcmInput::new();
         let mut output = Vec::new();
         for frame in 0..11025 {
-            output.extend(input.push(&[(frame % 2) as f32], 11_025, 1).unwrap().into_owned());
+            output.extend(
+                input
+                    .push(&[(frame % 2) as f32], 11_025, 1)
+                    .unwrap()
+                    .into_owned(),
+            );
         }
         assert_eq!(output.len(), 22_049);
         assert!(output.iter().all(|sample| (0. ..=1.).contains(sample)));
@@ -172,8 +176,14 @@ mod tests {
     #[test]
     fn rejects_invalid_chunks_without_changing_the_stream() {
         let mut input = PcmInput::new();
-        assert_eq!(input.push(&[0.], 0, 1).unwrap_err(), PcmError::InvalidFormat);
-        assert_eq!(input.push(&[0.], 48_000, 0).unwrap_err(), PcmError::InvalidFormat);
+        assert_eq!(
+            input.push(&[0.], 0, 1).unwrap_err(),
+            PcmError::InvalidFormat
+        );
+        assert_eq!(
+            input.push(&[0.], 48_000, 0).unwrap_err(),
+            PcmError::InvalidFormat
+        );
         assert_eq!(
             input.push(&[0.], 48_000, 2).unwrap_err(),
             PcmError::IncompleteFrame

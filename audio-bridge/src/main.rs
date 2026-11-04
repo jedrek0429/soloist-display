@@ -6,7 +6,8 @@ use axum::{
     Json, Router,
 };
 use futures_util::SinkExt;
-use rustfft::{num_complex::Complex32, FftPlanner};
+mod spectrum;
+use spectrum::{Spectrum, HOP, RATE};
 use serde_json::Value;
 use std::{env, path::PathBuf, process::Stdio, sync::Arc, time::Instant};
 use tokio::{
@@ -18,7 +19,6 @@ use tokio::{
 };
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
-const RATE: usize = 22050;
 const DEFAULT_CONFIG: &str = include_str!("../../config.json");
 const INDEX: &str = include_str!("../../index.html");
 const CSS: &str = include_str!("../../styles.css");
@@ -444,13 +444,6 @@ async fn web_server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Ok(())
 }
 
-const WINDOW: usize = 2048;
-const HOP: usize = 512;
-const BANDS: [f32; 7] = [55., 150., 350., 800., 1800., 4000., 9000.];
-// Typical music loses energy at higher frequencies; use progressively
-// lower reference levels so sensitivity can meaningfully affect all bars.
-const REFERENCE_DB: [f32; 6] = [-19., -23., -29., -34., -39., -44.];
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut web_task = tokio::spawn(async { web_server().await });
@@ -533,17 +526,8 @@ async fn capture(
     cmd.stdout(Stdio::piped()).stderr(Stdio::inherit());
     let mut child = cmd.spawn()?;
     let mut stdout = child.stdout.take().ok_or("No audio stream")?;
-    let mut planner = FftPlanner::<f32>::new();
-    let fft = planner.plan_fft_forward(WINDOW);
-    let hann: Vec<f32> = (0..WINDOW)
-        .map(|i| 0.5 - 0.5 * (2.0 * std::f32::consts::PI * i as f32 / (WINDOW - 1) as f32).cos())
-        .collect();
-    let mut ring = [0f32; WINDOW];
-    let mut cursor = 0usize;
-    let mut filled = 0usize;
-    let mut frame = vec![Complex32::new(0., 0.); WINDOW];
+    let mut spectrum = Spectrum::new();
     let mut raw = [0u8; HOP * 2];
-    let mut smoothed = [0f32; 6];
     let mut peak = 0f32;
     let mut frames = 0u64;
     let mut report = Instant::now();
@@ -551,50 +535,17 @@ async fn capture(
     let mut max_gap = Duration::ZERO;
     loop {
         stdout.read_exact(&mut raw).await?;
-        for offset in (0..raw.len()).step_by(2) {
-            let sample = i16::from_le_bytes([raw[offset], raw[offset + 1]]) as f32 / 32768.;
+        let mut samples = [0.; HOP];
+        for (sample, bytes) in samples.iter_mut().zip(raw.chunks_exact(2)) {
+            *sample = i16::from_le_bytes([bytes[0], bytes[1]]) as f32 / 32768.;
             peak = peak.max(sample.abs());
-            ring[cursor] = sample;
-            cursor = (cursor + 1) % WINDOW;
-            filled = (filled + 1).min(WINDOW);
         }
-        if filled < WINDOW {
+        let Some(bands) = spectrum.push_mono(&samples).into_iter().next() else {
             continue;
-        }
+        };
         let now = Instant::now();
         max_gap = max_gap.max(now.duration_since(previous_frame));
         previous_frame = now;
-        for i in 0..WINDOW {
-            frame[i] = Complex32::new(ring[(cursor + i) % WINDOW] * hann[i], 0.);
-        }
-        fft.process(&mut frame);
-        let mut bands = [0f32; 6];
-        for band in 0..6 {
-            let lo = ((BANDS[band] * WINDOW as f32 / RATE as f32).floor() as usize).max(1);
-            let hi =
-                ((BANDS[band + 1] * WINDOW as f32 / RATE as f32).ceil() as usize).min(WINDOW / 2);
-            let mut power = 0f32;
-            let mut count = 0usize;
-            for value in frame.iter().take(hi).skip(lo) {
-                power += value.norm_sqr();
-                count += 1;
-            }
-            let rms = if count > 0 {
-                (power / count as f32).sqrt() / (WINDOW as f32 * 0.25)
-            } else {
-                0.
-            };
-            // Per-band reference levels compensate for the natural spectral
-            // roll-off of music: a shared dB threshold hides the upper bands.
-            let db = 20. * rms.max(1e-8).log10();
-            let level = ((db - REFERENCE_DB[band] + 49.) / 49.)
-                .clamp(0., 1.)
-                .powf(1.25);
-            // ~12 ms attack / ~180 ms release at 43 Hz.
-            let coefficient = if level > smoothed[band] { 0.85 } else { 0.12 };
-            smoothed[band] += (level - smoothed[band]) * coefficient;
-            bands[band] = smoothed[band];
-        }
         frames += 1;
         if sender.receiver_count() > 0 {
             let payload = format!(

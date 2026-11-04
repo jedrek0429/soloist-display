@@ -122,6 +122,9 @@ function showPausedAfterDelay(){
 }
 function clearTrack(){
   cancelPauseTimer();
+  root.dataset.metadataReady='false';
+  $('track').textContent='';
+  $('artist').textContent='';
   if(currentUri!==null||director.started){
     director.reset();
     currentUri=null;
@@ -149,9 +152,13 @@ function updateItem(item){
   const albumKey=albumKeyFor(item);
   const panelOnly=settings.changeDiscOn==='album'&&albumKey!==null&&albumKey===currentAlbumKey&&director.started;
   currentAlbumKey=albumKey;
-  const name=item?.decorations?.identity?.name||item.name||'Not playing';
+  const name=item?.decorations?.identity?.name||item.name||'';
   const artist=artistFor(item),cover=coverFor(item);
-  const show=()=>{$('track').textContent=name;$('artist').textContent=artist};
+  const show=()=>{
+    $('track').textContent=name;
+    $('artist').textContent=artist;
+    root.dataset.metadataReady=name.trim()?'true':'false';
+  };
   if(!director.started)show();
   setDisplayState('playing');
   if(panelOnly)director.changePanel(show);

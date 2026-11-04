@@ -41,6 +41,7 @@ director.started=true;
 director.current=1;
 document.getElementById('track').textContent='So What';
 document.getElementById('artist').textContent='Miles Davis';
+root.dataset.metadataReady='true';
 director.setPlaying(!window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 const reduce=window.matchMedia('(prefers-reduced-motion: reduce)');
 reduce.addEventListener('change',event=>director.setPlaying(!event.matches));

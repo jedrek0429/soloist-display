@@ -23,3 +23,18 @@ test('demo renderer does not leave standby covering artwork',()=>{
   assert.match(demo,/document\.getElementById\('artist'\)\.textContent='Miles Davis'/);
   assert.match(read('../site/index.html'),/<iframe src="\.\/preview\.html"/);
 });
+
+test('old metadata placeholders cannot flash during startup or reconnect',()=>{
+  const html=read('../index.html');
+  const app=read('../src/main.js');
+  const style=read('../styles.css');
+  const demo=read('../site/demo.js');
+  assert.match(html,/<html[^>]*data-metadata-ready="false"/);
+  assert.match(html,/<h1 id="track"><\/h1><p id="artist"><\/p>/);
+  assert.doesNotMatch(html,/Not playing|Waiting for Soloist/);
+  assert.doesNotMatch(app,/Not playing|Waiting for Soloist/);
+  assert.match(app,/root\.dataset\.metadataReady='false'/);
+  assert.match(app,/root\.dataset\.metadataReady=name\.trim\(\)\?'true':'false'/);
+  assert.match(style,/:root:not\(\[data-metadata-ready='true'\]\) \.info\{visibility:hidden!important\}/);
+  assert.match(demo,/root\.dataset\.metadataReady='true'/);
+});

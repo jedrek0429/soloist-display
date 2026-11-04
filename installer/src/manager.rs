@@ -969,8 +969,7 @@ pub fn install(
             }
             soloist::install(
                 paths,
-                &client,
-                manifest.soloist(platform)?,
+                platform,
                 &manifest.version.to_string(),
                 soloist_name,
                 soloist_key,
@@ -1128,8 +1127,7 @@ pub fn update(
             }
             next_soloist = soloist::install(
                 paths,
-                &client,
-                manifest.soloist(platform)?,
+                platform,
                 &manifest.version.to_string(),
                 None,
                 None,
@@ -1267,8 +1265,7 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
             if !paths.managed_soloist_current.join("soloist").is_file() {
                 state.soloist = soloist::install(
                     paths,
-                    &client,
-                    manifest.soloist(platform)?,
+                    platform,
                     &manifest.version.to_string(),
                     None,
                     None,

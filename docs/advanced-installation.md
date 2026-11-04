@@ -25,7 +25,7 @@ The channel is remembered. Downgrades need explicit consent; older settings may 
 
 ## Shell completions
 
-The installer sets up completions for Bash, Zsh and Fish **only when each shell is installed**. It does not install shells or create Fish directories on machines without Fish. Bash needs the `bash-completion` package enabled. Zsh is configured through an installer-owned `~/.zshrc` block; Bash and Fish discover their completion files without editing their startup files.
+The installer sets up completions for Bash, Zsh and Fish. Bash needs the `bash-completion` package enabled. Zsh is configured through an installer-owned `~/.zshrc` block; Bash and Fish discover their completion files without editing their startup files.
 
 After installing a new shell, `soloist-display update` refreshes completions even if Display is already up to date. You can also generate scripts manually with `soloist-display completions bash|zsh|fish`.
 

@@ -13,9 +13,15 @@ if [ -t 0 ]; then printf 'tty\n' > "$SOLOIST_TEST_STDIN"; else printf 'pipe\n' >
 EOF
 chmod 755 "$temp/assets/installer"
 hash=$(sha256sum "$temp/assets/installer" | cut -d' ' -f1)
-for target in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu armv7-unknown-linux-gnueabihf \
-              x86_64-unknown-linux-musl aarch64-unknown-linux-musl armv7-unknown-linux-musleabihf; do
-  printf '%s %s https://github.com/jedrek0429/soloist-display/releases/download/v0.0.0/soloist-display-%s\n' "$target" "$hash" "$target"
+for target in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu armv7-unknown-linux-gnueabihf; do
+  case "$target" in
+    x86_64-*) legacy=x86_64-unknown-linux-musl ;;
+    aarch64-*) legacy=aarch64-unknown-linux-musl ;;
+    armv7-*) legacy=armv7-unknown-linux-musleabihf ;;
+  esac
+  for alias in "$target" "$legacy"; do
+    printf '%s %s https://github.com/jedrek0429/soloist-display/releases/download/v0.0.0/soloist-display-%s\n' "$alias" "$hash" "$target"
+  done
 done > "$temp/manifest"
 "$root/target/debug/release-tools" render-bootstrap "$root/install.sh" "$temp/manifest" \
   https://github.com/jedrek0429/soloist-display/releases/download/v0.0.0 > "$temp/bootstrap.sh"

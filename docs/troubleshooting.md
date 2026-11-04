@@ -11,7 +11,9 @@ Don't post API keys, tokens or environment files in an issue.
 
 ## Command not found
 
-Open a new terminal. Check `~/.local/bin/soloist-display` exists and `~/.local/bin` is in `PATH`.
+For `soloist-display`, open a new terminal. Check `~/.local/bin/soloist-display` exists and `~/.local/bin` is in `PATH`.
+
+For `soloist`, Managed installations keep the executable outside `PATH`. See [Managed Soloist locations](installer.md#managed-soloist-locations) for the binary, systemd unit and shell setup.
 
 ## Display won't open
 

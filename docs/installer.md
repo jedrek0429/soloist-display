@@ -11,6 +11,30 @@ Mutating CLI operations share a lock. Installation, renewal and uninstall use re
 - **Managed:** Display owns the Soloist binary and systemd user service. On migration it saves the old service and clones the existing session; it refuses unsupported systemd settings. Legacy `EnvironmentFile=` accepts absolute paths and `%h/` home-directory paths. The original installation is not deleted.
 - **External:** Display connects to the existing Soloist WebSocket. It does not replace the service or binary. A stopped External service is started only with consent.
 
+## Managed Soloist locations
+
+With the default XDG directories, the Managed Soloist binary is installed at:
+
+```text
+~/.local/share/soloist-display/soloist/current/soloist
+```
+
+Its systemd user service is:
+
+```text
+~/.config/systemd/user/soloist.service
+```
+
+These paths use `$XDG_DATA_HOME` and `$XDG_CONFIG_HOME` if set. `current` is a symlink that follows Soloist renewals.
+
+The installer does not put the Managed Soloist CLI on your `PATH`. To run `soloist` from a terminal, add its containing directory:
+
+```sh
+export PATH="${XDG_DATA_HOME:-$HOME/.local/share}/soloist-display/soloist/current:$PATH"
+```
+
+Put that line in `~/.bashrc` or `~/.zshrc` to make it persistent. The systemd service does not need this. External Soloist uses its existing installation paths.
+
 Managed Soloist checks Spotify's CDN every six hours using `soloist-display-renew.timer`. You can run `soloist-display renew-soloist` yourself. Before accepting a build, the manager checks the archive, ELF target and SHA-256. After restart it checks the systemd process, executable and WebSocket listener. Failed activation restores the previous build.
 
 Display release artefacts are verified against signed manifests. **Spotify's rolling builds are different:** initial Managed installation and automatic renewal both download the current build directly from Spotify's HTTPS CDN. The installer limits the download size and verifies the archive and executable architecture; the build is not pinned to an old Display release manifest. Spotify does not provide an independently verified upstream signature. When prompted, obtain a Soloist API key from [Spotify for Developers](https://developer.spotify.com/dashboard/soloist).

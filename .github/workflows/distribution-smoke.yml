@@ -26,8 +26,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.13.0
+      - uses: taiki-e/install-action@cargo-zigbuild
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --release --locked -p soloist-display-installer --target x86_64-unknown-linux-gnu
+      - run: cargo zigbuild --release --locked -p soloist-display-installer --target x86_64-unknown-linux-gnu.2.38
       - uses: actions/upload-artifact@v7
         with:
           name: manager-x86_64

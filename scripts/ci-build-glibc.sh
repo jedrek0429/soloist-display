@@ -33,7 +33,10 @@ else
   sudo apt-get install -y pkg-config libasound2-dev
 fi
 
-cargo build --release --locked --workspace --target "$target"
+cargo build --release --locked -p soloist-audio-bridge --target "$target"
+# Zig fixes the minimum glibc ABI for the installer without touching ALSA linking.
+env -u CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER \
+  cargo zigbuild --release --locked -p soloist-display-installer --target "$target.2.38"
 
 for binary in soloist-display soloist-audio-bridge; do
   path="target/$target/release/$binary"

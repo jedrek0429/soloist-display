@@ -35,6 +35,10 @@ jobs:
         run: |
           cargo run --quiet -p soloist-display-installer --bin release-tools -- verify-workspace-version "$GITHUB_REF_NAME"
           cargo run --quiet -p soloist-display-installer --bin release-tools -- validate-tag "$GITHUB_REF_NAME"
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.13.0
+      - uses: taiki-e/install-action@cargo-zigbuild
       - name: Build GNU executables and verify compatibility
         run: bash scripts/ci-build-glibc.sh ${{ matrix.target }}
       - name: Save unsigned release executables

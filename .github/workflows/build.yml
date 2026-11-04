@@ -144,4 +144,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: glibc-${{ matrix.target }}
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.13.0
+      - uses: taiki-e/install-action@cargo-zigbuild
       - run: bash scripts/ci-build-glibc.sh ${{ matrix.target }}

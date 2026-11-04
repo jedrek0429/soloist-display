@@ -969,8 +969,7 @@ pub fn install(
             }
             soloist::install(
                 paths,
-                &client,
-                manifest.soloist(platform)?,
+                platform,
                 &manifest.version.to_string(),
                 soloist_name,
                 soloist_key,
@@ -1126,14 +1125,8 @@ pub fn update(
                 let _pause = progress.pause();
                 soloist::configure(paths, None, None)?;
             }
-            next_soloist = soloist::install(
-                paths,
-                &client,
-                manifest.soloist(platform)?,
-                &manifest.version.to_string(),
-                None,
-                None,
-            )?;
+            next_soloist =
+                soloist::install(paths, platform, &manifest.version.to_string(), None, None)?;
         }
         progress.step(3, "Starting services");
         service::install_display(paths)?;
@@ -1265,14 +1258,8 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
                 soloist::configure(paths, None, None)?;
             }
             if !paths.managed_soloist_current.join("soloist").is_file() {
-                state.soloist = soloist::install(
-                    paths,
-                    &client,
-                    manifest.soloist(platform)?,
-                    &manifest.version.to_string(),
-                    None,
-                    None,
-                )?;
+                state.soloist =
+                    soloist::install(paths, platform, &manifest.version.to_string(), None, None)?;
             } else {
                 service::install_soloist(paths, &paths.managed_soloist_current.join("soloist"))?;
             }

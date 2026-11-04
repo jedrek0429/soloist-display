@@ -80,6 +80,8 @@ done
 mkdir -p "$temp/home"
 export HOME="$temp/home"
 export SOLOIST_DISPLAY_TEST_ROOT="$temp/root"
+# Use the validated release-time Spotify build only in isolated test mode.
+export SOLOIST_DISPLAY_TEST_SOLOIST_ARCHIVE="$dist/soloist_release_x86_64.tar.gz"
 export SOLOIST_NAME="Soloist CI"
 export SOLOIST_API_KEY="ci-fixture"
 export SOLOIST_DISPLAY_MANIFEST="$temp/initial.json"

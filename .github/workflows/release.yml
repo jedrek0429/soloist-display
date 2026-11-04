@@ -37,7 +37,7 @@ jobs:
             install -m755 "target/$target/release/soloist-display" "dist/soloist-display-$target"
             install -m755 "target/$target/release/soloist-audio-bridge" "dist/soloist-audio-bridge-$target"
           done
-      - name: Pin official Soloist builds
+      - name: Validate current official Soloist archives
         run: |
           for arch in x86_64 arm64 arm32; do
             curl --fail --location --retry 3 --connect-timeout 10 --max-time 300 \

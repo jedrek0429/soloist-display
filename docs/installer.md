@@ -13,7 +13,7 @@ Mutating CLI operations share a lock. Installation, renewal and uninstall use re
 
 Managed Soloist checks Spotify's CDN every six hours using `soloist-display-renew.timer`. You can run `soloist-display renew-soloist` yourself. Before accepting a build, the manager checks the archive, ELF target and SHA-256. After restart it checks the systemd process, executable and WebSocket listener. Failed activation restores the previous build.
 
-Display release artefacts are verified against signed manifests. **Spotify's rolling builds are different:** HTTPS to the official CDN is the trust boundary. They have no independently verified upstream signature.
+Display release artefacts are verified against signed manifests. **Spotify's rolling builds are different:** initial Managed installation and automatic renewal both download the current build directly from Spotify's HTTPS CDN. The installer limits the download size and verifies the archive and executable architecture; the build is not pinned to an old Display release manifest. Spotify does not provide an independently verified upstream signature. When prompted, obtain a Soloist API key from [Spotify for Developers](https://developer.spotify.com/dashboard/soloist).
 
 ## Uninstall
 

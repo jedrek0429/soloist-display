@@ -49,19 +49,6 @@ impl ReleaseManifest {
                 )
             })
     }
-
-    pub fn soloist<'a>(&'a self, platform: &Platform) -> Result<&'a Artifact> {
-        let archive = platform.soloist_archive();
-        self.artifacts
-            .iter()
-            .find(|artifact| artifact.kind == "soloist" && artifact.target == archive)
-            .ok_or_else(|| {
-                anyhow!(
-                    "release {} has no verified Spotify Soloist artifact for {archive}",
-                    self.version
-                )
-            })
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ValueEnum)]

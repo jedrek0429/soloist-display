@@ -613,7 +613,7 @@ mod tests {
             "/home/user with spaces/100%%/soloist.env"
         );
         assert!(environment_file_path(Path::new("relative/soloist.env")).is_err());
-        assert!(environment_file_path(Path::new("/tmp/unsafe\\npath")).is_err());
+        assert!(environment_file_path(Path::new("/tmp/unsafe\npath")).is_err());
     }
 
     #[test]
@@ -634,13 +634,13 @@ mod tests {
             fs::create_dir_all(paths.soloist_env.parent().unwrap())?;
             fs::write(
                 &paths.soloist_env,
-                b"SOLOIST_NAME=Test\\nSOLOIST_API_KEY=test\\n",
+                b"SOLOIST_NAME=Test\nSOLOIST_API_KEY=test\n",
             )?;
             install_soloist(&paths, Path::new("/bin/true"))?;
 
             let bridge = paths.current.join("bin/soloist-audio-bridge");
             fs::create_dir_all(bridge.parent().unwrap())?;
-            fs::write(&bridge, b"#!/bin/sh\\nexit 0\\n")?;
+            fs::write(&bridge, b"#!/bin/sh\nexit 0\n")?;
             fs::set_permissions(&bridge, fs::Permissions::from_mode(0o755))?;
             install_display(&paths)?;
 

@@ -350,7 +350,6 @@ mod tests {
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
 
-
     #[test]
     #[serial]
     fn migrates_home_specifier_environment_file() {
@@ -386,9 +385,7 @@ mod tests {
             "%E/soloist.env",
             "%h/../other.env",
         ] {
-            let unit = format!(
-                "[Service]\nEnvironmentFile={file}\nExecStart=/usr/bin/soloist\n"
-            );
+            let unit = format!("[Service]\nEnvironmentFile={file}\nExecStart=/usr/bin/soloist\n");
             assert!(parse_unit(&paths, &unit).is_err(), "accepted {file}");
         }
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");

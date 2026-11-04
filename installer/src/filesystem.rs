@@ -93,12 +93,21 @@ fn sync_directory(path: &Path) -> Result<()> {
     Ok(())
 }
 
+#[cfg(windows)]
+fn is_junction(path: &Path) -> Result<bool> {
+    match junction::exists(path) {
+        Ok(result) => Ok(result),
+        Err(error) if error.raw_os_error() == Some(4390) => Ok(false),
+        Err(error) => Err(error).context("inspect Windows junction"),
+    }
+}
+
 pub fn remove_link_if_present(path: &Path) -> Result<()> {
     if !path.exists() && fs::symlink_metadata(path).is_err() {
         return Ok(());
     }
     #[cfg(windows)]
-    if junction::exists(path).context("inspect Windows junction")? {
+    if is_junction(path)? {
         junction::delete(path)?;
         return Ok(());
     }
@@ -136,7 +145,7 @@ pub fn safe_remove(path: &Path, allowed_roots: &[&Path]) -> Result<()> {
         bail!("refusing to remove unmanaged path {}", path.display());
     }
     #[cfg(windows)]
-    if junction::exists(path).context("inspect Windows junction")? {
+    if is_junction(path)? {
         junction::delete(path)?;
         return Ok(());
     }

@@ -71,6 +71,24 @@ fn glibc_version(text: &str) -> Option<(u32, u32)> {
     })
 }
 
+impl Architecture {
+    pub fn release_target(&self) -> &'static str {
+        match self {
+            Self::X86_64 => "x86_64-unknown-linux-gnu",
+            Self::Aarch64 => "aarch64-unknown-linux-gnu",
+            Self::Armv7 => "armv7-unknown-linux-gnueabihf",
+        }
+    }
+
+    pub fn legacy_target(&self) -> &'static str {
+        match self {
+            Self::X86_64 => "x86_64-unknown-linux-musl",
+            Self::Aarch64 => "aarch64-unknown-linux-musl",
+            Self::Armv7 => "armv7-unknown-linux-musleabihf",
+        }
+    }
+}
+
 impl Platform {
     pub fn detect() -> Result<Self> {
         if std::env::consts::OS != "linux" {
@@ -145,12 +163,7 @@ impl Platform {
                 ))
             }
         };
-        let target = match architecture {
-            Architecture::X86_64 => "x86_64-unknown-linux-musl",
-            Architecture::Aarch64 => "aarch64-unknown-linux-musl",
-            Architecture::Armv7 => "armv7-unknown-linux-musleabihf",
-        }
-        .into();
+        let target = architecture.release_target().to_owned();
         let label = format!("{:?} / {:?}", distro, architecture);
         Ok(Self {
             distro,
@@ -172,6 +185,19 @@ impl Platform {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn release_targets_use_glibc_but_keep_legacy_identifiers() {
+        for arch in [
+            Architecture::X86_64,
+            Architecture::Aarch64,
+            Architecture::Armv7,
+        ] {
+            assert!(arch.release_target().contains("-linux-gnu"));
+            assert!(arch.legacy_target().contains("-linux-musl"));
+            assert_ne!(arch.release_target(), arch.legacy_target());
+        }
+    }
 
     #[test]
     fn parses_common_glibc_version_output() {

@@ -12,6 +12,11 @@ on:
       - 'install.sh'
       - '.github/workflows/**'
       - 'scripts/**'
+  pull_request:
+    paths:
+      - 'installer/**'
+      - 'audio-bridge/**'
+      - '.github/workflows/distribution-smoke.yml'
   schedule:
     - cron: '17 4 * * 1'
   workflow_dispatch:
@@ -22,22 +27,21 @@ concurrency:
 
 jobs:
   build:
+    if: github.event_name != 'pull_request' || github.head_ref == 'feat/cpal-glibc-linux-packaging'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-unknown-linux-musl
       - uses: mlugg/setup-zig@v2
         with:
           version: 0.13.0
       - uses: taiki-e/install-action@cargo-zigbuild
       - uses: Swatinem/rust-cache@v2
-      - run: cargo zigbuild --release --locked -p soloist-display-installer --target x86_64-unknown-linux-musl
+      - run: cargo zigbuild --release --locked -p soloist-display-installer --target x86_64-unknown-linux-gnu.2.38
       - uses: actions/upload-artifact@v7
         with:
           name: manager-x86_64
-          path: target/x86_64-unknown-linux-musl/release/soloist-display
+          path: target/x86_64-unknown-linux-gnu/release/soloist-display
           if-no-files-found: error
   distro:
     name: CLI (${{ matrix.image }})

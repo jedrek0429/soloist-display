@@ -11,33 +11,44 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - runner: ubuntu-24.04
+            target: armv7-unknown-linux-gnueabihf
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-unknown-linux-musl,aarch64-unknown-linux-musl,armv7-unknown-linux-musleabihf
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: glibc-${{ matrix.target }}
+      - name: Validate release version
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: |
+          cargo run --quiet -p soloist-display-installer --bin release-tools -- verify-workspace-version "$GITHUB_REF_NAME"
+          cargo run --quiet -p soloist-display-installer --bin release-tools -- validate-tag "$GITHUB_REF_NAME"
       - uses: mlugg/setup-zig@v2
         with:
           version: 0.13.0
       - uses: taiki-e/install-action@cargo-zigbuild
-      - uses: Swatinem/rust-cache@v2
-      - name: Validate release version
+      - name: Build GNU executables and verify compatibility
+        run: bash scripts/ci-build-glibc.sh ${{ matrix.target }}
+      - name: Save unsigned release executables
         run: |
-          version="${GITHUB_REF_NAME#v}"
-          cargo run --quiet -p soloist-display-installer --bin release-tools -- verify-workspace-version "$GITHUB_REF_NAME"
-      - name: Validate tag syntax
-        run: |
-          cargo run --quiet -p soloist-display-installer --bin release-tools -- validate-tag "$GITHUB_REF_NAME"
-      - name: Build static executables
-        run: |
-          mkdir dist
-          for target in x86_64-unknown-linux-musl aarch64-unknown-linux-musl armv7-unknown-linux-musleabihf; do
-            cargo zigbuild --workspace --release --locked --target "$target"
-            install -m755 "target/$target/release/soloist-display" "dist/soloist-display-$target"
-            install -m755 "target/$target/release/soloist-audio-bridge" "dist/soloist-audio-bridge-$target"
-          done
+          mkdir -p dist
+          target="${{ matrix.target }}"
+          install -m755 "target/$target/release/soloist-display" "dist/soloist-display-$target"
+          install -m755 "target/$target/release/soloist-audio-bridge" "dist/soloist-audio-bridge-$target"
       - name: Validate current official Soloist archives
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
         run: |
           for arch in x86_64 arm64 arm32; do
             curl --fail --location --retry 3 --connect-timeout 10 --max-time 300 \
@@ -53,16 +64,17 @@ jobs:
           file "$RUNNER_TEMP/soloist-arm32" | grep -q 'ARM.*EABI5'
           readelf -h "$RUNNER_TEMP/soloist-arm32" | grep -q 'hard-float ABI'
       - name: Save standalone release tool
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
         uses: actions/upload-artifact@v7
         with:
           name: release-tools
-          path: target/x86_64-unknown-linux-musl/release/release-tools
+          path: target/x86_64-unknown-linux-gnu/release/release-tools
           retention-days: 30
           if-no-files-found: error
-      - name: Save unsigned release inputs
+      - name: Save unsigned assets
         uses: actions/upload-artifact@v7
         with:
-          name: unsigned-release
+          name: unsigned-${{ matrix.target }}
           path: dist/
           retention-days: 30
           if-no-files-found: error
@@ -81,11 +93,12 @@ jobs:
       - name: Restore unsigned release inputs
         uses: actions/download-artifact@v8
         with:
-          name: unsigned-release
+          pattern: unsigned-*-unknown-linux-gnu*
           path: dist/
+          merge-multiple: true
       - name: Restore executable permissions
         run: |
-          for target in x86_64-unknown-linux-musl aarch64-unknown-linux-musl armv7-unknown-linux-musleabihf; do
+          for target in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu armv7-unknown-linux-gnueabihf; do
             chmod 755 "dist/soloist-display-$target" "dist/soloist-audio-bridge-$target"
           done
       - name: Create and sign manifests

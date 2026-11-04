@@ -1,0 +1,52 @@
+name: CPAL glibc validation
+
+on:
+  pull_request:
+    paths:
+      - 'audio-bridge/**'
+      - 'Cargo.lock'
+      - 'installer/**'
+      - 'scripts/ci-build-glibc.sh'
+      - '.github/workflows/cpal-glibc-validation.yml'
+  workflow_dispatch:
+
+jobs:
+  native:
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'feat/cpal-glibc-linux-packaging'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: glibc-${{ matrix.target }}
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.13.0
+      - uses: taiki-e/install-action@cargo-zigbuild
+      - run: bash scripts/ci-build-glibc.sh ${{ matrix.target }}
+
+  armv7:
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'feat/cpal-glibc-linux-packaging'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: armv7-unknown-linux-gnueabihf
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: glibc-armv7
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.13.0
+      - uses: taiki-e/install-action@cargo-zigbuild
+      - run: bash scripts/ci-build-glibc.sh armv7-unknown-linux-gnueabihf

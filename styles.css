@@ -187,7 +187,7 @@
 :root[data-panel-enabled='off'] .info{display:none!important}
 
 /* Standby follows the same flat palette and typography as Settings. */
-.standby{position:absolute;inset:0;z-index:10;display:grid;place-items:center;overflow:hidden;background:#101010;color:#f2f2f2;font-family:Arial,Helvetica,sans-serif;transition:opacity .3s ease,visibility .3s}
+.standby{position:absolute;inset:0;z-index:10;display:grid;place-items:center;overflow:hidden;background:#101010;color:#f2f2f2;font-family:Arial,Helvetica,sans-serif;transition:opacity var(--idle-fade-duration,300ms) ease,visibility var(--idle-fade-duration,300ms)}
 .standby-content{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:clamp(10px,1.8dvh,22px);padding:clamp(14px,3vmin,30px);width:100%;max-width:100%;max-height:100%;min-height:0}
 .standby-clock-group{display:flex;align-items:center;justify-content:center;min-width:0}
 .standby-clock{display:block;font-size:clamp(64px,18vmin,160px);font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.045em;line-height:1;white-space:nowrap}
@@ -208,8 +208,7 @@
 :root[data-idle-show-date='false'] .standby-date{display:none}
 .standby-connection{position:absolute;right:clamp(16px,3vw,36px);bottom:clamp(14px,3dvh,32px);margin:0;font-size:clamp(12px,1.5vmin,15px);font-weight:400;line-height:1.3;text-align:right;color:#aaa}
 .standby-connection:empty{display:none}
-:root[data-idle-appearance='black'] .standby,:root[data-idle-appearance='black']:not([data-display-state='playing']) body,:root[data-idle-appearance='black']:not([data-display-state='playing']) .stage{background:#000}
-:root[data-idle-appearance='black'] .standby{transition:none}
+:root[data-idle-appearance='black'] .standby{background:#000}
 :root[data-idle-appearance='black'] .standby-content,:root[data-idle-appearance='black'] .standby-connection{display:none}
 :root[data-display-state='connecting'] .standby,:root[data-display-state='playing'] .standby{visibility:hidden;opacity:0;pointer-events:none}
 :root:not([data-display-state='playing']) .disc-stage,:root:not([data-display-state='playing']) .info,:root:not([data-display-state='playing']) .backdrop{visibility:hidden!important}

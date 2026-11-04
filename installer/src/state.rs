@@ -185,6 +185,7 @@ pub fn atomic_json<T: Serialize>(path: &Path, value: &T, mode: Option<u32>) -> R
     file.write_all(&bytes)?;
     file.write_all(b"\n")?;
     file.sync_all()?;
+    drop(file);
     atomic_replace(&temporary, path).with_context(|| format!("activate {}", path.display()))?;
     #[cfg(windows)]
     if mode.is_some() {

@@ -644,6 +644,44 @@ mod tests {
         assert_eq!(stale.0, StatusCode::PRECONDITION_FAILED);
     }
 
+    #[tokio::test]
+    async fn accepts_custom_pause_timeout_and_rejects_invalid_values() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = WebState {
+            path: Arc::new(dir.path().join("config.json")),
+            write_lock: Arc::new(Mutex::new(())),
+        };
+        assert_eq!(read_settings(&state.path)["idlePauseDelaySeconds"], 300);
+        for delay in [-1, 0, 17, 90, 300, 3600, 86400] {
+            let mut config = read_settings(&state.path);
+            let tag = config_etag(&config);
+            config["idlePauseDelaySeconds"] = Value::from(delay);
+            let mut headers = HeaderMap::new();
+            headers.insert(header::IF_MATCH, HeaderValue::from_str(&tag).unwrap());
+            assert!(
+                put_config(State(state.clone()), headers, Json(config)).await.is_ok(),
+                "valid pause timeout {delay}"
+            );
+        }
+        for value in [
+            Value::from(-2),
+            Value::from(86401),
+            Value::from(3.5),
+            Value::from("300"),
+        ] {
+            let mut config = read_settings(&state.path);
+            let tag = config_etag(&config);
+            config["idlePauseDelaySeconds"] = value;
+            let mut headers = HeaderMap::new();
+            headers.insert(header::IF_MATCH, HeaderValue::from_str(&tag).unwrap());
+            let error = put_config(State(state.clone()), headers, Json(config))
+                .await
+                .err()
+                .expect("invalid value must fail");
+            assert_eq!(error.0, StatusCode::BAD_REQUEST);
+        }
+    }
+
     #[test]
     fn migrates_legacy_transitions_and_dot_without_losing_durations() {
         let path = env::temp_dir().join(format!(

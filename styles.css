@@ -226,3 +226,5 @@
 @media(max-height:420px){.standby-content{gap:8px}.standby-clock{font-size:min(18vh,85px)}.standby-record{width:min(28vh,120px)}.standby-caption{font-size:21px}.standby #standby-description{font-size:12px}}
 @media(prefers-reduced-motion:reduce){.standby,.standby-light,:root.burn-in-protection .standby-content{animation:none!important;transition:none!important}}
 :root[data-reduced-motion='true'] .standby,:root[data-reduced-motion='true'] .standby-light,:root[data-reduced-motion='true'].burn-in-protection .standby-content{animation:none!important;transition:none!important}
+
+:root[data-idle-appearance='black'] body,:root[data-idle-appearance='black'] .stage{background:#000}

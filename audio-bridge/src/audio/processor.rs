@@ -77,7 +77,7 @@ impl SpectrumProcessor {
             }
             self.resample_position += step;
         }
-        let consumed = self.resample_position.floor() as usize;
+        let consumed = (self.resample_position.floor() as usize).min(self.resample_buffer.len());
         if consumed > 0 {
             self.resample_buffer.drain(..consumed);
             self.resample_position -= consumed as f64;
@@ -175,6 +175,27 @@ mod tests {
                 .0,
             2
         );
+    }
+
+    #[test]
+    fn resamples_short_48khz_chunks_without_overrunning_the_buffer() {
+        let mut processor = SpectrumProcessor::new();
+        let mut frames = 0;
+        for _ in 0..300 {
+            let output = processor
+                .push(AudioChunk {
+                    samples: vec![0.25; 480],
+                    sample_rate: 48_000,
+                    channels: 1,
+                })
+                .unwrap();
+            frames += output.len();
+            assert!(output
+                .iter()
+                .flatten()
+                .all(|level| level.is_finite() && (0. ..=1.).contains(level)));
+        }
+        assert!(frames > 0);
     }
 
     #[test]

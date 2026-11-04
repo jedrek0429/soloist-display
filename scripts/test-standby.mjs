@@ -219,6 +219,77 @@ test('changing a retracted cover leaves it centred and skips the retract wait',a
   }
 });
 
+test('returning from idle reveals the fully extended sleeve without a late slide',()=>{
+  const previousDoc=globalThis.document,previousFrame=globalThis.requestAnimationFrame;
+  globalThis.requestAnimationFrame=()=>0;
+  try{
+    for(const appearance of ['vinyl-cover','cd-cover']){
+      for(const alignment of ['left','center']){
+        globalThis.document={documentElement:{dataset:{discAppearance:appearance}}};
+        const discs=[element('disc-a',[]),element('disc-b',[])];
+        const director=new DiscDirector({
+          discs,backdrops:[element('bg-a',[]),element('bg-b',[])],info:element('info',[]),
+          settings:{pauseRetractMs:0,sleeveAlignment:alignment}
+        });
+        director.started=true;
+        const track=discs[0].querySelector('.record-track');
+        const sleeve=discs[0].querySelector('.record-sleeve');
+        track.style.transform='translateX(50%)';
+        director.setPlaying(false);
+        assert.equal(director.pauseRetracted,true);
+        director.setPlaying(true,{instantResume:true});
+        assert.equal(track.style.transform,'translateX(50%)');
+        assert.equal(track.style.translate,'0% 0');
+        assert.equal(sleeve.style.translate,'0% 0');
+        assert.equal(track.style.transition,'none');
+        assert.equal(sleeve.style.transition,'none');
+
+        // Normal visible pauses must still animate in both directions.
+        director.setPlaying(false);
+        assert.equal(track.style.transition,'transform 450ms ease-in-out, translate 450ms ease-in-out');
+        director.setPlaying(true);
+        assert.equal(track.style.transition,'transform 450ms ease-in-out, translate 450ms ease-in-out');
+        director.reset();
+      }
+    }
+  }finally{
+    globalThis.document=previousDoc;
+    globalThis.requestAnimationFrame=previousFrame;
+  }
+});
+
+test('a short pause returns from idle without retracting the sleeve',()=>{
+  const previousDoc=globalThis.document,previousFrame=globalThis.requestAnimationFrame;
+  globalThis.requestAnimationFrame=()=>0;
+  try{
+    globalThis.document={documentElement:{dataset:{discAppearance:'vinyl-cover'}}};
+    const discs=[element('disc-a',[]),element('disc-b',[])];
+    const director=new DiscDirector({
+      discs,backdrops:[element('bg-a',[]),element('bg-b',[])],info:element('info',[]),
+      settings:{pauseRetractMs:5000}
+    });
+    director.started=true;
+    const track=discs[0].querySelector('.record-track');
+    track.style.transform='translateX(50%)';
+    director.setPlaying(false);
+    assert.equal(director.pauseRetracted,false);
+    director.setPlaying(true,{instantResume:true});
+    assert.equal(track.style.transform,'translateX(50%)');
+    assert.equal(director.pauseRetractTimer,null);
+    director.reset();
+  }finally{
+    globalThis.document=previousDoc;
+    globalThis.requestAnimationFrame=previousFrame;
+  }
+});
+
+test('standby state is checked before the playing scene is revealed',()=>{
+  const source=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
+  const call="director.setPlaying(playing,{instantResume:playing&&root.dataset.displayState==='paused'})";
+  assert.ok(source.includes(call));
+  assert.ok(source.indexOf(call)<source.indexOf("if(currentUri)setDisplayState('playing')"));
+});
+
 test('pause retraction is delayed, cancellable, and independent of plain discs',()=>{
   const previousDoc=globalThis.document,previousFrame=globalThis.requestAnimationFrame;
   const previousNow=Date.now;

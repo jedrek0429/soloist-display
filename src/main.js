@@ -180,7 +180,7 @@ function handleSoloist(event){
   if(item)updateItem(item);
   if(status!==null){
     playing=isPlaying(status);
-    director.setPlaying(playing);
+    director.setPlaying(playing,{instantResume:playing&&root.dataset.displayState==='paused'});
     if(playing){
       cancelPauseTimer();
       if(currentUri)setDisplayState('playing');

@@ -52,10 +52,10 @@ jobs:
           - runner: windows-11-arm
             target: aarch64-pc-windows-msvc
             windows: true
-          - runner: macos-15-intel
+          - runner: macos-26-intel
             target: x86_64-apple-darwin
             windows: false
-          - runner: macos-15
+          - runner: macos-26
             target: aarch64-apple-darwin
             windows: false
     runs-on: ${{ matrix.runner }}

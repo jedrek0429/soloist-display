@@ -29,8 +29,6 @@ Open http://127.0.0.1:8088. Point `audioWebSocket` at `ws://127.0.0.1:9191` in t
 
 Open `docs/idle-preview.html` in a browser directly. No server or Spotify session is needed. The page uses the display's real standby markup and stylesheet, with controls for all five appearances, a custom message, and connection status. Press **P** to hide or show the preview controls.
 
-For a review without changing the working branch, use a temporary Git worktree (see the pull request for the current ref).
-
 ## Test the installer
 
 Use a disposable Linux user or VM. The live systemd tests can create, start and remove `soloist.service`. **Do not run them on your usual setup.**

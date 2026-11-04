@@ -49,7 +49,6 @@ impl ReleaseManifest {
                 )
             })
     }
-
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ValueEnum)]

@@ -10,13 +10,14 @@ function preload(url){
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 export class DiscDirector{
   constructor({discs,backdrops,info,settings={}}){
-    this.settings={discRotationSeconds:12,transitionDuration:2000,backdropTransitionStyle:'fade',backdropTransitionDuration:2000,transitionStyle:'fly',sleeveTransitionStyle:'in-out',sleeveDuration:1000,sleeveDelayIn:0,sleeveDelayOut:950,transitionDelay:1000,backdropTransitionDelay:1000,panelTransitionDelay:0,panelDelayIn:0,panelDelayOut:0,sleeveAlignment:'center',panelTransitionStyle:'slide',panelTransitionDuration:2050,reducedMotion:false,pauseRetractMs:null,...settings};
+    this.settings={discRotationSeconds:12,transitionDuration:2000,backdropTransitionStyle:'fade',backdropTransitionDuration:2000,transitionStyle:'fly',sleeveTransitionStyle:'in-out',sleeveDuration:1000,sleeveDelayIn:0,sleeveDelayOut:950,transitionDelay:1000,backdropTransitionDelay:1000,panelTransitionDelay:0,panelDelayIn:0,panelDelayOut:0,sleeveAlignment:'center',panelTransitionStyle:'slide',panelTransitionDuration:2050,reducedMotion:false,pauseRetractMs:null,panelHideMs:null,...settings};
     this.motionEnabled=!this.settings.reducedMotion;
     this.discs=discs;this.backdrops=backdrops;this.info=info;
     this.current=0;this.token=0;this.started=false;this.angle=0;
     this.velocity=0;this.playing=false;this.changing=false;this.last=performance.now();
     this.pendingShow=null;this.fadeTimer=null;this.animations=new Set();this.panelAnimation=null;this.panelToken=0;
     this.pauseRetractTimer=null;this.pauseStartedAt=null;this.pauseRetracted=false;this.artworkChanging=false;this.playbackKnown=false;
+    this.panelPauseTimer=null;this.panelPauseStartedAt=null;this.panelPauseHidden=false;this.pendingPanelShow=null;
     requestAnimationFrame(t=>this.spin(t));
   }
   spin(now){
@@ -31,6 +32,9 @@ export class DiscDirector{
   }
   reset(){
     this.clearPauseRetraction();
+    this.clearPanelPauseTimer();
+    this.panelPauseHidden=false;
+    this.pendingPanelShow=null;
     this.artworkChanging=false;
     this.wasRetractedAtChange=false;
     this.playbackKnown=false;
@@ -63,6 +67,8 @@ export class DiscDirector{
     }
     this.info.style.transform='';
     this.info.style.opacity='';
+    this.info.style.transition='';
+    this.info.style.pointerEvents='';
   }
   isSleeve(){
     return ['vinyl-cover','cd-cover'].includes(document.documentElement.dataset.discAppearance);
@@ -104,11 +110,52 @@ export class DiscDirector{
       this.retractPausedTrack();
     },remaining);
   }
+  clearPanelPauseTimer(){
+    clearTimeout(this.panelPauseTimer);
+    this.panelPauseTimer=null;
+    this.panelPauseStartedAt=null;
+  }
+  positionPausedPanel(hidden,{animate=true}={}){
+    ++this.panelToken;
+    this.panelAnimation?.cancel();
+    this.panelAnimation=null;
+    if(this.pendingPanelShow){
+      const show=this.pendingPanelShow;
+      this.pendingPanelShow=null;
+      show();
+    }
+    const style=this.settings.panelTransitionStyle;
+    const duration=this.motionEnabled&&animate&&style!=='off'?this.settings.panelTransitionDuration/2:0;
+    this.info.style.transition=duration?`${style==='fade'?'opacity':'transform'} ${duration}ms ease-in-out`:'none';
+    this.info.style.transform=hidden&&style==='slide'?'translateY(calc(100% + 6vh + 60px))':'';
+    this.info.style.opacity=hidden&&style!=='slide'?'0':'';
+    this.info.style.pointerEvents=hidden?'none':'';
+  }
+  hidePausedPanel(){
+    if(this.playing||this.settings.panelEnabled===false||this.panelPauseHidden)return;
+    this.panelPauseHidden=true;
+    this.positionPausedPanel(true);
+  }
+  schedulePanelHide(){
+    if(this.settings.panelEnabled===false||this.settings.panelHideMs===null||
+       this.panelPauseStartedAt===null||this.panelPauseHidden)return;
+    clearTimeout(this.panelPauseTimer);
+    this.panelPauseTimer=null;
+    const remaining=Math.max(0,this.settings.panelHideMs-(Date.now()-this.panelPauseStartedAt));
+    if(remaining===0){this.hidePausedPanel();return;}
+    this.panelPauseTimer=setTimeout(()=>{
+      this.panelPauseTimer=null;
+      if(!this.playing)this.hidePausedPanel();
+    },remaining);
+  }
   setPlaying(value,{instantResume=false}={}){
     this.playing=value;
     if(!value&&!this.started&&!this.artworkChanging)return;
     this.playbackKnown=true;
     if(value){
+      this.clearPanelPauseTimer();
+      if(this.panelPauseHidden)this.positionPausedPanel(false,{animate:!instantResume});
+      this.panelPauseHidden=false;
       clearTimeout(this.pauseRetractTimer);
       this.pauseRetractTimer=null;
       this.pauseStartedAt=null;
@@ -121,6 +168,10 @@ export class DiscDirector{
     if(this.pauseStartedAt===null){
       this.pauseStartedAt=Date.now();
       this.schedulePauseRetraction();
+    }
+    if(this.panelPauseStartedAt===null){
+      this.panelPauseStartedAt=Date.now();
+      this.schedulePanelHide();
     }
   }
   async enterFirst(incoming,backdrop,onShow,token){
@@ -189,14 +240,21 @@ export class DiscDirector{
   }
   async transitionPanel(show){
     const token=++this.panelToken;
-    if(this.settings.panelEnabled===false){show();return;}
+    this.pendingPanelShow=show;
+    const commit=()=>{
+      if(token!==this.panelToken)return;
+      this.pendingPanelShow=null;
+      show();
+    };
+    if(this.settings.panelEnabled===false||this.panelPauseHidden){commit();return;}
     this.panelAnimation?.cancel();
     this.panelAnimation=null;
+    this.info.style.transition='';
     this.info.style.transform='';
     this.info.style.opacity='';
     const style=this.motionEnabled?this.settings.panelTransitionStyle:'off';
     const duration=this.motionEnabled?this.settings.panelTransitionDuration:0;
-    if(style==='off'||duration<=0){show();return}
+    if(style==='off'||duration<=0){commit();return}
     const wait=this.motionEnabled?this.settings.panelDelayIn:0;
     if(wait>0)await delay(wait);
     if(token!==this.panelToken)return;
@@ -216,7 +274,7 @@ export class DiscDirector{
     });
     if(!await run(exit)||token!==this.panelToken)return;
     // Swap the text only after the old panel has fully left the screen.
-    show();
+    commit();
     const outWait=this.motionEnabled?this.settings.panelDelayOut:0;
     if(outWait>0)await delay(outWait);
     if(token!==this.panelToken)return;

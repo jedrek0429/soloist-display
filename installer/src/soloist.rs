@@ -4,9 +4,9 @@ use crate::{
     process, renewal, service,
     state::{SoloistOwnership, SoloistState},
 };
-use soloist_engine::{classify, EngineMode};
 use anyhow::{anyhow, bail, Context, Result};
 use flate2::read::GzDecoder;
+use soloist_engine::{classify, EngineMode};
 use std::{
     fs,
     io::{self, IsTerminal, Write},

@@ -458,6 +458,23 @@ async fn static_file(axum::extract::Path(path): axum::extract::Path<String>) -> 
         .into_response()
 }
 
+fn display_running(port: &str) -> std::io::Result<bool> {
+    use std::io::{Read, Write};
+    use std::time::Duration;
+    let mut stream = match std::net::TcpStream::connect(format!("127.0.0.1:{port}")) {
+        Ok(stream) => stream,
+        Err(error) if error.kind() == std::io::ErrorKind::ConnectionRefused => return Ok(false),
+        Err(error) => return Err(error),
+    };
+    stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+    stream.set_write_timeout(Some(Duration::from_secs(2)))?;
+    stream.write_all(b"GET /.well-known/soloist-display HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")?;
+    let mut response = Vec::new();
+    stream.take(4096).read_to_end(&mut response)?;
+    let response = String::from_utf8_lossy(&response);
+    Ok(response.starts_with("HTTP/1.1 200 ") && response.split("\r\n\r\n").nth(1) == Some("soloist-display"))
+}
+
 fn open_browser(url: &str) -> std::io::Result<()> {
     #[cfg(target_os = "windows")]
     let mut command = {
@@ -496,6 +513,7 @@ async fn web_server(
     let app = Router::new()
         .route("/config.json", get(get_config).put(put_config))
         .route("/defaults.json", get(get_defaults))
+        .route("/.well-known/soloist-display", get(|| async { "soloist-display" }))
         .route("/", get(|| static_file(axum::extract::Path(String::new()))))
         .route(
             "/settings",
@@ -570,7 +588,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let port = env::var("SOLOIST_DISPLAY_HTTP_PORT").unwrap_or_else(|_| "8080".into());
     let open_url = open_page.map(|page| format!("http://127.0.0.1:{port}{page}"));
     if let Some(ref url) = open_url {
-        if std::net::TcpStream::connect(format!("127.0.0.1:{port}")).is_ok() {
+        if display_running(&port)? {
             open_browser(url)?;
             return Ok(());
         }

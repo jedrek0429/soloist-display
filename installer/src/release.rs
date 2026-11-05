@@ -498,9 +498,18 @@ mod channel_tests {
             json!({"draft":false,"tag_name":"v2.0.0-rc.1"}),
         ];
         assert_eq!(select_release_tag(&releases, None).unwrap(), "v1.0.0");
-        assert_eq!(select_release_tag(&releases, Some(ReleaseChannel::Alpha)).unwrap(), "v1.2.0-alpha.1");
-        assert_eq!(select_release_tag(&releases, Some(ReleaseChannel::Beta)).unwrap(), "v1.1.0-beta.67");
-        assert_eq!(select_release_tag(&releases, Some(ReleaseChannel::Prerelease)).unwrap(), "v1.2.0-alpha.1");
+        assert_eq!(
+            select_release_tag(&releases, Some(ReleaseChannel::Alpha)).unwrap(),
+            "v1.2.0-alpha.1"
+        );
+        assert_eq!(
+            select_release_tag(&releases, Some(ReleaseChannel::Beta)).unwrap(),
+            "v1.1.0-beta.67"
+        );
+        assert_eq!(
+            select_release_tag(&releases, Some(ReleaseChannel::Prerelease)).unwrap(),
+            "v1.2.0-alpha.1"
+        );
     }
 
     #[test]
@@ -512,9 +521,18 @@ mod channel_tests {
 
     #[test]
     fn installed_version_determines_its_specific_channel() {
-        assert_eq!(ReleaseChannel::for_version(&Version::parse("1.0.0").unwrap()), ReleaseChannel::Stable);
-        assert_eq!(ReleaseChannel::for_version(&Version::parse("1.1.0-alpha.7").unwrap()), ReleaseChannel::Alpha);
-        assert_eq!(ReleaseChannel::for_version(&Version::parse("1.1.0-beta.67").unwrap()), ReleaseChannel::Beta);
+        assert_eq!(
+            ReleaseChannel::for_version(&Version::parse("1.0.0").unwrap()),
+            ReleaseChannel::Stable
+        );
+        assert_eq!(
+            ReleaseChannel::for_version(&Version::parse("1.1.0-alpha.7").unwrap()),
+            ReleaseChannel::Alpha
+        );
+        assert_eq!(
+            ReleaseChannel::for_version(&Version::parse("1.1.0-beta.67").unwrap()),
+            ReleaseChannel::Beta
+        );
     }
 
     #[test]

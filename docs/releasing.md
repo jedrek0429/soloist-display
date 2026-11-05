@@ -9,7 +9,7 @@ approved stable lane. Release candidates are not used.
 - `beta/vX.Y.Z`: every push publishes the next `vX.Y.Z-beta.N`.
 - `main`: integration branch for fixes and approved changes; pushes do not publish.
 - `stable`: protected release branch, updated only by a stable-release PR.
-  Its HEAD is the code of the latest stable tag after publication succeeds.
+  Its HEAD advances when an approved release PR is merged; publication follows.
 
 All prereleases create a versioned commit off the branch head. They do not
 change their source branch. A rerun for the same source commit reuses its tag.
@@ -23,10 +23,12 @@ Run **Actions → Prepare stable release** on `main` and enter:
 - **version:** `1.0.0`, `1.0.1` or `1.1.0` (no prerelease suffix).
 
 To promote a beta, first merge `beta/vX.Y.Z` into `main` and let CI pass.
-The workflow creates `release/vX.Y.Z` from `main`, integrates the
-previous `stable` history, bumps Cargo versions and opens a PR into `stable`.
+The workflow creates `release/vX.Y.Z` on top of `stable`, copies the exact
+`main` tree, bumps Cargo versions and opens a PR into `stable`. This preserves
+release history without reintroducing old files from `stable`.
 A missing `stable` branch is bootstrapped from `main` for the first release.
-Integration conflicts stop the workflow; never silently discard stable fixes.
+The release PR shows the full difference between the last stable and `main`;
+review it before merging. Incorporate any required stable-only fixes into `main` first.
 
 Review and merge the PR only when the release is ready. The merged commit in
 `stable` is tagged and the signed release pipeline is dispatched. Use squash
@@ -37,7 +39,8 @@ directly into `stable`.
 `stable` and reject direct pushes. This cannot be enforced by workflow YAML
 alone. Keep `stable` free of direct commits.
 
-If the tagged release job fails, rerun **Signed release** on the same tag.
+The `stable` ref advances on PR merge, before the GitHub Release is published.
+If publication fails, rerun **Signed release** on the same tag.
 Never move a published tag or replace signed assets.
 
 ## Release verification

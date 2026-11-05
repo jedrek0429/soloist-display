@@ -103,6 +103,36 @@ fn release_notes_base<'a>(current_tag: &str, published: impl IntoIterator<Item =
     Ok(best.map(|(_, tag)| tag))
 }
 
+
+fn validate_prerelease_floor<'a>(
+    tag: &str,
+    published: impl IntoIterator<Item = &'a str>,
+) -> Result<()> {
+    let candidate = valid_tag(tag)?;
+    let (channel, _) = release_channel(&candidate)
+        .ok_or_else(|| anyhow!("unsupported prerelease tag: {tag}"))?;
+    if channel == ReleaseChannel::Stable {
+        bail!("expected alpha or beta prerelease tag, got {tag}");
+    }
+    let candidate_core = (candidate.major, candidate.minor, candidate.patch);
+    let latest_stable = published
+        .into_iter()
+        .filter_map(|tag| valid_tag(tag.trim()).ok())
+        .filter(|version| release_channel(version) == Some((ReleaseChannel::Stable, 0)))
+        .max();
+    if let Some(stable) = latest_stable {
+        if candidate_core <= (stable.major, stable.minor, stable.patch) {
+            bail!(
+                "cannot publish {tag}: base version {}.{}.{} must be greater than latest stable v{stable}",
+                candidate.major,
+                candidate.minor,
+                candidate.patch
+            );
+        }
+    }
+    Ok(())
+}
+
 fn digest(path: &Path) -> Result<String> {
     let mut file = fs::File::open(path).with_context(|| format!("read {}", path.display()))?;
     let mut hasher = Sha256::new();
@@ -343,6 +373,11 @@ fn main() -> Result<()> {
             render_bootstrap(Path::new(template), Path::new(manifest), base)?,
         [cmd, root] if cmd == "check-settings" =>
             check_settings(Path::new(root))?,
+        [cmd, tag] if cmd == "validate-prerelease-floor" => {
+            let mut input = String::new();
+            std::io::stdin().read_to_string(&mut input)?;
+            validate_prerelease_floor(tag, input.lines())?;
+        },
         [cmd, tag] if cmd == "release-notes-base" => {
             let mut input = String::new();
             std::io::stdin().read_to_string(&mut input)?;
@@ -356,7 +391,7 @@ fn main() -> Result<()> {
                 bail!("tag {tag} does not match workspace version {actual}");
             }
         },
-        _ => bail!("usage: release-tools validate-tag TAG | validate-bump OLD NEW | verify-workspace-version TAG | build-manifest DIST TAG VERSION | render-bootstrap TEMPLATE MANIFEST BASE | check-settings ROOT | release-notes-base TAG"),
+        _ => bail!("usage: release-tools validate-tag TAG | validate-bump OLD NEW | verify-workspace-version TAG | build-manifest DIST TAG VERSION | render-bootstrap TEMPLATE MANIFEST BASE | check-settings ROOT | release-notes-base TAG | validate-prerelease-floor TAG"),
     };
     Ok(())
 }
@@ -422,6 +457,20 @@ mod tests {
         }
         assert!(release_notes_base("v1.1.0-rc.1", tags.iter().copied()).is_err());
     }
+    #[test]
+    fn prereleases_must_exceed_latest_published_stable() {
+        let stable = ["v1.1.0", "v1.3.0", "v1.2.5", "v1.4.0-alpha.9", "invalid"];
+        for tag in ["v1.2.0-alpha.1", "v1.3.0-beta.1", "v1.1.9-alpha.1"] {
+            assert!(validate_prerelease_floor(tag, stable).is_err(), "{tag}");
+        }
+        for tag in ["v1.3.1-alpha.1", "v1.4.0-beta.1", "v2.0.0-alpha.1"] {
+            assert!(validate_prerelease_floor(tag, stable).is_ok(), "{tag}");
+        }
+        assert!(validate_prerelease_floor("v1.3.0", stable).is_err());
+        assert!(validate_prerelease_floor("v0.1.0-alpha.1", []).is_ok());
+        assert!(validate_prerelease_floor("v1.0.0-beta.1", ["v0.9.9", "v0.9.9-alpha.2"]).is_ok());
+    }
+
     #[test]
     fn rejects_invalid_tags() {
         for tag in [

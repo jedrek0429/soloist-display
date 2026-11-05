@@ -1,3 +1,5 @@
+#[path = "../../cli_output.rs"]
+mod cli_output;
 mod dependencies;
 mod legacy;
 mod lock;

@@ -65,8 +65,7 @@ async fn protocol_healthy(endpoint: &str) -> bool {
     }
 
     for _ in 0..4 {
-        let Ok(Some(Ok(message))) =
-            tokio::time::timeout(Duration::from_secs(2), ws.next()).await
+        let Ok(Some(Ok(message))) = tokio::time::timeout(Duration::from_secs(2), ws.next()).await
         else {
             return false;
         };

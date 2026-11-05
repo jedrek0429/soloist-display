@@ -182,7 +182,6 @@ export class DiscDirector{
       ?'translate(55%,-115%) scale(.72) rotateX(65deg)'
       :'translate(65%,-50%)';
     const to='translate(-50%,-50%)';
-    this.started=true;
     this.changing=style==='fly'||style==='slide';
     if(style==='fade')incoming.style.opacity='0';
     if(style==='fly'||style==='slide')incoming.style.transform=from;
@@ -200,6 +199,8 @@ export class DiscDirector{
     incoming.style.transform='';
     incoming.style.opacity='';
     this.changing=false;
+    // A second state update during the first arrival must not send a placeholder away.
+    this.started=true;
   }
   async after(wait,token,work){
     if(wait>0)await delay(wait);

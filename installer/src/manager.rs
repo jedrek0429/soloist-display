@@ -1497,7 +1497,11 @@ pub fn update_status(paths: &Paths) -> Result<()> {
         "Notifications: {}",
         if state.suppress_updates { "off" } else { "on" }
     );
-    for channel in [ReleaseChannel::Stable, ReleaseChannel::Prerelease] {
+    for channel in [
+        ReleaseChannel::Stable,
+        ReleaseChannel::Alpha,
+        ReleaseChannel::Beta,
+    ] {
         match client.select(Some(channel), None) {
             Ok((manifest, _)) => {
                 let version = manifest.version.to_string();

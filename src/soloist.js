@@ -33,6 +33,16 @@ export function albumKeyFor(item){
   const cover=coverFor(item);
   return cover?'cover:'+cover:null;
 }
+// A device handoff can resend the same item with incomplete metadata or no URI.
+export function sameTrack(a,b){
+  if(!a||!b)return false;
+  const aId=a.uri||a.id,bId=b.uri||b.id;
+  if(aId&&bId)return aId===bId;
+  const aName=entityName(a),bName=entityName(b);
+  if(!aName||!bName||aName!==bName)return false;
+  const aArtist=artistFor(a),bArtist=artistFor(b);
+  return aArtist===bArtist||aArtist==='Unknown artist'||bArtist==='Unknown artist';
+}
 export function normalize(event){
   const item=event?.item||event?.playback?.item||event?.state?.item||null;
   const position=event?.position||event?.playback?.position||event?.state?.position||null;

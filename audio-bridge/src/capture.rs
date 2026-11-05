@@ -58,6 +58,18 @@ fn output_device() -> CaptureResult<(cpal::Device, bool)> {
     Ok((device, true))
 }
 
+// CPAL reports WASAPI buffer discontinuities as errors even though capture
+// continues. Restarting for each xrun drops the next audio buffers.
+fn report_stream_error(error: cpal::Error, failures: &mpsc::Sender<String>) {
+    if matches!(
+        error.kind(),
+        cpal::ErrorKind::Xrun | cpal::ErrorKind::RealtimeDenied | cpal::ErrorKind::DeviceChanged
+    ) {
+        return;
+    }
+    let _ = failures.send(error.to_string());
+}
+
 macro_rules! capture_stream {
     ($device:expr, $config:expr, $tx:expr, $errors:expr, $type:ty, $convert:expr) => {{
         let samples: SyncSender<Vec<f32>> = $tx.clone();
@@ -68,9 +80,7 @@ macro_rules! capture_stream {
                 let converted = chunk.iter().map(|value| ($convert)(*value)).collect();
                 let _ = samples.try_send(converted);
             },
-            move |error| {
-                let _ = failures.send(error.to_string());
-            },
+            move |error| report_stream_error(error, &failures),
             None,
         )?
     }};
@@ -134,6 +144,39 @@ pub fn run(sender: broadcast::Sender<String>) -> CaptureResult<()> {
                 bands[0], bands[1], bands[2], bands[3], bands[4], bands[5]
             );
             let _ = sender.send(payload);
+        }
+    }
+}
+
+#[cfg(test)]
+mod stream_error_tests {
+    use super::*;
+
+    #[test]
+    fn transient_cpal_errors_do_not_restart_capture() {
+        let (tx, rx) = mpsc::channel();
+        for kind in [
+            cpal::ErrorKind::Xrun,
+            cpal::ErrorKind::RealtimeDenied,
+            cpal::ErrorKind::DeviceChanged,
+        ] {
+            report_stream_error(cpal::Error::new(kind), &tx);
+        }
+        assert!(matches!(rx.try_recv(), Err(mpsc::TryRecvError::Empty)));
+    }
+
+    #[test]
+    fn lost_or_invalid_audio_stream_still_triggers_recovery() {
+        let (tx, rx) = mpsc::channel();
+        for kind in [
+            cpal::ErrorKind::DeviceNotAvailable,
+            cpal::ErrorKind::StreamInvalidated,
+            cpal::ErrorKind::BackendError,
+        ] {
+            let error = cpal::Error::new(kind);
+            let expected = error.to_string();
+            report_stream_error(error, &tx);
+            assert_eq!(rx.try_recv().unwrap(), expected);
         }
     }
 }

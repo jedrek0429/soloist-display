@@ -1,7 +1,7 @@
-#[path = "../../cli_output.rs"]
-mod cli_output;
 #[path = "../../cli_arguments.rs"]
 mod cli_arguments;
+#[path = "../../cli_output.rs"]
+mod cli_output;
 mod dependencies;
 mod legacy;
 mod lock;
@@ -20,8 +20,8 @@ mod terminal;
 mod uninstall_tx;
 
 use anyhow::{bail, Result};
-use cli_arguments::{DeviceCommand, GlobalFlags};
 use clap::{CommandFactory, Parser, Subcommand};
+use cli_arguments::{DeviceCommand, GlobalFlags};
 use clap_complete::{generate, Shell};
 use lock::InstallLock;
 use manager::{DisplayDataRemoval, SoloistRemoval, UninstallOptions};
@@ -254,7 +254,9 @@ fn run() -> Result<i32> {
         }
         Command::Repair => {
             let platform = Platform::detect()?;
-            locked(&paths, || manager::repair(&paths, &platform, cli.flags.quiet))?;
+            locked(&paths, || {
+                manager::repair(&paths, &platform, cli.flags.quiet)
+            })?;
         }
         Command::Doctor => {
             if !manager::doctor(&paths)? {
@@ -269,10 +271,18 @@ fn run() -> Result<i32> {
             let mut process = std::process::Command::new(&executable);
             process.arg("device");
             match command {
-                DeviceCommand::List => { process.arg("list"); }
-                DeviceCommand::Use { output } => { process.arg("use").arg(output); }
-                DeviceCommand::Set { output } => { process.arg("set").arg(output); }
-                DeviceCommand::Default => { process.arg("default"); }
+                DeviceCommand::List => {
+                    process.arg("list");
+                }
+                DeviceCommand::Use { output } => {
+                    process.arg("use").arg(output);
+                }
+                DeviceCommand::Set { output } => {
+                    process.arg("set").arg(output);
+                }
+                DeviceCommand::Default => {
+                    process.arg("default");
+                }
             }
             let status = process.status()?;
             if !status.success() {

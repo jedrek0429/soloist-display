@@ -28,6 +28,7 @@ jobs:
       - name: Create versioned prerelease tag
         id: version
         env:
+          GH_TOKEN: ${{ github.token }}
           SOURCE_SHA: ${{ github.sha }}
           SOURCE_REF: ${{ github.ref_name }}
         run: |
@@ -41,6 +42,11 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git fetch --tags origin
+          # Refuse outdated maintenance lines before creating a release tag.
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \\
+            --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name' \\
+            | cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- \\
+              validate-prerelease-floor "v${base}-${channel}.1"
 
           # This tagged, version-only commit always has the source SHA as its parent.
           # Re-running a push never increments the prerelease number.

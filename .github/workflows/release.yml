@@ -145,6 +145,12 @@ jobs:
           previous="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
             --jq '.[] | select(.draft == false) | .tag_name' \
             | cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- release-notes-base "$GITHUB_REF_NAME")"
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \\
+              --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name' \\
+              | cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- \\
+                validate-prerelease-floor "$GITHUB_REF_NAME"
+          fi
           args=(--repo "$GITHUB_REPOSITORY" --verify-tag --title "Soloist Display $GITHUB_REF_NAME" --generate-notes)
           if [[ -n "$previous" ]]; then
             echo "Release notes baseline: $previous -> $GITHUB_REF_NAME"

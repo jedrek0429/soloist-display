@@ -1,7 +1,6 @@
 //! Read-only diagnostics for the standalone External Soloist preview.
 
-use crate::{config_path, read_settings};
-use cpal::traits::HostTrait;
+use crate::{config_path, device, read_settings};
 use futures_util::{SinkExt, StreamExt};
 use std::time::Duration;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
@@ -12,14 +11,34 @@ const DEFAULT_SOLOIST: &str = "ws://127.0.0.1:9090";
 pub enum Command {
     Serve,
     Doctor,
+    Device(DeviceCommand),
     Help,
     Version,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum DeviceCommand {
+    List,
+    Use(String),
+    Default,
 }
 
 pub fn parse(args: &[String]) -> Result<Command, String> {
     match args {
         [] => Ok(Command::Serve),
         [arg] if arg == "doctor" => Ok(Command::Doctor),
+        [device, list] if device == "device" && list == "list" => {
+            Ok(Command::Device(DeviceCommand::List))
+        }
+        [device, use_cmd, selector] if device == "device" && use_cmd == "use" => {
+            Ok(Command::Device(DeviceCommand::Use(selector.clone())))
+        }
+        [device, default] if device == "device" && default == "default" => {
+            Ok(Command::Device(DeviceCommand::Default))
+        }
+        [device, help] if device == "device" && (help == "--help" || help == "-h") => {
+            Ok(Command::Help)
+        },
         [arg] if arg == "--help" || arg == "-h" => Ok(Command::Help),
         [arg] if arg == "--version" || arg == "-V" => Ok(Command::Version),
         _ => Err("unknown command; use --help to list available commands".into()),
@@ -28,8 +47,13 @@ pub fn parse(args: &[String]) -> Result<Command, String> {
 
 pub fn help() {
     println!("Soloist Display (External-only desktop preview)");
-    println!("Usage: soloist-display [doctor|--help|--version]");
+    println!("Usage: soloist-display [doctor|device|--help|--version]");
     println!("Run without arguments to serve http://127.0.0.1:8080");
+    println!("device manages the output captured by the audio bridge for the audio visualiser:");
+    println!("  device list                 List available outputs and their stable IDs");
+    println!("  device use <number|ID|name> Choose the visualiser audio source");
+    println!("  device default              Follow the system default output");
+    println!("This does not change the Spotify Connect playback device.");
     println!("Managed Soloist is not available in this build.");
 }
 
@@ -96,13 +120,13 @@ pub async fn doctor() -> bool {
         "External Soloist: {}",
         if healthy { "healthy" } else { "unavailable" }
     );
-    let output = cpal::default_host().default_output_device();
+    let output = device::active_device();
     match &output {
-        Some(device) => println!("Default audio output: {device}"),
-        None => println!("Default audio output: unavailable"),
+        Ok((audio, _, id)) => println!("Audio bridge output: {audio} ({id})"),
+        Err(error) => println!("Audio bridge output: unavailable ({error})"),
     }
     println!("Managed Soloist: unsupported in this preview");
-    healthy && output.is_some()
+    healthy && output.is_ok()
 }
 
 #[cfg(test)]
@@ -113,6 +137,19 @@ mod tests {
     fn only_external_preview_commands_are_accepted() {
         assert_eq!(parse(&[]).unwrap(), Command::Serve);
         assert_eq!(parse(&["doctor".into()]).unwrap(), Command::Doctor);
+        assert_eq!(
+            parse(&["device".into(), "list".into()]).unwrap(),
+            Command::Device(DeviceCommand::List)
+        );
+        assert_eq!(
+            parse(&["device".into(), "use".into(), "2".into()]).unwrap(),
+            Command::Device(DeviceCommand::Use("2".into()))
+        );
+        assert_eq!(
+            parse(&["device".into(), "default".into()]).unwrap(),
+            Command::Device(DeviceCommand::Default)
+        );
+        assert!(parse(&["device".into(), "use".into()]).is_err());
         assert_eq!(parse(&["--help".into()]).unwrap(), Command::Help);
         assert_eq!(parse(&["--version".into()]).unwrap(), Command::Version);
         assert!(parse(&["install".into()]).is_err());

@@ -121,6 +121,26 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn doctor_checks_soloist_protocol_not_just_a_websocket_handshake() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let endpoint = format!("ws://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut ws = tokio_tungstenite::accept_async(stream).await.unwrap();
+            let request = ws.next().await.unwrap().unwrap();
+            assert_eq!(
+                request.into_text().unwrap().as_str(),
+                r#"{"type":"command","command":"get_auth_state"}"#
+            );
+            ws.send(Message::Text(r#"{"type":"auth_state","ready":true}"#.into()))
+                .await
+                .unwrap();
+        });
+        assert!(protocol_healthy(&endpoint).await);
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
     async fn diagnostic_never_probes_remote_endpoints() {
         assert!(!protocol_healthy("ws://example.com:9090").await);
         assert!(!protocol_healthy("wss://127.0.0.1:9090").await);

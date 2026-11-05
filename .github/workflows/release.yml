@@ -151,15 +151,22 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Mint release app token
+        id: release-app
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
-          token: ${{ secrets.RELEASE_BOT_TOKEN || github.token }}
+          token: ${{ steps.release-app.outputs.token }}
       - uses: dtolnay/rust-toolchain@stable
       - name: Point stable at the published release commit
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN || github.token }}
+          GH_TOKEN: ${{ steps.release-app.outputs.token }}
         run: |
           set -euo pipefail
           tag="$GITHUB_REF_NAME"

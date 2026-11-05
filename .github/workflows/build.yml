@@ -16,8 +16,7 @@ on:
       - 'install.sh'
       - 'scripts/**'
       - 'site/**'
-      - '.github/workflows/pages.yml'
-      - '.github/workflows/build.yml'
+      - '.github/workflows/**'
   pull_request:
     paths:
       - 'Cargo.toml'
@@ -32,8 +31,7 @@ on:
       - 'install.sh'
       - 'scripts/**'
       - 'site/**'
-      - '.github/workflows/pages.yml'
-      - '.github/workflows/build.yml'
+      - '.github/workflows/**'
 concurrency:
   group: checks-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true

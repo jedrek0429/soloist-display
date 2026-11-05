@@ -204,7 +204,10 @@ impl ReleaseClient {
         if requested == "latest" {
             if let Some(channel) = selected_channel {
                 if !channel.accepts(&verified.0.version) {
-                    bail!("release {} does not belong to the {channel:?} channel", verified.0.version);
+                    bail!(
+                        "release {} does not belong to the {channel:?} channel",
+                        verified.0.version
+                    );
                 }
             }
         }

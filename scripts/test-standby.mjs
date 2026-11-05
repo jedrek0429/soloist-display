@@ -73,7 +73,6 @@ test('handoff transient empty playback never clears or reanimates the preview',(
   const src=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
   const code=src.slice(src.indexOf('let currentUri=null,'),src.indexOf('function connect('));
   const timers=new Map();let sequence=0,changes=0,resets=0;
-  let playing=false;
   const elements={track:{textContent:''},artist:{textContent:''}};
   const root={dataset:{displayState:'ready',metadataReady:'false'}};
   const director={

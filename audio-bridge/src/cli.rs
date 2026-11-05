@@ -25,7 +25,9 @@ pub fn parse(args: &[String]) -> Result<Command, String> {
         [arg] if arg == "--help" || arg == "-h" => Ok(Command::Help),
         [arg] if arg == "--version" || arg == "-V" => Ok(Command::Version),
         [device, list] if device == "device" && list == "list" => Ok(Command::DeviceList),
-        [device, set, id] if device == "device" && set == "set" && !id.is_empty() => {
+        [device, set, id]
+            if device == "device" && (set == "use" || set == "set") && !id.is_empty() =>
+        {
             Ok(Command::DeviceSet(id.clone()))
         }
         [device, default] if device == "device" && default == "default" => {
@@ -37,14 +39,15 @@ pub fn parse(args: &[String]) -> Result<Command, String> {
 
 pub fn help() {
     println!("Soloist Display (External-only desktop preview)");
-    println!("Usage: soloist-display [doctor|device list|device set <id>|device default|--help|--version]");
+    println!("Usage: soloist-display [doctor|device list|device use <number|ID|name>|device default|--help|--version]");
     println!("Run without arguments to serve http://127.0.0.1:8080");
     println!(
         "device selects the system audio output captured by the audio bridge for the visualiser."
     );
     println!("It does not change the Spotify Connect playback device or the system default.");
     println!("  device list       List available audio outputs and their stable IDs");
-    println!("  device set <id>   Use the selected output for the audio visualiser");
+    println!("  device use <number|ID|name>   Select the audio visualiser source");
+    println!("  device set <id>              Alias for device use");
     println!("  device default    Follow the system's default output");
     println!("Managed Soloist is not available in this build.");
 }
@@ -57,7 +60,7 @@ pub fn list_devices() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     if outputs.is_empty() {
         println!("No output devices detected.");
     }
-    for output in outputs {
+    for (index, output) in outputs.into_iter().enumerate() {
         let mode = if selected.as_deref() == Some(output.id.as_str()) {
             " [selected]"
         } else if output.is_default {
@@ -65,7 +68,7 @@ pub fn list_devices() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         } else {
             ""
         };
-        println!("{}{}", output.name, mode);
+        println!("{}. {}{}", index + 1, output.name, mode);
         println!("  ID: {}", output.id);
     }
     if selected.is_none() {
@@ -181,10 +184,15 @@ mod tests {
             Command::DeviceSet("wasapi:abc".into())
         );
         assert_eq!(
+            parse(&["device".into(), "use".into(), "2".into()]).unwrap(),
+            Command::DeviceSet("2".into())
+        );
+        assert_eq!(
             parse(&["device".into(), "default".into()]).unwrap(),
             Command::DeviceDefault
         );
         assert!(parse(&["device".into(), "set".into()]).is_err());
+        assert!(parse(&["device".into(), "use".into()]).is_err());
         assert!(parse(&["device".into(), "set".into(), "".into()]).is_err());
         assert!(parse(&["install".into()]).is_err());
         assert!(parse(&["uninstall".into()]).is_err());

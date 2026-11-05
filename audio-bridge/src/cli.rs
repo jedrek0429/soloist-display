@@ -38,7 +38,7 @@ pub fn parse(args: &[String]) -> Result<Command, String> {
         }
         [device, help] if device == "device" && (help == "--help" || help == "-h") => {
             Ok(Command::Help)
-        },
+        }
         [arg] if arg == "--help" || arg == "-h" => Ok(Command::Help),
         [arg] if arg == "--version" || arg == "-V" => Ok(Command::Version),
         _ => Err("unknown command; use --help to list available commands".into()),

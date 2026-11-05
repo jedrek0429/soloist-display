@@ -109,7 +109,7 @@ jobs:
       - name: Package Windows preview
         shell: pwsh
         run: |
-          New-Item -ItemType Directory dist, out -Force | Out-Null
+          New-Item -ItemType Directory -Path dist, out -Force | Out-Null
           Copy-Item target/release/soloist-audio-bridge.exe dist/soloist-display.exe
           Copy-Item docs/standalone-desktop.md dist/README.md
           Set-Content -Path dist/BUILD.txt -Value "tag=$env:GITHUB_REF_NAME", "commit=$env:GITHUB_SHA", "mode=external-only", "experimental=true"

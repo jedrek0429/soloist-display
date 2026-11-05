@@ -142,6 +142,75 @@ test('first song animates only the arriving disc in every appearance',async()=>{
   }
 });
 
+test('rapid first metadata updates never animate an outgoing placeholder',async()=>{
+  const previousDoc=globalThis.document,previousFrame=globalThis.requestAnimationFrame;
+  globalThis.requestAnimationFrame=()=>0;
+  try{
+    for(const appearance of ['basic','vinyl-cover','cd-cover']){
+      for(const style of ['fly','slide','fade']){
+        const log=[];
+        globalThis.document={
+          documentElement:{dataset:{discAppearance:appearance}},
+          querySelectorAll:()=>[]
+        };
+        const discs=[element('disc-a',log),element('disc-b',log)];
+        const director=new DiscDirector({
+          discs,backdrops:[element('bg-a',log),element('bg-b',log)],info:element('info',log),
+          settings:{transitionStyle:style,transitionDuration:1,transitionDelay:0,
+            sleeveTransitionStyle:'in-out',sleeveDuration:1,sleeveDelayIn:0,sleeveDelayOut:0}
+        });
+        const first=director.change('',()=>{});
+        await Promise.resolve(); // The first disc is still arriving.
+        assert.equal(director.started,false,appearance+':'+style);
+        const second=director.change('',()=>{});
+        await Promise.all([first,second]);
+        assert.equal(director.started,true,appearance+':'+style);
+        assert.equal(director.current,0,appearance+':'+style);
+        assert.equal(discs.filter(d=>d.classList.contains('active')).length,1);
+        assert.ok(log.every(entry=>entry.name==='disc-a'),appearance+':'+style);
+      }
+    }
+  }finally{
+    globalThis.document=previousDoc;
+    globalThis.requestAnimationFrame=previousFrame;
+  }
+});
+
+test('idle to new track drops hidden artwork and waits for the arriving disc',()=>{
+  const source=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
+  const code=source.slice(source.indexOf('function updateItem(item){'),source.indexOf('function syncPosition('));
+  const changes=[];
+  let reset=0,shown;
+  const elements={track:{textContent:''},artist:{textContent:''}};
+  const root={dataset:{displayState:'paused',metadataReady:'false'}};
+  const director={
+    started:true,
+    reset(){reset++;this.started=false;},
+    change(cover,show){changes.push(cover);shown=show;return Promise.resolve()},
+    changePanel(){throw Error('must not animate the old panel')}
+  };
+  const context=vm.createContext({
+    root,director,$:name=>elements[name],settings:{changeDiscOn:'album'},
+    coverFor:()=>'',durationMs:()=>0,albumKeyFor:()=>null,artistFor:()=> 'Artist',
+    cancelPauseTimer(){},performance:{now:()=>1},
+    setDisplayState:state=>{root.dataset.displayState=state}
+  });
+  vm.runInContext(`
+    let lastTrack=null,currentUri='old',currentAlbumKey='old',duration=0,position=0,positionTime=0;
+    ${code}
+  `,context);
+  vm.runInContext("updateItem({uri:'placeholder'})",context);
+  assert.equal(reset,0,'an unidentified placeholder cannot start an empty disc');
+  assert.equal(changes.length,0);
+  vm.runInContext("updateItem({uri:'new',name:'New track'})",context);
+  assert.equal(reset,1,'paused artwork must be discarded when changing songs from idle');
+  assert.equal(changes.length,1);
+  assert.equal(root.dataset.displayState,'paused','idle must stay up during preload');
+  shown();
+  assert.equal(root.dataset.displayState,'playing','new artwork can be revealed on arrival');
+  assert.equal(elements.track.textContent,'New track');
+});
+
 test('cover playback retracts and resumes with the selected sleeve alignment',()=>{
   const previousDoc=globalThis.document,previousFrame=globalThis.requestAnimationFrame;
   globalThis.requestAnimationFrame=()=>0;
@@ -503,7 +572,7 @@ test('standby state is checked before the playing scene is revealed',()=>{
   const source=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
   const call="director.setPlaying(playing,{instantResume:playing&&root.dataset.displayState==='paused'})";
   assert.ok(source.includes(call));
-  assert.ok(source.indexOf(call)<source.indexOf("if(currentUri)setDisplayState('playing')"));
+  assert.ok(source.indexOf(call)<source.indexOf("if(currentUri&&director.started)setDisplayState('playing')"));
 });
 
 test('pause retraction is delayed, cancellable, and independent of plain discs',()=>{

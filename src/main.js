@@ -145,27 +145,39 @@ let lastTrack=null;
 let currentAlbumKey=null;
 function updateItem(item){
   if(!item)return;
+  const name=item?.decorations?.identity?.name||item.name||'';
+  const cover=coverFor(item);
+  // A partial state without any track metadata is not an album to animate.
+  if(!name.trim()&&!cover)return;
   lastTrack=item;
-  const uri=item.uri||item.id||[item?.decorations?.identity?.name,coverFor(item)].join('|');
+  const uri=item.uri||item.id||[name,cover].join('|');
   duration=durationMs(item)||duration;
   if(uri===currentUri)return;
   cancelPauseTimer();
+  const fromIdle=root.dataset.displayState!=='playing';
+  // Idle may retain a paused album internally. It is not a visible outgoing disc.
+  if(fromIdle&&director.started)director.reset();
   position=0;positionTime=performance.now();
   currentUri=uri;
   const albumKey=albumKeyFor(item);
   const panelOnly=settings.changeDiscOn==='album'&&albumKey!==null&&albumKey===currentAlbumKey&&director.started;
   currentAlbumKey=albumKey;
-  const name=item?.decorations?.identity?.name||item.name||'';
-  const artist=artistFor(item),cover=coverFor(item);
+  const artist=artistFor(item);
   const show=()=>{
     $('track').textContent=name;
     $('artist').textContent=artist;
     root.dataset.metadataReady=name.trim()?'true':'false';
   };
-  if(!director.started)show();
-  setDisplayState('playing');
-  if(panelOnly)director.changePanel(show);
-  else void director.change(cover,show);
+  if(panelOnly){
+    setDisplayState('playing');
+    director.changePanel(show);
+  }else{
+    if(!fromIdle)setDisplayState('playing');
+    void director.change(cover,()=>{
+      show();
+      if(fromIdle)setDisplayState('playing');
+    });
+  }
 }
 function syncPosition(ms){
   const now=performance.now();
@@ -186,7 +198,7 @@ function handleSoloist(event){
     director.setPlaying(playing,{instantResume:playing&&root.dataset.displayState==='paused'});
     if(playing){
       cancelPauseTimer();
-      if(currentUri)setDisplayState('playing');
+      if(currentUri&&director.started)setDisplayState('playing');
     }else if(currentUri){
       showPausedAfterDelay();
     }

@@ -44,23 +44,24 @@ jobs:
           else
             echo 'code_changed=true' >> "$GITHUB_OUTPUT"
           fi
+      - name: Install system dependencies
+        if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
+        run: |
+          sudo sed -i 's|azure.archive.ubuntu.com|archive.ubuntu.com|g' /etc/apt/apt-mirrors.txt
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libasound2-dev libpulse-dev shellcheck
       - uses: dtolnay/rust-toolchain@stable
         if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
         with:
           components: rustfmt, clippy
       - if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
         uses: Swatinem/rust-cache@v2
-      - name: CPAL build dependencies
-        if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libasound2-dev libpulse-dev
       - if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
         run: cargo fmt --all -- --check
       - if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
-        run: cargo test --workspace --all-targets
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo test --locked --workspace --all-targets
       - name: CPAL PulseAudio output monitor smoke test
         if: github.event_name == 'workflow_dispatch'
         run: |
@@ -78,8 +79,6 @@ jobs:
       - name: Shell checks
         if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y shellcheck
           sh -n install.sh
           shellcheck install.sh
           sh -n scripts/test-bootstrap-e2e.sh
@@ -90,7 +89,7 @@ jobs:
           for file in src/*.js; do node --check --input-type=module < "$file"; done
           node --experimental-default-type=module --test scripts/test-standby.mjs
           node --experimental-default-type=module --test scripts/test-landing-preview.mjs
-          cargo run --quiet -p soloist-display-installer --bin release-tools -- check-settings .
+          cargo run --locked --quiet -p soloist-display-installer --bin release-tools -- check-settings .
       - name: Release bootstrap pin smoke test
         if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
         run: |
@@ -106,7 +105,7 @@ jobs:
               printf '%s %s https://github.com/jedrek0429/soloist-display/releases/download/v0.0.0/soloist-display-%s\n' "$alias" "$digest" "$target"
             done
           done > /tmp/bootstrap-test/bootstrap-manifest.txt
-          cargo run --quiet -p soloist-display-installer --bin release-tools -- render-bootstrap install.sh /tmp/bootstrap-test/bootstrap-manifest.txt https://github.com/jedrek0429/soloist-display/releases/download/v0.0.0 > /tmp/bootstrap-test/install.sh
+          cargo run --locked --quiet -p soloist-display-installer --bin release-tools -- render-bootstrap install.sh /tmp/bootstrap-test/bootstrap-manifest.txt https://github.com/jedrek0429/soloist-display/releases/download/v0.0.0 > /tmp/bootstrap-test/install.sh
           sh -n /tmp/bootstrap-test/install.sh
           shellcheck /tmp/bootstrap-test/install.sh
           grep -Fq "PIN_RELEASE_BASE='https://github.com/jedrek0429/soloist-display/releases/download/v0.0.0'" /tmp/bootstrap-test/install.sh
@@ -115,7 +114,7 @@ jobs:
       - name: CLI smoke test
         if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
         run: |
-          cargo build --workspace
+          cargo build --locked --workspace
           target/debug/soloist-display --help
           target/debug/soloist-display --version
           if HOME=/tmp SOLOIST_DISPLAY_TEST_ROOT=/tmp/soloist-display-no-tty \

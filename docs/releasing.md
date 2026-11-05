@@ -1,44 +1,67 @@
 # Releasing
 
-Tags follow [SemVer](https://semver.org/) and match the workspace Cargo version: `v1.0.0-alpha.1`, `v1.0.0-beta.1`, `v1.0.0-rc.1`, `v1.0.0`.
+Release tags use SemVer. There are two automatic prerelease lanes and one manually
+approved stable lane. Release candidates are not used.
 
-Published tags are immutable. Need a fix? Publish a new tag. Don't rewrite history.
+## Branches
 
-## Prepare a release
+- `alpha/vX.Y.Z`: every push publishes the next `vX.Y.Z-alpha.N`.
+- `beta/vX.Y.Z`: every push publishes the next `vX.Y.Z-beta.N`.
+- `main`: integration branch for fixes and approved changes; pushes do not publish.
+- `stable`: protected release branch, updated only by a stable-release PR.
+  Its HEAD advances when an approved release PR is merged; publication follows.
 
-Open **Actions → Prepare release → Run workflow** on `main`. Enter a SemVer version such as `1.0.0-beta.1`, `1.0.0-rc.1` or `1.0.0` (the `v` prefix is optional).
+All prereleases create a versioned commit off the branch head. They do not
+change their source branch. A rerun for the same source commit reuses its tag.
+The shared `Signed release` pipeline builds and signs the release. A prerelease
+is never marked latest.
 
-The workflow validates the version, updates `Cargo.toml` and `Cargo.lock`, and opens `chore: bump vX.Y.Z`. It also dispatches the build and distribution checks on that branch. GitHub suppresses ordinary workflow triggers from changes made using `GITHUB_TOKEN`.
+## Stable release
 
-Review the PR and its checks before merging. Merging the version PR into `main` creates an annotated tag for the merged commit and dispatches **Signed release**. That workflow builds binaries, signs manifests and publishes the release.
+Run **Actions → Prepare stable release** on `main` and enter:
 
-If automatic publication fails after the tag was created, rerun **Signed release** with its `vX.Y.Z` tag as the ref. Do not move a published tag or silently replace release assets.
+- **version:** `1.0.0`, `1.0.1` or `1.1.0` (no prerelease suffix).
 
-## Manual fallback
+To promote a beta, first merge `beta/vX.Y.Z` into `main` and let CI pass.
+The workflow creates `release/vX.Y.Z` on top of `stable`, copies the exact
+`main` tree, bumps Cargo versions and opens a PR into `stable`. This preserves
+release history without reintroducing old files from `stable`.
+A missing `stable` branch is bootstrapped from `main` for the first release.
+The release PR shows the full difference between the last stable and `main`;
+review it before merging. Incorporate any required stable-only fixes into `main` first.
 
-Publish manually only if the automation cannot run. Use the version in `Cargo.toml`, update `Cargo.lock`, merge the change and push a new annotated `vX.Y.Z` tag. A manually pushed tag triggers **Signed release**.
+Review and merge the PR only when the release is ready. The merged commit in
+`stable` is tagged and the signed release pipeline is dispatched. Use squash
+merge in the repository's current configuration. Never merge development PRs
+directly into `stable`.
 
-Before any release, verify the signing key matches the public keys embedded in `install.sh` and `installer/src/release.rs`, check that Spotify Soloist archives are available, and review supported Linux distributions and known limitations. CI cross-builds do not prove native ARM playback. See [installer tests](testing.md) for the manual hardware and migration checks.
+**Important:** GitHub branch protection must require reviews and checks on
+`stable` and reject direct pushes. This cannot be enforced by workflow YAML
+alone. Keep `stable` free of direct commits.
 
-## Check the release
+The `stable` ref advances on PR merge, before the GitHub Release is published.
+If publication fails, rerun **Signed release** on the same tag.
+Never move a published tag or replace signed assets.
 
-1. Verify the tag, release notes and prerelease status.
-2. Check the six architecture-specific binaries, `release-manifest.json`, `release-manifest.sig`, `bootstrap-manifest.txt`, `bootstrap-manifest.sig` and `install.sh`.
-3. Install the **exact published release** in a clean environment:
+## Release verification
 
-   ```sh
-   curl -fsSL https://github.com/jedrek0429/soloist-display/releases/download/v1.0.0-alpha.1/install.sh | SOLOIST_DISPLAY_VERSION=1.0.0-alpha.1 sh
-   ```
+Before stable publication, review the signing key, official Soloist download
+availability, Linux architecture coverage and hardware smoke tests. CI cross-builds
+are not a substitute for testing playback on real ARM hardware.
 
-4. Check `--version`, Spotify Connect, settings, `doctor`, `update`, `renew-soloist`, `repair` and `uninstall`.
-5. Check the GitHub Pages version link and bootstrap. Record hardware test coverage and known faults.
+Verify release notes, the six Linux binaries, signed release and bootstrap
+manifests, and the version-pinned `install.sh`. Test install, update, repair,
+Spotify Connect, settings and uninstall on the published build.
 
 ## Channels and trust
 
-The default installer chooses the highest stable release, or the highest prerelease until the first stable exists. Stable users do not enter the prerelease channel automatically. An explicit version wins over a channel; downgrades need `--allow-downgrade`. `SOLOIST_DISPLAY_VERSION` and `SOLOIST_DISPLAY_CHANNEL` remain available.
+The default installer picks the latest stable release once one exists.
+`SOLOIST_DISPLAY_CHANNEL=alpha` selects alpha releases, and `beta` selects beta releases.
+`prerelease` remains a compatibility alias for the combined alpha/beta track.
+`SOLOIST_DISPLAY_VERSION` pins an exact version. Explicit downgrades need
+`--allow-downgrade`. The public GitHub Pages installer and release badge stay
+on stable when alpha or beta releases are published.
 
-Display releases use signed manifests. Periodic **Spotify Soloist** renewal is separate: it uses Spotify's HTTPS CDN, not an independently signed upstream manifest. Do not describe those checks as equivalent.
-
-If a release is bad, document it and ship a new, signed version. Do not replace published assets silently.
-
-Key rotation means generating a new Ed25519 pair offline, updating both embedded public keys and replacing the protected signing secret together. Never commit the private key.
+Display release manifests are signed. Managed Soloist renewal downloads Spotify
+builds over HTTPS and checks activation, but Spotify does not provide a
+separately verified upstream signature. These are different trust models.

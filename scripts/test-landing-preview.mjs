@@ -50,3 +50,44 @@ test('landing shows only the real renderer, with a black loading frame',()=>{
   assert.doesNotMatch(demo,/soloist-demo-ready|image\.decode\(\)/);
   assert.match(demo,/root\.dataset\.displayState='playing'/);
 });
+
+test('landing SEO describes the actual Linux Spotify display',()=>{
+  const landing=read('../site/index.html');
+  const workflow=read('../.github/workflows/pages.yml');
+  const sitemap=read('../site/sitemap.xml');
+  assert.match(landing,/<title>Spotify Connect Speaker & Display \| Soloist Display<\/title>/);
+  assert.match(landing,/<meta name="description" content="[^"]*Raspberry Pi/);
+  assert.match(landing,/<link rel="canonical" href="https:\/\/jedrek0429\.github\.io\/soloist-display\/">/);
+  assert.match(landing, /<script type="application\/ld\+json">/);
+  const structuredData=JSON.parse(landing.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
+  assert.equal(structuredData['@type'],'SoftwareApplication');
+  assert.equal(structuredData.operatingSystem,'Linux');
+  assert.equal(structuredData.offers.price,'0');
+  assert.match(landing,/Spotify Connect speaker with a beautiful display/);
+  assert.doesNotMatch(landing,/class="eyebrow"|class="features"|Spotify now-playing software/);
+  assert.match(landing,/Spotify Premium/);
+  assert.match(landing,/<meta property="og:image" content="https:\/\/jedrek0429\.github\.io\/soloist-display\/og-image\.webp">/);
+  assert.match(sitemap,/<loc>https:\/\/jedrek0429\.github\.io\/soloist-display\/<\/loc>/);
+  assert.match(workflow,/cp site\/sitemap\.xml/);
+  assert.match(workflow,/cp site\/og-image\.webp/);
+  assert.match(workflow,/s@<head>@<head><meta name="robots" content="noindex,follow">@/);
+});
+
+test('landing explanation stays in the main grid and follows the preview on mobile',()=>{
+  const landing=read('../site/index.html');
+  assert.match(landing,/<h2 id="about-heading">Spotify Connect for Linux and Raspberry Pi<\/h2>/);
+  assert.match(landing,/Soloist Display turns your computer into a Spotify Connect speaker\./);
+  assert.match(landing,/Control playback from the Spotify app on your phone or computer, while Soloist Display plays the music and shows animated album artwork, track details and a live audio spectrum\./);
+  assert.match(landing,/<p class="requirement">Requires Spotify Premium\.<\/p>/);
+  assert.ok(landing.indexOf('<section class="hero">') < landing.indexOf('<figure class="preview"'));
+  assert.ok(landing.indexOf('<figure class="preview"') < landing.indexOf('<section class="about"'));
+  assert.match(landing,/grid-template:"hero preview" auto "about preview" auto/);
+  assert.match(landing,/@media\(min-width:801px\) and \(max-height:800px\)/);
+  assert.doesNotMatch(landing,/class="eyebrow"|class="features"/);
+});
+
+test('header keeps the site brand separate from the GitHub navigation label',()=>{
+  const landing=read('../site/index.html');
+  assert.match(landing,/<header class="topbar">\s*<a class="brand"[^>]*>Soloist Display<\/a>\s*<nav aria-label="Project links">\s*<a class="nav-link"[^>]*>GitHub<\/a>\s*<\/nav>\s*<\/header>/);
+  assert.doesNotMatch(landing,/>Soloist Display<\/a><a[^>]*>GitHub<\/a>/);
+});

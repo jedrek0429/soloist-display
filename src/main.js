@@ -1,4 +1,4 @@
-import {artistFor,albumKeyFor,coverFor,normalize,positionMs,durationMs,playing as isPlaying,isEmptyPlayback,pauseDelayMs} from './soloist.js';
+import {artistFor,albumKeyFor,coverFor,normalize,positionMs,durationMs,playing as isPlaying,isEmptyPlayback,pauseDelayMs,sameTrack} from './soloist.js';
 import {DiscDirector} from './motion.js';
 import {Spectrum} from './spectrum.js';
 
@@ -103,12 +103,57 @@ for(const [key,value] of Object.entries({
 }))root.style.setProperty(key,value);
 const director=new DiscDirector({discs:[$('disc-a'),$('disc-b')],backdrops:[$('backdrop-a'),$('backdrop-b')],info:$('info'),settings});
 const spectrum=new Spectrum($('visualizer'), config.visualizerSensitivity ?? 1, config.visualizerSmoothing ?? 0.7, {autoNormalize:config.visualizerAutoNormalize===true,peakHold:config.visualizerPeakHold===true});
+let connectionNoticeTimer=null,connectedNoticePending=false;
+function showConnectedNotice(){
+  clearTimeout(connectionNoticeTimer);
+  $('standby-connection').textContent='Connected!';
+  connectionNoticeTimer=setTimeout(()=>{
+    connectionNoticeTimer=null;
+    $('standby-connection').textContent='';
+  },2000);
+}
 function setDisplayState(state){
   root.dataset.displayState=state;
-  $('standby-connection').textContent=state==='offline'?'Disconnected':state==='reconnecting'?'Reconnecting':'';
+  if(state!=='connecting')root.dataset.initializing='false';
+  if(state==='ready'&&connectedNoticePending){
+    connectedNoticePending=false;
+    showConnectedNotice();
+    return;
+  }
+  if(state!=='ready')connectedNoticePending=false;
+  const notice=$('standby-connection');
+  const labels={connecting:'Connecting...',offline:'Disconnected',reconnecting:'Reconnecting...'};
+  if(labels[state]){
+    clearTimeout(connectionNoticeTimer);
+    connectionNoticeTimer=null;
+    notice.textContent=labels[state];
+  }else if(connectionNoticeTimer===null||state!=='ready'){
+    clearTimeout(connectionNoticeTimer);
+    connectionNoticeTimer=null;
+    notice.textContent='';
+  }
 }
 let currentUri=null,position=0,positionTime=performance.now(),duration=0,playing=false;
-let pauseTimer=null;
+let pauseTimer=null,emptyPlaybackTimer=null;
+function cancelEmptyPlayback(){
+  if(emptyPlaybackTimer!==null)clearTimeout(emptyPlaybackTimer);
+  emptyPlaybackTimer=null;
+}
+function scheduleEmptyPlayback(){
+  if(!currentUri){
+    clearTrack();
+    setDisplayState('ready');
+    return;
+  }
+  // A device transfer may briefly report an idle snapshot before the same item resumes.
+  // Keep the existing artwork until the empty state has remained stable.
+  if(emptyPlaybackTimer!==null)return;
+  emptyPlaybackTimer=setTimeout(()=>{
+    emptyPlaybackTimer=null;
+    clearTrack();
+    setDisplayState('ready');
+  },2000);
+}
 function cancelPauseTimer(){
   if(pauseTimer!==null)clearTimeout(pauseTimer);
   pauseTimer=null;
@@ -124,6 +169,7 @@ function showPausedAfterDelay(){
   },wait);
 }
 function clearTrack(){
+  cancelEmptyPlayback();
   cancelPauseTimer();
   root.dataset.metadataReady='false';
   $('track').textContent='';
@@ -143,29 +189,49 @@ function clearTrack(){
 
 let lastTrack=null;
 let currentAlbumKey=null;
+function isCurrentTrack(item,uri,cover){
+  if(uri!==currentUri&&!(currentUri!==null&&sameTrack(item,lastTrack)))return false;
+  // A Connect handoff can resend a partial snapshot of the displayed track.
+  // Keep the richer previous artwork instead of starting another transition.
+  if(item.uri||item.id)currentUri=item.uri||item.id;
+  if(cover||!lastTrack)lastTrack=item;
+  return true;
+}
 function updateItem(item){
   if(!item)return;
-  lastTrack=item;
-  const uri=item.uri||item.id||[item?.decorations?.identity?.name,coverFor(item)].join('|');
+  const name=item?.decorations?.identity?.name||item.name||'';
+  const cover=coverFor(item);
+  // A partial state without any track metadata is not an album to animate.
+  if(!name.trim()&&!cover)return;
+  const uri=item.uri||item.id||[name,cover].join('|');
   duration=durationMs(item)||duration;
-  if(uri===currentUri)return;
+  if(isCurrentTrack(item,uri,cover))return;
+  lastTrack=item;
   cancelPauseTimer();
+  const fromIdle=root.dataset.displayState!=='playing';
+  // Idle may retain a paused album internally. It is not a visible outgoing disc.
+  if(fromIdle&&director.started)director.reset();
   position=0;positionTime=performance.now();
   currentUri=uri;
   const albumKey=albumKeyFor(item);
   const panelOnly=settings.changeDiscOn==='album'&&albumKey!==null&&albumKey===currentAlbumKey&&director.started;
   currentAlbumKey=albumKey;
-  const name=item?.decorations?.identity?.name||item.name||'';
-  const artist=artistFor(item),cover=coverFor(item);
+  const artist=artistFor(item);
   const show=()=>{
     $('track').textContent=name;
     $('artist').textContent=artist;
     root.dataset.metadataReady=name.trim()?'true':'false';
   };
-  if(!director.started)show();
-  setDisplayState('playing');
-  if(panelOnly)director.changePanel(show);
-  else void director.change(cover,show);
+  if(panelOnly){
+    setDisplayState('playing');
+    director.changePanel(show);
+  }else{
+    if(!fromIdle)setDisplayState('playing');
+    void director.change(cover,()=>{
+      show();
+      if(fromIdle)setDisplayState('playing');
+    });
+  }
 }
 function syncPosition(ms){
   const now=performance.now();
@@ -173,31 +239,37 @@ function syncPosition(ms){
   // Ignore jitter; seek or genuine drift should still correct the clock.
   if(!positionTime||Math.abs(ms-estimated)>750){position=ms;positionTime=now}
 }
+function updatePlaybackStatus(status){
+  if(status===null)return;
+  playing=isPlaying(status);
+  director.setPlaying(playing,{instantResume:playing&&root.dataset.displayState==='paused'});
+  if(playing){
+    cancelPauseTimer();
+    if(currentUri&&director.started)setDisplayState('playing');
+  }else if(currentUri){
+    showPausedAfterDelay();
+  }
+}
+function updatePosition(value){
+  if(value===null)return;
+  const ms=positionMs(value);
+  if(Number.isFinite(ms))syncPosition(ms);
+}
 function handleSoloist(event){
   const {item,position:pos,status}=normalize(event);
   if(isEmptyPlayback(event)){
-    clearTrack();
-    setDisplayState('ready');
+    scheduleEmptyPlayback();
     return;
   }
+  if(item||(status!==null&&status!=='idle'&&status!=='stopped'))cancelEmptyPlayback();
   if(item)updateItem(item);
-  if(status!==null){
-    playing=isPlaying(status);
-    director.setPlaying(playing,{instantResume:playing&&root.dataset.displayState==='paused'});
-    if(playing){
-      cancelPauseTimer();
-      if(currentUri)setDisplayState('playing');
-    }else if(currentUri){
-      showPausedAfterDelay();
-    }
-  }
-  if(pos!==null){const ms=positionMs(pos);if(Number.isFinite(ms))syncPosition(ms)}
+  updatePlaybackStatus(status);
+  updatePosition(pos);
   if(event.type==='position_sync'||event.type==='position_changed'){
-    const ms=positionMs(event.position??event);
-    if(Number.isFinite(ms))syncPosition(ms);
+    updatePosition(event.position??event);
   }
 }
-function connect(url,onData,onOpen,onDisconnect){
+function connect(url,onData,onOpen,onDisconnect,onConnecting){
   let retry=500,connected=false;
   function lost(){
     onDisconnect?.(connected?'reconnecting':'offline');
@@ -205,6 +277,7 @@ function connect(url,onData,onOpen,onDisconnect){
     retry=Math.min(retry*1.7,12000);
   }
   function open(){
+    onConnecting?.();
     let socket;
     try{socket=new WebSocket(url)}catch{lost();return}
     socket.onopen=()=>{connected=true;retry=500;onOpen?.(socket)};
@@ -215,11 +288,20 @@ function connect(url,onData,onOpen,onDisconnect){
   open();
 }
 connect(config.soloistWebSocket||'ws://127.0.0.1:9090',handleSoloist,s=>{
-  if(!currentUri)setDisplayState('connecting');
+  connectedNoticePending=!currentUri;
+  if(!currentUri){
+    if(root.dataset.initializing==='false')setDisplayState('ready');
+    else setTimeout(()=>{
+      // An empty get_state response is not guaranteed. Do not stay blank forever.
+      if(!currentUri&&s.readyState===WebSocket.OPEN&&root.dataset.displayState==='connecting')setDisplayState('ready');
+    },600);
+  }
   s.send(JSON.stringify({type:'command',command:'get_state'}));
 },state=>{
   clearTrack();
   setDisplayState(state);
+},()=>{
+  if(!currentUri)setDisplayState('connecting');
 });
 if(config.visualizer!==false&&settings.panelEnabled){
   let retry=500;

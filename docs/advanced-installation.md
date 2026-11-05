@@ -23,13 +23,15 @@ After installation:
 ```sh
 soloist-display check-updates
 soloist-display update --channel stable
+soloist-display update --channel alpha
+soloist-display update --channel beta
 soloist-display update --channel prerelease
-soloist-display update --version 1.2.0-rc.3
+soloist-display update --version 1.1.0-beta.67
 soloist-display update --version 1.0.0-alpha.1 --allow-downgrade
 soloist-display notifications off
 ```
 
-The channel is remembered. Downgrades need explicit consent; older settings may not survive them. `notifications on` restores update prompts.
+The channel is remembered. `alpha` and `beta` track only their respective prereleases. The legacy `prerelease` channel follows both. A normal install follows stable once it exists; setting `SOLOIST_DISPLAY_CHANNEL=alpha` or `beta` selects that channel when the manager resolves a release. Downgrades need explicit consent; older settings may not survive them. `notifications on` restores update prompts.
 
 ## Shell completions
 

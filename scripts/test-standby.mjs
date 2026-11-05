@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import vm from 'node:vm';
-import {isEmptyPlayback,pauseDelayMs} from '../src/soloist.js';
+import {isEmptyPlayback,pauseDelayMs,sameTrack,normalize,artistFor,albumKeyFor,coverFor,durationMs,positionMs,playing as isPlaying} from '../src/soloist.js';
 
 test('disc and standby use separate vinyl labels and setting keys',()=>{
   const source=fs.readFileSync(new URL('../src/settings.js',import.meta.url),'utf8');
@@ -56,6 +56,72 @@ test('pausing does not remove the artwork',()=>{
 test('a track wins over an inconsistent empty outer field',()=>{
   assert.equal(isEmptyPlayback({item:null,playback:{item:{uri:'spotify:track:a'},status:'playing'}}),false);
   assert.equal(isEmptyPlayback({item:{uri:'spotify:track:b'},status:'stopped'}),false);
+});
+
+test('a Spotify Connect handoff preserves the current track identity',()=>{
+  const track={uri:'spotify:track:0sMR4StyIAXLE0WrfaZIDu',name:"I'm Old Fashioned",artists:[{name:'John Coltrane'}]};
+  const same={uri:track.uri,name:track.name};
+  const partial={name:track.name};
+  assert.equal(sameTrack(track,same),true);
+  assert.equal(sameTrack(track,partial),true);
+  assert.equal(sameTrack(partial,track),true);
+  assert.equal(sameTrack(track,{uri:'spotify:track:another',name:track.name}),false);
+  assert.equal(sameTrack(track,{name:'Different track'}),false);
+});
+
+test('handoff transient empty playback never clears or reanimates the preview',()=>{
+  const src=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
+  const code=src.slice(src.indexOf('let currentUri=null,'),src.indexOf('function connect('));
+  const timers=new Map();let sequence=0,changes=0,resets=0;
+  const elements={track:{textContent:''},artist:{textContent:''}};
+  const root={dataset:{displayState:'ready',metadataReady:'false'}};
+  const director={
+    started:false,
+    reset(){resets++;this.started=false},
+    change(url,onShow){changes++;this.started=true;onShow();return Promise.resolve()},
+    changePanel(){throw Error('handoff should not animate panel')},
+    setPlaying(){},
+  };
+  const context=vm.createContext({
+    root,director,$:id=>elements[id],settings:{changeDiscOn:'album'},
+    config:{idlePauseDelaySeconds:300},
+    normalize,isEmptyPlayback,artistFor,coverFor,albumKeyFor,durationMs,positionMs,
+    sameTrack,isPlaying,pauseDelayMs,performance:{now:()=>1000},
+    setTimeout:(callback,ms)=>{const id=++sequence;timers.set(id,{callback,ms});return id},
+    clearTimeout:id=>timers.delete(id),
+    setDisplayState:state=>{root.dataset.displayState=state}
+  });
+  vm.runInContext(code,context);
+  const event=obj=>{context.input=obj;vm.runInContext('handleSoloist(input)',context)};
+  const track={uri:'spotify:track:0sMR4StyIAXLE0WrfaZIDu',name:"I'm Old Fashioned",artists:[{name:'John Coltrane'}],
+    album:{images:[{url:'cover.jpg'}]}};
+  event({type:'playback_state',status:'playing',item:track,is_active:false});
+  assert.equal(changes,1);
+  assert.equal(root.dataset.displayState,'playing');
+  const originalArtwork=elements.track.textContent;
+  // Soloist may report an empty playback snapshot while Connect switches speakers.
+  event({type:'playback_state',status:'idle',item:null,is_active:true});
+  assert.equal(root.dataset.displayState,'playing');
+  assert.equal(changes,1);
+  assert.equal(resets,0);
+  assert.equal([...timers.values()][0].ms,2000);
+  event({type:'device_changed',is_active:true});
+  event({type:'playback_state',status:'playing',item:{name:track.name},is_active:true});
+  assert.equal(timers.size,0);
+  assert.equal(changes,1,'same track must not fly out, even with missing URI and artwork');
+  assert.equal(resets,0);
+  assert.equal(elements.track.textContent,originalArtwork);
+  event({type:'track_changed',item:track});
+  assert.equal(changes,1,'restored full metadata must not restart the animation');
+  // A real persistent empty snapshot should still return to idle.
+  event({type:'playback_state',status:'idle',item:null,is_active:true});
+  const [timerId,timer]=timers.entries().next().value;
+  timers.delete(timerId);
+  timer.callback();
+  assert.equal(root.dataset.displayState,'ready');
+  assert.equal(resets,1);
+  event({type:'track_changed',item:{...track,uri:'spotify:track:new',name:'Next track'}});
+  assert.equal(changes,2,'a genuinely different track must animate');
 });
 
 test('pause delay supports any whole second up to a day, or never',()=>{
@@ -140,6 +206,75 @@ test('first song animates only the arriving disc in every appearance',async()=>{
     globalThis.document=originalDoc;
     globalThis.requestAnimationFrame=originalFrame;
   }
+});
+
+test('rapid first metadata updates never animate an outgoing placeholder',async()=>{
+  const previousDoc=globalThis.document,previousFrame=globalThis.requestAnimationFrame;
+  globalThis.requestAnimationFrame=()=>0;
+  try{
+    for(const appearance of ['basic','vinyl-cover','cd-cover']){
+      for(const style of ['fly','slide','fade']){
+        const log=[];
+        globalThis.document={
+          documentElement:{dataset:{discAppearance:appearance}},
+          querySelectorAll:()=>[]
+        };
+        const discs=[element('disc-a',log),element('disc-b',log)];
+        const director=new DiscDirector({
+          discs,backdrops:[element('bg-a',log),element('bg-b',log)],info:element('info',log),
+          settings:{transitionStyle:style,transitionDuration:1,transitionDelay:0,
+            sleeveTransitionStyle:'in-out',sleeveDuration:1,sleeveDelayIn:0,sleeveDelayOut:0}
+        });
+        const first=director.change('',()=>{});
+        await Promise.resolve(); // The first disc is still arriving.
+        assert.equal(director.started,false,appearance+':'+style);
+        const second=director.change('',()=>{});
+        await Promise.all([first,second]);
+        assert.equal(director.started,true,appearance+':'+style);
+        assert.equal(director.current,0,appearance+':'+style);
+        assert.equal(discs.filter(d=>d.classList.contains('active')).length,1);
+        assert.ok(log.every(entry=>entry.name==='disc-a'),appearance+':'+style);
+      }
+    }
+  }finally{
+    globalThis.document=previousDoc;
+    globalThis.requestAnimationFrame=previousFrame;
+  }
+});
+
+test('idle to new track drops hidden artwork and waits for the arriving disc',()=>{
+  const source=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
+  const code=source.slice(source.indexOf('function isCurrentTrack('),source.indexOf('function syncPosition('));
+  const changes=[];
+  let reset=0,shown;
+  const elements={track:{textContent:''},artist:{textContent:''}};
+  const root={dataset:{displayState:'paused',metadataReady:'false'}};
+  const director={
+    started:true,
+    reset(){reset++;this.started=false;},
+    change(cover,show){changes.push(cover);shown=show;return Promise.resolve()},
+    changePanel(){throw Error('must not animate the old panel')}
+  };
+  const context=vm.createContext({
+    root,director,$:name=>elements[name],settings:{changeDiscOn:'album'},
+    coverFor:()=>'',durationMs:()=>0,albumKeyFor:()=>null,artistFor:()=> 'Artist',sameTrack,
+    cancelPauseTimer(){},performance:{now:()=>1},
+    setDisplayState:state=>{root.dataset.displayState=state}
+  });
+  vm.runInContext(`
+    let lastTrack=null,currentUri='old',currentAlbumKey='old',duration=0,position=0,positionTime=0;
+    ${code}
+  `,context);
+  vm.runInContext("updateItem({uri:'placeholder'})",context);
+  assert.equal(reset,0,'an unidentified placeholder cannot start an empty disc');
+  assert.equal(changes.length,0);
+  vm.runInContext("updateItem({uri:'new',name:'New track'})",context);
+  assert.equal(reset,1,'paused artwork must be discarded when changing songs from idle');
+  assert.equal(changes.length,1);
+  assert.equal(root.dataset.displayState,'paused','idle must stay up during preload');
+  shown();
+  assert.equal(root.dataset.displayState,'playing','new artwork can be revealed on arrival');
+  assert.equal(elements.track.textContent,'New track');
 });
 
 test('cover playback retracts and resumes with the selected sleeve alignment',()=>{
@@ -503,7 +638,7 @@ test('standby state is checked before the playing scene is revealed',()=>{
   const source=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
   const call="director.setPlaying(playing,{instantResume:playing&&root.dataset.displayState==='paused'})";
   assert.ok(source.includes(call));
-  assert.ok(source.indexOf(call)<source.indexOf("if(currentUri)setDisplayState('playing')"));
+  assert.ok(source.indexOf(call)<source.indexOf("if(currentUri&&director.started)setDisplayState('playing')"));
 });
 
 test('pause retraction is delayed, cancellable, and independent of plain discs',()=>{
@@ -578,12 +713,64 @@ test('default standby message is blank in config, display and preview',()=>{
   assert.match(preview,/<input id="caption" type="text" maxlength="80" value="">/);
 });
 
-test('standby stays hidden until the first playback state arrives',()=>{
+test('boot hides standby briefly; a later reconnect keeps idle visible',()=>{
   const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
   const css=fs.readFileSync(new URL('../styles.css',import.meta.url),'utf8');
-  assert.match(html,/<html[^>]*data-display-state="connecting"/);
-  assert.ok(css.includes(":root[data-display-state='connecting'] .standby,:root[data-display-state='playing'] .standby{visibility:hidden;opacity:0;pointer-events:none}"));
+  const main=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
+  assert.match(html,/<html[^>]*data-display-state="connecting" data-initializing="true"/);
+  assert.ok(css.includes(":root[data-display-state='connecting'][data-initializing='true'] .standby,:root[data-display-state='playing'] .standby{visibility:hidden;opacity:0;pointer-events:none}"));
+  assert.match(main,/if\(state!=='connecting'\)root\.dataset\.initializing='false'/);
+  assert.match(main,/if\(!currentUri\)setDisplayState\('connecting'\)/);
+  assert.match(main,/if\(!currentUri&&s\.readyState===WebSocket\.OPEN&&root\.dataset\.displayState==='connecting'\)setDisplayState\('ready'\)/);
 });
+
+test('connected standby notice survives the empty state and expires after two seconds',()=>{
+  const main=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
+  const start=main.indexOf('let connectionNoticeTimer=null,connectedNoticePending=false;');
+  const end=main.indexOf('let currentUri=null,',start);
+  assert.ok(start!==-1&&end>start);
+  const root={dataset:{displayState:'connecting',initializing:'true'}};
+  const notice={textContent:''};
+  const timers=new Map();
+  let next=1;
+  const context=vm.createContext({
+    root,$:()=>notice,
+    setTimeout:(fn,ms)=>{const id=next++;timers.set(id,{fn,ms});return id;},
+    clearTimeout:id=>timers.delete(id)
+  });
+  vm.runInContext(main.slice(start,end),context);
+  const set=state=>vm.runInContext("setDisplayState('"+state+"')",context);
+  set('connecting');
+  assert.equal(notice.textContent,'Connecting...');
+  set('offline');
+  assert.equal(root.dataset.initializing,'false');
+  assert.equal(notice.textContent,'Disconnected');
+  set('reconnecting');
+  assert.equal(notice.textContent,'Reconnecting...');
+  set('connecting'); // After the initial attempt this no longer hides the standby UI.
+  assert.equal(notice.textContent,'Connecting...');
+  vm.runInContext('connectedNoticePending=true',context);
+  set('ready');
+  assert.equal(notice.textContent,'Connected!');
+  assert.equal(root.dataset.displayState,'ready');
+  assert.equal([...timers.values()][0].ms,2000);
+  set('ready'); // An empty get_state result must not erase the notice.
+  assert.equal(notice.textContent,'Connected!');
+  const [timerId,timer]=timers.entries().next().value;
+  timers.delete(timerId); // Simulate the timer being consumed by the event loop.
+  timer.fn();
+  assert.equal(notice.textContent,'');
+  vm.runInContext('connectedNoticePending=true',context);
+  set('ready');
+  set('playing'); // Music takes priority over the notice.
+  assert.equal(notice.textContent,'');
+  assert.equal(timers.size,0);
+  vm.runInContext('connectedNoticePending=true',context);
+  set('offline'); // Losing the connection must not show a stale success message.
+  assert.equal(notice.textContent,'Disconnected');
+  assert.equal(timers.size,0);
+});
+
 
 test('standby has flat settings background and no redundant connection copy',()=>{
   const app=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
@@ -594,5 +781,5 @@ test('standby has flat settings background and no redundant connection copy',()=
   assert.match(style,/\.standby-record\{[^}]*width:min\(90vw,calc\(100dvh - 7rem\)\)/);
   assert.doesNotMatch(app,/Play something on Spotify to begin/);
   assert.doesNotMatch(app,/'PAUSED'|'READY'|standby-status|standby-description/);
-  assert.match(app,/state==='offline'\?'Disconnected':state==='reconnecting'\?'Reconnecting'/);
+  assert.match(app,/connecting:'Connecting\.\.\.',offline:'Disconnected',reconnecting:'Reconnecting\.\.\.'/);
 });

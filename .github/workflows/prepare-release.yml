@@ -7,11 +7,6 @@ on:
         description: 'Stable version (e.g. 1.0.1)'
         type: string
         required: true
-      target_branch:
-        description: 'Source branch to promote into stable'
-        type: string
-        required: true
-        default: main
 
 permissions:
   contents: write
@@ -37,7 +32,6 @@ jobs:
         id: release
         env:
           VERSION_INPUT: ${{ inputs.version }}
-          SOURCE_BRANCH: ${{ inputs.target_branch }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
@@ -46,13 +40,9 @@ jobs:
             echo "Only stable MAJOR.MINOR.PATCH versions are allowed" >&2
             exit 1
           fi
-          if [[ "$SOURCE_BRANCH" != main && ! "$SOURCE_BRANCH" =~ ^(alpha|beta)/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Source must be main, alpha/vX.Y.Z or beta/vX.Y.Z" >&2
-            exit 1
-          fi
           tag="v$version"
           branch="release/$tag"
-          git fetch origin "$SOURCE_BRANCH"
+          git fetch origin main
           if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
             echo "Tag $tag already exists" >&2
             exit 1
@@ -70,7 +60,7 @@ jobs:
               -f ref=refs/heads/stable -f sha="$baseline"
           fi
           git fetch origin stable
-          git switch --create "$branch" "origin/$SOURCE_BRANCH"
+          git switch --create "$branch" origin/main
 
           # Merge the last released state to preserve stable ancestry after
           # squash merges. Stop on conflicts rather than choosing silently.
@@ -117,11 +107,10 @@ jobs:
           GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN || github.token }}
           BRANCH: ${{ steps.release.outputs.branch }}
           TAG: ${{ steps.release.outputs.tag }}
-          SOURCE_BRANCH: ${{ inputs.target_branch }}
         run: |
           gh pr create --base stable --head "$BRANCH" \
             --title "chore: bump $TAG" \
-            --body "Promote \`$SOURCE_BRANCH\` to the protected \`stable\` branch as $TAG.
+            --body "Promote \`main\` to the protected \`stable\` branch as $TAG.
 
           Merge this PR only after all checks pass. The merged stable commit is tagged and published by Signed release."
 

@@ -35,9 +35,25 @@ struct WebState {
 }
 
 fn config_path() -> PathBuf {
+    if let Some(directory) = env::var_os("SOLOIST_DISPLAY_CONFIG_DIR") {
+        return PathBuf::from(directory).join("config.json");
+    }
+
+    #[cfg(target_os = "windows")]
+    let base = env::var_os("APPDATA")
+        .map(PathBuf::from)
+        .or_else(|| env::var_os("USERPROFILE").map(|home| PathBuf::from(home).join("AppData/Roaming")))
+        .unwrap_or_else(|| PathBuf::from("."));
+
+    #[cfg(target_os = "macos")]
+    let base = PathBuf::from(env::var_os("HOME").unwrap_or_default())
+        .join("Library/Application Support");
+
+    #[cfg(target_os = "linux")]
     let base = env::var_os("XDG_CONFIG_HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(env::var_os("HOME").unwrap_or_default()).join(".config"));
+
     base.join("soloist-display/config.json")
 }
 

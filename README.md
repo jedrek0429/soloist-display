@@ -6,11 +6,20 @@
 [![License: MIT](https://img.shields.io/github/license/jedrek0429/soloist-display?style=for-the-badge)](LICENSE)
 [![Code quality](https://img.shields.io/codefactor/grade/github/jedrek0429/soloist-display/main?style=for-the-badge&label=Code%20quality)](https://www.codefactor.io/repository/github/jedrek0429/soloist-display)
 
-A full-screen now-playing display for [Spotify Soloist](https://developer.spotify.com/documentation/soloist).
+Turn a Linux computer or Raspberry Pi into a Spotify Connect speaker with a full-screen display. Built on [Spotify Soloist](https://developer.spotify.com/documentation/soloist).
 
-![Soloist Display](docs/screenshots/now-playing.webp)
+[See the live Spotify display preview](https://jedrek0429.github.io/soloist-display/).
 
-Pick music on your phone. See the artwork, track details and live audio spectrum on your Linux computer or Raspberry Pi.
+<p align="center">
+  <img src="docs/screenshots/triple-threat.webp" alt="Soloist Display — album art and track details with a vinyl record" width="48%">
+  <img src="docs/screenshots/vinyl-cover.webp" alt="Soloist Display — vinyl record and expanded track information" width="48%">
+</p>
+<p align="center">
+  <img src="docs/screenshots/kind-of-blue.webp" alt="Soloist Display — Kind of Blue album display" width="48%">
+  <img src="docs/screenshots/crt-setup.webp" alt="Soloist Display running on a CRT television" width="48%">
+</p>
+
+Play music through your Linux computer or Raspberry Pi as a Spotify Connect speaker. Pick tracks on your phone; Soloist Display handles playback and shows animated album art, track details and a live audio spectrum.
 
 ## Install
 

@@ -1,7 +1,22 @@
-name: Standalone desktop (External Soloist)
+name: Desktop beta builds
 
+# PRs are validated, but downloadable binaries are published only after integration
+# into beta. Each Actions run owns its artifacts; this is not a GitHub Release.
 on:
+  push:
+    branches: [beta/cpal-integration]
+    paths:
+      - 'audio-bridge/**'
+      - 'Cargo.lock'
+      - 'Cargo.toml'
+      - 'src/**'
+      - 'index.html'
+      - 'settings.html'
+      - 'styles.css'
+      - 'config.json'
+      - '.github/workflows/standalone-desktop.yml'
   pull_request:
+    branches: [beta/cpal-integration]
     paths:
       - 'audio-bridge/**'
       - 'Cargo.lock'
@@ -13,6 +28,10 @@ on:
       - 'config.json'
       - '.github/workflows/standalone-desktop.yml'
   workflow_dispatch:
+
+concurrency:
+  group: desktop-beta-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   windows:
@@ -32,6 +51,8 @@ jobs:
         run: |
           New-Item -ItemType Directory dist -Force | Out-Null
           Copy-Item target/release/soloist-audio-bridge.exe dist/soloist-display.exe
+          Copy-Item docs/standalone-desktop.md dist/README.md
+          Set-Content -Path dist/BUILD.txt -Value "commit=$env:GITHUB_SHA", "mode=external-only"
       - name: Smoke test HTTP server without running Soloist
         shell: pwsh
         run: |
@@ -58,12 +79,14 @@ jobs:
               Get-Content (Join-Path $env:RUNNER_TEMP 'display.stderr')
             }
           }
-      - uses: actions/upload-artifact@v7
+      - name: Upload downloadable Windows beta
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/beta/cpal-integration'
+        uses: actions/upload-artifact@v7
         with:
-          name: soloist-display-windows-x86_64-external
-          path: dist/soloist-display.exe
+          name: soloist-display-windows-x86_64-beta
+          path: dist/
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 14
 
   macos:
     strategy:
@@ -90,6 +113,8 @@ jobs:
         run: |
           mkdir -p dist
           install -m755 target/release/soloist-audio-bridge dist/soloist-display
+          cp docs/standalone-desktop.md dist/README.md
+          printf 'commit=%s\nmode=external-only\n' "$GITHUB_SHA" > dist/BUILD.txt
       - name: Smoke test HTTP server without running Soloist
         env:
           SOLOIST_DISPLAY_CONFIG_DIR: ${{ runner.temp }}/soloist-standalone
@@ -106,9 +131,11 @@ jobs:
           test -s /tmp/soloist-page.html
           curl -fsS http://127.0.0.1:18080/config.json | grep -q 'soloistWebSocket'
           curl -fsS http://127.0.0.1:18080/settings | grep -q 'html'
-      - uses: actions/upload-artifact@v7
+      - name: Upload downloadable macOS beta
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/beta/cpal-integration'
+        uses: actions/upload-artifact@v7
         with:
-          name: soloist-display-macos-${{ matrix.target }}-external
-          path: dist/soloist-display
+          name: soloist-display-macos-${{ matrix.target }}-beta
+          path: dist/
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 14

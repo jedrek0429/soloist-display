@@ -14,18 +14,12 @@ on:
 
 jobs:
   native:
+    # Native x86 on relevant PRs; native ARM64 is only built manually.
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - runner: ubuntu-24.04
-            target: x86_64-unknown-linux-gnu
-          - runner: ubuntu-24.04-arm
-            target: aarch64-unknown-linux-gnu
+        include: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '[{"runner":"ubuntu-24.04","target":"x86_64-unknown-linux-gnu"},{"runner":"ubuntu-24.04-arm","target":"aarch64-unknown-linux-gnu"}]' || '[{"runner":"ubuntu-24.04","target":"x86_64-unknown-linux-gnu"}]') }}
     runs-on: ${{ matrix.runner }}
-    # Cross-architecture GNU builds remain an explicit pre-release/manual gate.
-    # On affected PRs, check the native Linux GNU/CPAL build only.
-    if: github.event_name == 'workflow_dispatch' || matrix.target == 'x86_64-unknown-linux-gnu'
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable

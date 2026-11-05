@@ -1,6 +1,9 @@
 //! Read-only diagnostics for the standalone External Soloist preview.
 
-use crate::{cli_output, cli_arguments::{DeviceCommand, GlobalFlags}, config_path, device, read_settings};
+use crate::{
+    cli_arguments::{DeviceCommand, GlobalFlags},
+    cli_output, config_path, device, read_settings,
+};
 use clap::{error::ErrorKind, CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -27,7 +30,11 @@ pub enum Command {
 }
 
 #[derive(Parser, Debug)]
-#[command(name = "soloist-display", version, about = "Run and configure Soloist Display")]
+#[command(
+    name = "soloist-display",
+    version,
+    about = "Run and configure Soloist Display"
+)]
 struct DesktopCli {
     #[command(flatten)]
     flags: GlobalFlags,
@@ -90,7 +97,9 @@ pub fn verbose() -> bool {
 }
 
 pub fn help() {
-    DesktopCli::command().print_help().expect("stdout available");
+    DesktopCli::command()
+        .print_help()
+        .expect("stdout available");
     println!();
     println!("Device selection only changes the visualiser source, not Spotify playback.");
     println!("Managed Soloist and lifecycle commands are not yet supported on desktop.");
@@ -259,7 +268,10 @@ mod tests {
         assert!(parse(&["device".into(), "set".into(), "".into()]).is_err());
         assert_eq!(parse(&["launch".into()]).unwrap(), Command::Launch);
         assert_eq!(parse(&["settings".into()]).unwrap(), Command::Settings);
-        assert!(matches!(parse(&["completions".into(), "powershell".into()]), Ok(Command::Completions(_))));
+        assert!(matches!(
+            parse(&["completions".into(), "powershell".into()]),
+            Ok(Command::Completions(_))
+        ));
         assert!(parse(&["--verbose".into(), "--quiet".into()]).is_err());
         assert!(parse(&["install".into()]).is_err());
         assert!(parse(&["uninstall".into()]).is_err());

@@ -3,10 +3,10 @@
 set -eu
 
 BOOTSTRAP_VERSION=1
-PIN_RELEASE_BASE='https://github.com/jedrek0429/soloist-display/releases/download/v1.1.0-alpha.2'
-PIN_X86_64='1bc859e19c7104cb7f1c9123f573c790036159f81c8528d9c97ac52e0864f778'
-PIN_AARCH64='48b98024a3f838cbd254114503dc817bf087404d5b632695f0348a22de53a059'
-PIN_ARMV7='52c9ae50346be842b3b99c95c9d6ed3ccec30ec536b68d16ca5cd616571941cd'
+PIN_RELEASE_BASE='https://github.com/jedrek0429/soloist-display/releases/download/v1.0.0'
+PIN_X86_64='37748e06e05b8148464f8534d2a87010b3f1f10685644f6ebb1a75af95ed36bb'
+PIN_AARCH64='110380f2ebbbe2770c5d528425e6ece8713995b50ed28e391202229eb3eb7919'
+PIN_ARMV7='1a80a2817030bcfeb657357d58e653dda3d4bf5ba4698e9dcd78b1cf349b71c6'
 version=${SOLOIST_DISPLAY_VERSION-latest}
 case "$version" in
   latest)
@@ -69,9 +69,9 @@ esac
 bits=$(getconf LONG_BIT 2>/dev/null || printf unknown)
 machine=$(uname -m 2>/dev/null || printf unknown)
 case "$machine:$bits" in
-  x86_64:64|amd64:64) target=x86_64-unknown-linux-gnu; legacy_target=x86_64-unknown-linux-musl ;;
-  aarch64:64|arm64:64) target=aarch64-unknown-linux-gnu; legacy_target=aarch64-unknown-linux-musl ;;
-  armv7*:32|armv8*:32|armhf:32|aarch64:32) target=armv7-unknown-linux-gnueabihf; legacy_target=armv7-unknown-linux-musleabihf ;;
+  x86_64:64|amd64:64) target=x86_64-unknown-linux-musl ;;
+  aarch64:64|arm64:64) target=aarch64-unknown-linux-musl ;;
+  armv7*:32|armv8*:32|armhf:32|aarch64:32) target=armv7-unknown-linux-musleabihf ;;
   *) fail "unsupported architecture or userland: $machine ($bits-bit)" ;;
 esac
 
@@ -112,9 +112,7 @@ fetch "$RELEASE_BASE/bootstrap-manifest.sig" "$signature_b64" || fail 'could not
 openssl base64 -d -A -in "$signature_b64" -out "$signature" 2>/dev/null || fail 'invalid installer signature encoding'
 openssl pkeyutl -verify -pubin -inkey "$public_key" -rawin -in "$manifest" -sigfile "$signature" >/dev/null 2>&1 || fail 'installer metadata signature verification failed'
 
-record=$(awk -v target="$target" '$1 == target && $2 ~ /^[0-9a-f]{64}$/ && $3 ~ /^https:\/\// { print $2 " " $3; found++ } END { if (found != 1) exit 1 }' "$manifest") ||
-  record=$(awk -v target="$legacy_target" '$1 == target && $2 ~ /^[0-9a-f]{64}$/ && $3 ~ /^https:\/\// { print $2 " " $3; found++ } END { if (found != 1) exit 1 }' "$manifest") ||
-  fail "authenticated metadata has no unique installer for $target or $legacy_target"
+record=$(awk -v target="$target" '$1 == target && $2 ~ /^[0-9a-f]{64}$/ && $3 ~ /^https:\/\// { print $2 " " $3; found++ } END { if (found != 1) exit 1 }' "$manifest") || fail "authenticated metadata has no unique installer for $target"
 expected_sha=${record%% *}
 installer_url=${record#* }
   ;;

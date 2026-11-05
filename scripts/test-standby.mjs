@@ -578,12 +578,64 @@ test('default standby message is blank in config, display and preview',()=>{
   assert.match(preview,/<input id="caption" type="text" maxlength="80" value="">/);
 });
 
-test('standby stays hidden until the first playback state arrives',()=>{
+test('boot hides standby briefly; a later reconnect keeps idle visible',()=>{
   const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
   const css=fs.readFileSync(new URL('../styles.css',import.meta.url),'utf8');
-  assert.match(html,/<html[^>]*data-display-state="connecting"/);
-  assert.ok(css.includes(":root[data-display-state='connecting'] .standby,:root[data-display-state='playing'] .standby{visibility:hidden;opacity:0;pointer-events:none}"));
+  const main=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
+  assert.match(html,/<html[^>]*data-display-state="connecting" data-initializing="true"/);
+  assert.ok(css.includes(":root[data-display-state='connecting'][data-initializing='true'] .standby,:root[data-display-state='playing'] .standby{visibility:hidden;opacity:0;pointer-events:none}"));
+  assert.match(main,/if\(state!=='connecting'\)root\.dataset\.initializing='false'/);
+  assert.match(main,/if\(!currentUri\)setDisplayState\('connecting'\)/);
+  assert.match(main,/if\(!currentUri&&s\.readyState===WebSocket\.OPEN&&root\.dataset\.displayState==='connecting'\)setDisplayState\('ready'\)/);
 });
+
+test('connected standby notice survives the empty state and expires after two seconds',()=>{
+  const main=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
+  const start=main.indexOf('let connectionNoticeTimer=null,connectedNoticePending=false;');
+  const end=main.indexOf('let currentUri=null,',start);
+  assert.ok(start!==-1&&end>start);
+  const root={dataset:{displayState:'connecting',initializing:'true'}};
+  const notice={textContent:''};
+  const timers=new Map();
+  let next=1;
+  const context=vm.createContext({
+    root,$:()=>notice,
+    setTimeout:(fn,ms)=>{const id=next++;timers.set(id,{fn,ms});return id;},
+    clearTimeout:id=>timers.delete(id)
+  });
+  vm.runInContext(main.slice(start,end),context);
+  const set=state=>vm.runInContext("setDisplayState('"+state+"')",context);
+  set('connecting');
+  assert.equal(notice.textContent,'Connecting...');
+  set('offline');
+  assert.equal(root.dataset.initializing,'false');
+  assert.equal(notice.textContent,'Disconnected');
+  set('reconnecting');
+  assert.equal(notice.textContent,'Reconnecting...');
+  set('connecting'); // After the initial attempt this no longer hides the standby UI.
+  assert.equal(notice.textContent,'Connecting...');
+  vm.runInContext('connectedNoticePending=true',context);
+  set('ready');
+  assert.equal(notice.textContent,'Connected!');
+  assert.equal(root.dataset.displayState,'ready');
+  assert.equal([...timers.values()][0].ms,2000);
+  set('ready'); // An empty get_state result must not erase the notice.
+  assert.equal(notice.textContent,'Connected!');
+  const [timerId,timer]=timers.entries().next().value;
+  timers.delete(timerId); // Simulate the timer being consumed by the event loop.
+  timer.fn();
+  assert.equal(notice.textContent,'');
+  vm.runInContext('connectedNoticePending=true',context);
+  set('ready');
+  set('playing'); // Music takes priority over the notice.
+  assert.equal(notice.textContent,'');
+  assert.equal(timers.size,0);
+  vm.runInContext('connectedNoticePending=true',context);
+  set('offline'); // Losing the connection must not show a stale success message.
+  assert.equal(notice.textContent,'Disconnected');
+  assert.equal(timers.size,0);
+});
+
 
 test('standby has flat settings background and no redundant connection copy',()=>{
   const app=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
@@ -594,5 +646,5 @@ test('standby has flat settings background and no redundant connection copy',()=
   assert.match(style,/\.standby-record\{[^}]*width:min\(90vw,calc\(100dvh - 7rem\)\)/);
   assert.doesNotMatch(app,/Play something on Spotify to begin/);
   assert.doesNotMatch(app,/'PAUSED'|'READY'|standby-status|standby-description/);
-  assert.match(app,/state==='offline'\?'Disconnected':state==='reconnecting'\?'Reconnecting'/);
+  assert.match(app,/connecting:'Connecting\.\.\.',offline:'Disconnected',reconnecting:'Reconnecting\.\.\.'/);
 });

@@ -4,13 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Stable version (e.g. 1.0.1)'
+        description: 'Stable version (e.g. 1.0.0)'
         type: string
         required: true
 
 permissions:
   contents: write
-  pull-requests: write
   actions: write
 
 concurrency:
@@ -26,13 +25,14 @@ jobs:
           ref: main
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
 
-      - name: Validate and prepare release branch
+      - name: Prepare versioned release commit without changing main
         id: release
         env:
           VERSION_INPUT: ${{ inputs.version }}
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           version="${VERSION_INPUT#v}"
@@ -41,35 +41,13 @@ jobs:
             exit 1
           fi
           tag="v$version"
-          branch="release/$tag"
-          git fetch origin main
           if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
             echo "Tag $tag already exists" >&2
             exit 1
           fi
-          if git ls-remote --exit-code --heads origin "refs/heads/$branch" >/dev/null; then
-            echo "Release branch $branch already exists" >&2
-            exit 1
-          fi
-
-          # First stable is bootstrapped from main. Later releases never write
-          # directly to stable; they must merge an explicit release PR.
-          if ! git ls-remote --exit-code --heads origin refs/heads/stable >/dev/null; then
-            baseline="$(git rev-parse origin/main)"
-            gh api "repos/$GITHUB_REPOSITORY/git/refs" \
-              -f ref=refs/heads/stable -f sha="$baseline"
-          fi
-          git fetch origin stable
-          git switch --create "$branch" origin/stable
-
-          # Keep stable ancestry without importing stale files from stable.
-          # The release tree must match main, apart from the Cargo version bump.
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git restore --source=origin/main --staged --worktree :/
-          if ! git diff --cached --quiet; then
-            git commit -m "chore: sync main for $tag"
-          fi
+          git fetch origin main stable
+          git switch --detach origin/main
+          source_sha="$(git rev-parse HEAD)"
           current="$(sed -n 's/^version = "\([^"]*\)"$/\1/p' Cargo.toml)"
           stable_version="$(git show origin/stable:Cargo.toml | sed -n 's/^version = "\([^"]*\)"$/\1/p')"
           test -n "$current"
@@ -77,49 +55,51 @@ jobs:
           cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- validate-tag "$tag"
           cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- validate-bump "$current" "$version"
           cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- validate-bump "$stable_version" "$version"
-
           VERSION="$version" python3 - <<'PY'
           import os
           from pathlib import Path
           import re
 
           path = Path("Cargo.toml")
-          contents, count = re.subn(
+          updated, count = re.subn(
               r'(?m)^version = "[^"]+"$',
               'version = "' + os.environ["VERSION"] + '"',
               path.read_text(),
           )
           if count != 1:
               raise SystemExit("Expected one workspace version")
-          path.write_text(contents)
+          path.write_text(updated)
           PY
           cargo update --workspace
           cargo metadata --format-version 1 --no-deps --locked >/dev/null
           cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- verify-workspace-version "$tag"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add Cargo.toml Cargo.lock
-          git commit -m "chore: bump $tag"
-          git push origin "HEAD:refs/heads/$branch"
-          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          git commit -m "chore: build $tag from $source_sha"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
-      - name: Open stable pull request
+      - name: Check release tree
+        run: |
+          set -euo pipefail
+          cargo fmt --all -- --check
+          cargo test --workspace --all-targets --locked
+          cargo clippy --workspace --all-targets --locked -- -D warnings
+          for file in src/*.js; do node --check --input-type=module < "$file"; done
+          node --experimental-default-type=module --test scripts/test-standby.mjs
+          node --experimental-default-type=module --test scripts/test-landing-preview.mjs
+
+      - name: Tag verified release tree
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN || github.token }}
-          BRANCH: ${{ steps.release.outputs.branch }}
           TAG: ${{ steps.release.outputs.tag }}
         run: |
-          gh pr create --base stable --head "$BRANCH" \
-            --title "chore: bump $TAG" \
-            --body "Promote \`main\` to the protected \`stable\` branch as $TAG.
+          set -euo pipefail
+          git tag -a "$TAG" -m "Soloist Display $TAG"
+          git push origin "refs/tags/$TAG"
 
-          Merge this PR only after all checks pass. The merged stable commit is tagged and published by Signed release."
-
-      - name: Run checks for token-created PR
+      # A tag pushed with GITHUB_TOKEN does not trigger push workflows.
+      - name: Dispatch signed release
         env:
           GH_TOKEN: ${{ github.token }}
-          BRANCH: ${{ steps.release.outputs.branch }}
-          TOKEN_CREATED_PR: ${{ secrets.RELEASE_BOT_TOKEN == '' }}
-        run: |
-          if [ "$TOKEN_CREATED_PR" = true ]; then
-            gh workflow run build.yml --ref "$BRANCH"
-          fi
+          TAG: ${{ steps.release.outputs.tag }}
+        run: gh workflow run release.yml --ref "$TAG"

@@ -1,51 +1,53 @@
 # Releasing
 
-Release tags use SemVer. There are two automatic prerelease lanes and one manually
-approved stable lane. Release candidates are not used.
+Release tags use SemVer. Alpha and beta builds are automatic; stable releases
+are explicitly dispatched. Release candidates are not used.
 
 ## Branches
 
-- `alpha/vX.Y.Z`: every push publishes the next `vX.Y.Z-alpha.N`.
-- `beta/vX.Y.Z`: every push publishes the next `vX.Y.Z-beta.N`.
-- `main`: integration branch for fixes and approved changes; pushes do not publish.
-- `stable`: protected release branch, updated only by a stable-release PR.
-  Its HEAD advances when an approved release PR is merged; publication follows.
+- `main`: development source and development Cargo version. Releases never modify it.
+- `alpha/vX.Y.Z`: each push publishes the next `vX.Y.Z-alpha.N`.
+- `beta/vX.Y.Z`: each push publishes the next `vX.Y.Z-beta.N`.
+- `stable`: exact commit of the latest successfully published stable release.
 
-All prereleases create a versioned commit off the branch head. They do not
-change their source branch. A rerun for the same source commit reuses its tag.
-The shared `Signed release` pipeline builds the six Linux executables and signs
-the Linux installer manifests. For alpha/beta tags, it also builds unsigned,
-External-only Windows x86_64 and macOS Apple Silicon desktop previews from the
-*exact tagged commit*. Both desktop builds must pass before publication, and
-their ZIP archives are attached to the same GitHub Release. Stable releases do
-not run desktop preview builds. A prerelease is never marked latest.
+Each release has its own versioned commit, built from the selected source commit.
+`Cargo.toml` and `Cargo.lock` are changed only in that release commit.
+Prerelease branches and `main` keep their own versions.
 
 ## Stable release
 
-Run **Actions → Prepare stable release** on `main` and enter:
+First merge the intended code into `main` and let Checks pass. Promote
+beta changes into `main` before publishing stable.
 
-- **version:** `1.0.0`, `1.0.1` or `1.1.0` (no prerelease suffix).
+Run **Actions → Prepare stable release** on `main`, entering a stable version
+such as `1.0.0`. The workflow checks the requested version against both
+`main` and the previous `stable` version, creates a versioned commit based
+on `main`, and tests that commit. It then creates an immutable tag and
+dispatches **Signed release**.
 
-To promote a beta, first merge `beta/vX.Y.Z` into `main` and let CI pass.
-The workflow creates `release/vX.Y.Z` on top of `stable`, copies the exact
-`main` tree, bumps Cargo versions and opens a PR into `stable`. This preserves
-release history without reintroducing old files from `stable`.
-A missing `stable` branch is bootstrapped from `main` for the first release.
-The release PR shows the full difference between the last stable and `main`;
-review it before merging. Incorporate any required stable-only fixes into `main` first.
+Only after the signed GitHub Release has been published does **Signed release**
+move `stable` to the exact tag commit. The move uses a SHA lease and refuses
+to replace `stable` if another release became latest in the meantime.
+The release tag and `stable` should resolve to the same commit after success.
 
-Review and merge the PR only when the release is ready. The merged commit in
-`stable` is tagged and the signed release pipeline is dispatched. Use squash
-merge in the repository's current configuration. Never merge development PRs
-directly into `stable`.
+`stable` is a moving pointer, not an integration branch. Its history may be
+rewritten when a new stable tag is published, because each release commit
+descends from a `main` source commit, not from the previous `stable` commit.
+Do not open PRs into `stable`. Never merge `stable` back into `main`.
 
-**Important:** GitHub branch protection must require reviews and checks on
-`stable` and reject direct pushes. This cannot be enforced by workflow YAML
-alone. Keep `stable` free of direct commits.
+### Required GitHub configuration
 
-The `stable` ref advances on PR merge, before the GitHub Release is published.
-If publication fails, rerun **Signed release** on the same tag.
-Never move a published tag or replace signed assets.
+The `stable protect` ruleset must grant the release automation identity a
+**bypass** of its PR requirement, required checks and non-fast-forward rules
+for `stable`. Keep everyone else protected. Configure a GitHub App (preferred)
+or a dedicated automation identity for the bypass. Supply its credential
+as the repository secret `RELEASE_BOT_TOKEN` (Contents: read/write).
+The workflow uses this credential only to update `stable`.
+
+Without a matching bypass, the release is still published but the stable
+synchronisation job fails. Do not disable protection globally as a workaround.
+After fixing permissions, rerun the failed `sync-stable` job for the published
+tag. Do not rerun release creation or move a published tag.
 
 ## Release verification
 
@@ -54,12 +56,8 @@ availability, Linux architecture coverage and hardware smoke tests. CI cross-bui
 are not a substitute for testing playback on real ARM hardware.
 
 Verify release notes, the six Linux binaries, signed release and bootstrap
-manifests, and the version-pinned `install.sh`. For alpha/beta, also verify
-`soloist-display-preview-windows-x86_64-vX.Y.Z-CHANNEL.N.zip` and
-`soloist-display-preview-macos-arm64-vX.Y.Z-CHANNEL.N.zip`, each containing
-`BUILD.txt` with the exact tag and commit SHA. Publication fails if either
-preview build or artifact validation fails. Test install, update, repair,
-Spotify Connect, settings and uninstall on the published Linux build.
+manifests, and the version-pinned `install.sh`. Test install, update, repair,
+Spotify Connect, settings and uninstall on the published build.
 
 ## Channels and trust
 
@@ -70,9 +68,6 @@ The default installer picks the latest stable release once one exists.
 `--allow-downgrade`. The public GitHub Pages installer and release badge stay
 on stable when alpha or beta releases are published.
 
-Display release manifests sign and cover the Linux assets only. The experimental
-Windows/macOS preview ZIPs are **unsigned** and deliberately excluded from the
-Linux installer manifests; they are neither supported stable installers nor
-Managed Soloist builds. Managed Soloist renewal downloads Spotify builds over
-HTTPS and checks activation, but Spotify does not provide a separately
-verified upstream signature. These are different trust models.
+Display release manifests are signed. Managed Soloist renewal downloads Spotify
+builds over HTTPS and checks activation, but Spotify does not provide a
+separately verified upstream signature. These are different trust models.

@@ -271,6 +271,7 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
       - name: Restore signed release assets
         uses: actions/download-artifact@v8
         with:
@@ -296,11 +297,84 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
+          # GitHub's implicit baseline ignores prerelease channel sequencing.
+          # Only already-published releases are eligible, not draft/unused tags.
+          previous="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq '.[] | select(.draft == false) | .tag_name' \
+            | cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- release-notes-base "$GITHUB_REF_NAME")"
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+              --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name' \
+              | cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- \
+                validate-prerelease-floor "$GITHUB_REF_NAME"
+          fi
           args=(--repo "$GITHUB_REPOSITORY" --verify-tag --title "Soloist Display $GITHUB_REF_NAME" --generate-notes)
+          if [[ -n "$previous" ]]; then
+            echo "Release notes baseline: $previous -> $GITHUB_REF_NAME"
+            args+=(--notes-start-tag "$previous")
+          else
+            echo "No earlier published baseline; generating initial release notes"
+          fi
           if [[ "$GITHUB_REF_NAME" == *-* ]]; then
             args+=(--prerelease --latest=false)
           fi
           gh release create "$GITHUB_REF_NAME" dist/* "${args[@]}"
+
+  sync-stable:
+    needs: publish
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Mint release app token
+        id: release-app
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-workflows: write
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+          token: ${{ steps.release-app.outputs.token }}
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Point stable at the published release commit
+        env:
+          GH_TOKEN: ${{ steps.release-app.outputs.token }}
+        run: |
+          set -euo pipefail
+          tag="$GITHUB_REF_NAME"
+          [[ "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          git fetch origin refs/heads/main refs/heads/stable
+          release_tag="$(gh release view "$tag" --json tagName,isDraft,isPrerelease --jq 'select(.isDraft == false and .isPrerelease == false) | .tagName')"
+          test "$release_tag" = "$tag"
+          latest="$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)"
+          if [ "$latest" != "$tag" ]; then
+            echo "$tag is not the latest published stable release ($latest); refusing to move stable" >&2
+            exit 1
+          fi
+          sha="$(git rev-parse "$tag^{commit}")"
+          test "$(git rev-parse HEAD)" = "$sha"
+          test "$(git rev-parse "$sha^")" = "$(git ls-remote origin refs/heads/main | cut -f1)" || {
+            echo "main has advanced since the release was prepared; confirming release ancestry instead"
+            git merge-base --is-ancestor "$sha^" origin/main
+          }
+          cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- verify-workspace-version "$tag"
+          old="$(git ls-remote origin refs/heads/stable | cut -f1)"
+          test -n "$old"
+          if [ "$old" = "$sha" ]; then
+            echo "stable already matches $tag"
+            exit 0
+          fi
+          # stable is an exact release pointer, not a merge history.
+          # Its ruleset must grant this release bot bypass (including force updates).
+          git push --force-with-lease="refs/heads/stable:$old" origin "$sha:refs/heads/stable"
+          test "$(git ls-remote origin refs/heads/stable | cut -f1)" = "$sha"
+
 
   pages:
     needs: publish

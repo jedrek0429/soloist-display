@@ -189,6 +189,14 @@ function clearTrack(){
 
 let lastTrack=null;
 let currentAlbumKey=null;
+function isCurrentTrack(item,uri,cover){
+  if(uri!==currentUri&&!(currentUri!==null&&sameTrack(item,lastTrack)))return false;
+  // A Connect handoff can resend a partial snapshot of the displayed track.
+  // Keep the richer previous artwork instead of starting another transition.
+  if(item.uri||item.id)currentUri=item.uri||item.id;
+  if(cover||!lastTrack)lastTrack=item;
+  return true;
+}
 function updateItem(item){
   if(!item)return;
   const name=item?.decorations?.identity?.name||item.name||'';
@@ -197,13 +205,7 @@ function updateItem(item){
   if(!name.trim()&&!cover)return;
   const uri=item.uri||item.id||[name,cover].join('|');
   duration=durationMs(item)||duration;
-  if(uri===currentUri||(currentUri!==null&&sameTrack(item,lastTrack))){
-    // The current album is already displayed. A new snapshot is not a disc change.
-    // Keep the richer previous metadata when the handoff sends a partial entity.
-    if(item.uri||item.id)currentUri=item.uri||item.id;
-    if(cover||!lastTrack)lastTrack=item;
-    return;
-  }
+  if(isCurrentTrack(item,uri,cover))return;
   lastTrack=item;
   cancelPauseTimer();
   const fromIdle=root.dataset.displayState!=='playing';

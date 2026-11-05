@@ -21,8 +21,8 @@ mod uninstall_tx;
 
 use anyhow::{bail, Result};
 use clap::{CommandFactory, Parser, Subcommand};
-use cli_arguments::{DeviceCommand, GlobalFlags};
 use clap_complete::{generate, Shell};
+use cli_arguments::{DeviceCommand, GlobalFlags};
 use lock::InstallLock;
 use manager::{DisplayDataRemoval, SoloistRemoval, UninstallOptions};
 use paths::Paths;

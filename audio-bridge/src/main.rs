@@ -8,6 +8,7 @@ use axum::{
 use futures_util::SinkExt;
 mod capture;
 mod cli;
+mod device;
 mod pcm;
 mod spectrum;
 use serde_json::Value;
@@ -488,6 +489,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             return Err(std::io::Error::other("doctor: checks failed").into());
         }
+        cli::Command::Device(command) => {
+            match command {
+                cli::DeviceCommand::List => device::list(),
+                cli::DeviceCommand::Use(selector) => device::use_device(&selector),
+                cli::DeviceCommand::Default => device::use_default(),
+            }
+            .map_err(|error| std::io::Error::other(error.to_string()))?;
+            return Ok(());
+        }
         cli::Command::Help => {
             cli::help();
             return Ok(());
@@ -503,10 +513,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (sender, _) = broadcast::channel::<String>(64);
     let capture_tx = sender.clone();
     tokio::task::spawn_blocking(move || loop {
-        if let Err(error) = capture::run(capture_tx.clone()) {
-            eprintln!("Audio capture stopped: {error}; retrying");
+        match capture::run(capture_tx.clone()) {
+            Ok(()) => continue, // Selected output changed. Reopen immediately.
+            Err(error) => {
+                eprintln!("Audio capture stopped: {error}; retrying");
+                std::thread::sleep(std::time::Duration::from_secs(2));
+            }
         }
-        std::thread::sleep(std::time::Duration::from_secs(2));
     });
     eprintln!(
         "Spectrum WebSocket listening on ws://127.0.0.1:{port} (6 bands, {:.1} Hz)",

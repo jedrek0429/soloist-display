@@ -239,30 +239,34 @@ function syncPosition(ms){
   // Ignore jitter; seek or genuine drift should still correct the clock.
   if(!positionTime||Math.abs(ms-estimated)>750){position=ms;positionTime=now}
 }
+function updatePlaybackStatus(status){
+  if(status===null)return;
+  playing=isPlaying(status);
+  director.setPlaying(playing,{instantResume:playing&&root.dataset.displayState==='paused'});
+  if(playing){
+    cancelPauseTimer();
+    if(currentUri&&director.started)setDisplayState('playing');
+  }else if(currentUri){
+    showPausedAfterDelay();
+  }
+}
+function updatePosition(value){
+  if(value===null)return;
+  const ms=positionMs(value);
+  if(Number.isFinite(ms))syncPosition(ms);
+}
 function handleSoloist(event){
   const {item,position:pos,status}=normalize(event);
   if(isEmptyPlayback(event)){
     scheduleEmptyPlayback();
     return;
   }
-  if(item||(status!==null&&status!=='idle'&&status!=='stopped')){
-    cancelEmptyPlayback();
-  }
+  if(item||(status!==null&&status!=='idle'&&status!=='stopped'))cancelEmptyPlayback();
   if(item)updateItem(item);
-  if(status!==null){
-    playing=isPlaying(status);
-    director.setPlaying(playing,{instantResume:playing&&root.dataset.displayState==='paused'});
-    if(playing){
-      cancelPauseTimer();
-      if(currentUri&&director.started)setDisplayState('playing');
-    }else if(currentUri){
-      showPausedAfterDelay();
-    }
-  }
-  if(pos!==null){const ms=positionMs(pos);if(Number.isFinite(ms))syncPosition(ms)}
+  updatePlaybackStatus(status);
+  updatePosition(pos);
   if(event.type==='position_sync'||event.type==='position_changed'){
-    const ms=positionMs(event.position??event);
-    if(Number.isFinite(ms))syncPosition(ms);
+    updatePosition(event.position??event);
   }
 }
 function connect(url,onData,onOpen,onDisconnect,onConnecting){

@@ -52,10 +52,9 @@ fn release_channel(version: &Version) -> Option<(ReleaseChannel, u64)> {
     let pre = version.pre.as_str();
     let (channel, sequence) = if let Some(number) = pre.strip_prefix("alpha.") {
         (ReleaseChannel::Alpha, number)
-    } else if let Some(number) = pre.strip_prefix("beta.") {
-        (ReleaseChannel::Beta, number)
     } else {
-        return None;
+        let number = pre.strip_prefix("beta.")?;
+        (ReleaseChannel::Beta, number)
     };
     if sequence.is_empty() || sequence.starts_with('0') {
         return None;
@@ -72,7 +71,8 @@ fn release_notes_base<'a>(
     let (channel, sequence) = release_channel(&current)
         .ok_or_else(|| anyhow!("unsupported release channel: {current_tag}"))?;
     let version_key = |v: &Version| (v.major, v.minor, v.patch);
-    let mut best: Option<((u8, u64, u64, u64, u64), String)> = None;
+    type ReleaseRank = (u8, u64, u64, u64, u64);
+    let mut best: Option<(ReleaseRank, String)> = None;
 
     for tag in published {
         let tag = tag.trim();

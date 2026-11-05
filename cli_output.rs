@@ -41,6 +41,7 @@ pub fn check(label: &str, passed: bool, hint: &str) -> bool {
     passed
 }
 
+#[allow(dead_code)] // The Linux installer uses clap for help; desktop uses this formatter.
 pub fn command(syntax: &str, description: &str) {
     println!("  {syntax:<32} {description}");
 }

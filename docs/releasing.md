@@ -1,61 +1,64 @@
 # Releasing
 
-Tags follow [SemVer](https://semver.org/) and match the workspace Cargo version: `v1.0.0-alpha.1`, `v1.0.0-beta.1`, `v1.0.0-rc.1`, `v1.0.0`.
+Release tags use SemVer. There are two automatic prerelease lanes and one manually
+approved stable lane. Release candidates are not used.
 
-Published tags are immutable. Need a fix? Publish a new tag. Don't rewrite history.
+## Branches
 
-## Continuous alpha releases
+- `alpha/vX.Y.Z`: every push publishes the next `vX.Y.Z-alpha.N`.
+- `beta/vX.Y.Z`: every push publishes the next `vX.Y.Z-beta.N`.
+- `main`: integration branch for fixes and approved changes; pushes do not publish.
+- `stable`: protected release branch, updated only by a stable-release PR.
+  Its HEAD is the code of the latest stable tag after publication succeeds.
 
-Every push to `alpha/vMAJOR.MINOR.PATCH` creates a signed `vMAJOR.MINOR.PATCH-alpha.N` prerelease.
-The `Publish alpha on push` workflow picks the next unused alpha number for that
-version, makes a version-only commit **outside the branch**, tags it and dispatches
-`Signed release`. The development branch is not rewritten, so version bumps cannot
-trigger another push release. Re-running the same push reuses its tag.
+All prereleases create a versioned commit off the branch head. They do not
+change their source branch. A rerun for the same source commit reuses its tag.
+The shared `Signed release` pipeline builds and signs the release. A prerelease
+is never marked latest.
 
-Keep the workflow on the alpha branch (or merge the latest `main` into it) before
-expecting the trigger to work. The source branch may keep its development version;
-the tagged commit contains the exact Cargo version required for publication.
-Do not create manual alpha tags for the same commits. The signed release workflow
-is responsible for publishing binaries, manifests and prerelease metadata.
+## Stable release
 
-Stable `1.0.x` releases still use **Prepare release** and a PR to `main`.
-Publishing an alpha must not replace the stable version or installer on GitHub Pages.
+Run **Actions → Prepare stable release** on `main` and enter:
 
-## Prepare a release
+- **version:** `1.0.0`, `1.0.1` or `1.1.0` (no prerelease suffix).
+- **target_branch:** source branch to promote, normally `main`; an `alpha/vX.Y.Z`
+  or `beta/vX.Y.Z` branch may also be selected.
 
-Open **Actions → Prepare release → Run workflow** on `main`. Enter a SemVer version such as `1.0.0-beta.1`, `1.0.0-rc.1` or `1.0.0` (the `v` prefix is optional).
+The workflow creates `release/vX.Y.Z` from the selected source, integrates the
+previous `stable` history, bumps Cargo versions and opens a PR into `stable`.
+A missing `stable` branch is bootstrapped from `main` for the first release.
+Integration conflicts stop the workflow; never silently discard stable fixes.
 
-The workflow validates the version, updates `Cargo.toml` and `Cargo.lock`, and opens `chore: bump vX.Y.Z`. It also dispatches the build and distribution checks on that branch. GitHub suppresses ordinary workflow triggers from changes made using `GITHUB_TOKEN`.
+Review and merge the PR only when the release is ready. The merged commit in
+`stable` is tagged and the signed release pipeline is dispatched. Use squash
+merge in the repository's current configuration. Never merge development PRs
+directly into `stable`.
 
-Review the PR and its checks before merging. Merging the version PR into `main` creates an annotated tag for the merged commit and dispatches **Signed release**. That workflow builds binaries, signs manifests and publishes the release.
+**Important:** GitHub branch protection must require reviews and checks on
+`stable` and reject direct pushes. This cannot be enforced by workflow YAML
+alone. Keep `stable` free of direct commits.
 
-If automatic publication fails after the tag was created, rerun **Signed release** with its `vX.Y.Z` tag as the ref. Do not move a published tag or silently replace release assets.
+If the tagged release job fails, rerun **Signed release** on the same tag.
+Never move a published tag or replace signed assets.
 
-## Manual fallback
+## Release verification
 
-Publish manually only if the automation cannot run. Use the version in `Cargo.toml`, update `Cargo.lock`, merge the change and push a new annotated `vX.Y.Z` tag. A manually pushed tag triggers **Signed release**.
+Before stable publication, review the signing key, official Soloist download
+availability, Linux architecture coverage and hardware smoke tests. CI cross-builds
+are not a substitute for testing playback on real ARM hardware.
 
-Before any release, verify the signing key matches the public keys embedded in `install.sh` and `installer/src/release.rs`, check that Spotify Soloist archives are available, and review supported Linux distributions and known limitations. CI cross-builds do not prove native ARM playback. See [installer tests](testing.md) for the manual hardware and migration checks.
-
-## Check the release
-
-1. Verify the tag, release notes and prerelease status.
-2. Check the six architecture-specific binaries, `release-manifest.json`, `release-manifest.sig`, `bootstrap-manifest.txt`, `bootstrap-manifest.sig` and `install.sh`.
-3. Install the **exact published release** in a clean environment:
-
-   ```sh
-   curl -fsSL https://github.com/jedrek0429/soloist-display/releases/download/v1.0.0-alpha.1/install.sh | SOLOIST_DISPLAY_VERSION=1.0.0-alpha.1 sh
-   ```
-
-4. Check `--version`, Spotify Connect, settings, `doctor`, `update`, `renew-soloist`, `repair` and `uninstall`.
-5. Check the GitHub Pages version link and bootstrap. Record hardware test coverage and known faults.
+Verify release notes, the six Linux binaries, signed release and bootstrap
+manifests, and the version-pinned `install.sh`. Test install, update, repair,
+Spotify Connect, settings and uninstall on the published build.
 
 ## Channels and trust
 
-The default installer chooses the highest stable release, or the highest prerelease until the first stable exists. Stable users do not enter the prerelease channel automatically. An explicit version wins over a channel; downgrades need `--allow-downgrade`. `SOLOIST_DISPLAY_VERSION` and `SOLOIST_DISPLAY_CHANNEL` remain available.
+The default installer picks the latest stable release once one exists.
+`SOLOIST_DISPLAY_CHANNEL=prerelease` selects the highest SemVer prerelease;
+`SOLOIST_DISPLAY_VERSION` pins an exact version. Explicit downgrades need
+`--allow-downgrade`. The public GitHub Pages installer and release badge stay
+on stable when alpha or beta releases are published.
 
-Display releases use signed manifests. Periodic **Spotify Soloist** renewal is separate: it uses Spotify's HTTPS CDN, not an independently signed upstream manifest. Do not describe those checks as equivalent.
-
-If a release is bad, document it and ship a new, signed version. Do not replace published assets silently.
-
-Key rotation means generating a new Ed25519 pair offline, updating both embedded public keys and replacing the protected signing secret together. Never commit the private key.
+Display release manifests are signed. Managed Soloist renewal downloads Spotify
+builds over HTTPS and checks activation, but Spotify does not provide a
+separately verified upstream signature. These are different trust models.

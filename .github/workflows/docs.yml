@@ -16,7 +16,33 @@ jobs:
       - uses: actions/checkout@v7
       - name: Relative assets exist
         run: |
-          test -f docs/screenshots/now-playing.webp
+          python3 - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+          import re
+
+          class Images(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.sources = []
+
+              def handle_starttag(self, tag, attrs):
+                  if tag == "img":
+                      self.sources.extend(value for key, value in attrs if key == "src" and value)
+
+          readme = Path("README.md").read_text(encoding="utf-8")
+          images = Images()
+          images.feed(readme)
+          sources = images.sources + re.findall(r'!\[[^\]]*\]\(([^\s)]+)', readme)
+          if not sources:
+              raise SystemExit("README has no screenshots")
+
+          for source in sources:
+              if source.startswith(("https://", "http://", "data:")):
+                  continue
+              if not Path(source).is_file():
+                  raise SystemExit(f"Missing README image: {source}")
+          PY
           test -f docs/installer.md
           test -f docs/releasing.md
       - name: External documentation resolves

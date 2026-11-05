@@ -122,7 +122,7 @@ pub async fn doctor() -> bool {
     );
     let output = device::active_device();
     match &output {
-        Ok((audio, _, id)) => println!("Audio bridge output: {audio} ({id})"),
+        Ok((audio, _, id, _)) => println!("Audio bridge output: {audio} ({id})"),
         Err(error) => println!("Audio bridge output: unavailable ({error})"),
     }
     println!("Managed Soloist: unsupported in this preview");

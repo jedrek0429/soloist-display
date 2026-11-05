@@ -1,6 +1,6 @@
 //! Read-only diagnostics for the standalone External Soloist preview.
 
-use crate::{config_path, device, read_settings};
+use crate::{cli_output, config_path, device, read_settings};
 use futures_util::{SinkExt, StreamExt};
 use std::time::Duration;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
@@ -38,18 +38,23 @@ pub fn parse(args: &[String]) -> Result<Command, String> {
 }
 
 pub fn help() {
-    println!("Soloist Display (External-only desktop preview)");
-    println!("Usage: soloist-display [doctor|device list|device use <number|ID|name>|device default|--help|--version]");
-    println!("Run without arguments to serve http://127.0.0.1:8080");
-    println!(
-        "device selects the system audio output captured by the audio bridge for the visualiser."
-    );
-    println!("It does not change the Spotify Connect playback device or the system default.");
-    println!("  device list       List available audio outputs and their stable IDs");
-    println!("  device use <number|ID|name>   Select the audio visualiser source");
-    println!("  device set <id>              Alias for device use");
-    println!("  device default    Follow the system's default output");
-    println!("Managed Soloist is not available in this build.");
+    cli_output::heading("External-only desktop preview");
+    println!("Usage: soloist-display [COMMAND]");
+    println!("       soloist-display              Start display and settings at http://127.0.0.1:8080");
+    println!();
+    cli_output::section("Commands");
+    cli_output::command("doctor", "Check External Soloist and audio output");
+    cli_output::command("device list", "List audio outputs and stable IDs");
+    cli_output::command("device use <number|ID|name>", "Select the visualiser source");
+    cli_output::command("device set <number|ID|name>", "Alias for device use");
+    cli_output::command("device default", "Follow the system default output");
+    println!();
+    cli_output::section("Options");
+    cli_output::command("-h, --help", "Show this help");
+    cli_output::command("-V, --version", "Show version");
+    println!();
+    println!("Device selection affects only the audio visualiser, not Spotify Connect playback.");
+    println!("Managed Soloist and lifecycle commands are not supported on this platform.");
 }
 
 /// Device selection controls only the output loopback used for visualisation.
@@ -148,20 +153,34 @@ pub async fn doctor() -> bool {
     let endpoint = settings["soloistWebSocket"]
         .as_str()
         .unwrap_or(DEFAULT_SOLOIST);
-    println!("Soloist Display (External-only desktop preview)");
-    println!("Configuration: {}", path.display());
-    println!("Soloist WebSocket: {endpoint}");
+    cli_output::heading("External-only desktop preview");
+    cli_output::section("Configuration");
+    cli_output::field("Config file", path.display());
+    cli_output::field("Soloist WebSocket", endpoint);
+    println!();
+    cli_output::section("Diagnostics");
     let healthy = protocol_healthy(endpoint).await;
-    println!(
-        "External Soloist: {}",
-        if healthy { "healthy" } else { "unavailable" }
+    cli_output::check(
+        "External Soloist",
+        healthy,
+        "Start Soloist and verify the local WebSocket endpoint.",
     );
     let output = device::output();
     match &output {
-        Ok(device) => println!("Visualiser audio output: {device}"),
-        Err(error) => println!("Visualiser audio output: unavailable ({error})"),
+        Ok(name) => {
+            cli_output::check("Audio bridge", true, "");
+            cli_output::field("Visualiser output", name);
+        }
+        Err(error) => {
+            cli_output::check(
+                "Audio bridge",
+                false,
+                "Select an available output with 'soloist-display device list/use'.",
+            );
+            cli_output::field("Audio error", error);
+        }
     }
-    println!("Managed Soloist: unsupported in this preview");
+    cli_output::field("Managed Soloist", "Not supported (External-only)");
     healthy && output.is_ok()
 }
 

@@ -9,7 +9,17 @@ Unzip the archive and run from a terminal:
 - Windows x86_64: `./soloist-display.exe` (PowerShell)
 - macOS Apple Silicon (ARM64): `chmod +x ./soloist-display && ./soloist-display`
 
-Open **http://127.0.0.1:8080**. Settings are at **http://127.0.0.1:8080/settings**. Run `soloist-display.exe doctor` on Windows or `./soloist-display doctor` on macOS to check the External Soloist protocol and default output device without managing processes.
+Open **http://127.0.0.1:8080**. Settings are at **http://127.0.0.1:8080/settings**. Run `soloist-display.exe doctor` on Windows or `./soloist-display doctor` on macOS to check the External Soloist protocol and visualiser output device without managing processes.
+
+**Audio visualiser output selection** (use the corresponding executable on macOS):
+
+```powershell
+.\soloist-display.exe device list
+.\soloist-display.exe device set "wasapi:YOUR-DEVICE-ID"
+.\soloist-display.exe device default
+```
+
+Use the exact ID printed by `device list`; do not copy the example literally. The choice is saved in `audio-device.id` beside the Display settings and takes effect automatically in a running audio bridge. `device default` removes the override and follows the system's default output. These commands select **only the system audio output captured by the audio bridge for the visualiser**, not the Spotify Connect playback device; they never change the OS default or install/manage Soloist. A selected output that disappears produces an explicit capture error instead of silently switching to the wrong device. Linux continues to support the legacy `SOLOIST_DISPLAY_MONITOR` override when no device was explicitly selected.
 
 Start your existing Spotify Soloist separately. Display connects to its WebSocket at `ws://127.0.0.1:9090` by default. If you use another local endpoint, change **Soloist** in Display settings. While Soloist is offline, the UI shows its waiting/reconnecting state; it must never install or start Soloist itself.
 

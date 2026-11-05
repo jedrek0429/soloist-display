@@ -1,4 +1,4 @@
-use crate::{pcm::PcmInput, spectrum::Spectrum};
+use crate::{device, pcm::PcmInput, spectrum::Spectrum};
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     SampleFormat,
@@ -16,13 +16,20 @@ type CaptureResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 #[cfg(target_os = "linux")]
 fn output_device() -> CaptureResult<(cpal::Device, bool)> {
     let host = cpal::host_from_id(cpal::HostId::PulseAudio)?;
-    let preferred = env::var("SOLOIST_DISPLAY_MONITOR")
-        .ok()
-        .filter(|name| !name.is_empty());
-    let default_sink = host
-        .default_output_device()
-        .and_then(|device| device.id().ok())
-        .map(|id| format!("{}.monitor", id.id()));
+    let selected = device::selected_id()?;
+    let preferred = if selected.is_none() {
+        env::var("SOLOIST_DISPLAY_MONITOR")
+            .ok()
+            .filter(|name| !name.is_empty())
+    } else {
+        None
+    };
+    let target_sink = if preferred.is_some() {
+        None
+    } else {
+        Some(device::output()?.id()?.id().to_owned())
+    };
+    let target_monitor = target_sink.map(|id| format!("{id}.monitor"));
 
     let mut fallback = None;
     for device in host.input_devices()? {
@@ -33,7 +40,7 @@ fn output_device() -> CaptureResult<(cpal::Device, bool)> {
                 return Ok((device, false));
             }
         } else if source.ends_with(".monitor") {
-            if default_sink.as_deref() == Some(source) {
+            if target_monitor.as_deref() == Some(source) {
                 return Ok((device, false));
             }
             if fallback.is_none() {
@@ -44,6 +51,9 @@ fn output_device() -> CaptureResult<(cpal::Device, bool)> {
     if preferred.is_some() {
         return Err("requested PulseAudio monitor source does not exist".into());
     }
+    if selected.is_some() {
+        return Err("selected audio output has no PulseAudio monitor source".into());
+    }
     fallback.map(|device| (device, false)).ok_or_else(|| {
         "no PulseAudio/PipeWire output monitor found (microphone capture is not a fallback)".into()
     })
@@ -51,11 +61,7 @@ fn output_device() -> CaptureResult<(cpal::Device, bool)> {
 
 #[cfg(any(windows, target_os = "macos"))]
 fn output_device() -> CaptureResult<(cpal::Device, bool)> {
-    let host = cpal::default_host();
-    let device = host
-        .default_output_device()
-        .ok_or("no default system audio output device")?;
-    Ok((device, true))
+    Ok((device::output()?, true))
 }
 
 // CPAL reports WASAPI buffer discontinuities as errors even though capture
@@ -87,6 +93,7 @@ macro_rules! capture_stream {
 }
 
 pub fn run(sender: broadcast::Sender<String>) -> CaptureResult<()> {
+    let selection = device::selected_id()?;
     let (device, loopback) = output_device()?;
     let format = if loopback {
         device.default_output_config()?
@@ -124,6 +131,9 @@ pub fn run(sender: broadcast::Sender<String>) -> CaptureResult<()> {
     let mut pcm = PcmInput::new();
     let mut spectrum = Spectrum::new();
     loop {
+        if device::selected_id()? != selection {
+            return Err("audio visualiser output selection changed; reconnecting".into());
+        }
         if let Ok(error) = error_rx.try_recv() {
             return Err(format!("CPAL stream stopped: {error}").into());
         }

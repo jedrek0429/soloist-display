@@ -1,14 +1,14 @@
 # Soloist Display
 
-[![Release](https://img.shields.io/github/v/release/jedrek0429/soloist-display?include_prereleases&style=for-the-badge)](https://github.com/jedrek0429/soloist-display/releases)
+[![Stable release](https://img.shields.io/github/v/release/jedrek0429/soloist-display?style=for-the-badge&label=Stable%20release)](https://github.com/jedrek0429/soloist-display/releases/latest)
+[![Pre-release](https://img.shields.io/github/v/release/jedrek0429/soloist-display?include_prereleases&style=for-the-badge&label=Pre-release)](https://github.com/jedrek0429/soloist-display/releases)
 [![Checks](https://img.shields.io/github/actions/workflow/status/jedrek0429/soloist-display/build.yml?branch=main&style=for-the-badge&label=Checks)](https://github.com/jedrek0429/soloist-display/actions/workflows/build.yml)
 [![Installer integration](https://img.shields.io/github/actions/workflow/status/jedrek0429/soloist-display/installer-integration.yml?branch=main&style=for-the-badge&label=Installer)](https://github.com/jedrek0429/soloist-display/actions/workflows/installer-integration.yml)
-[![License: MIT](https://img.shields.io/github/license/jedrek0429/soloist-display?style=for-the-badge)](LICENSE)
 [![Code quality](https://img.shields.io/codefactor/grade/github/jedrek0429/soloist-display/main?style=for-the-badge&label=Code%20quality)](https://www.codefactor.io/repository/github/jedrek0429/soloist-display)
 
 Turn a Linux computer or Raspberry Pi into a Spotify Connect speaker with a full-screen display. Built on [Spotify Soloist](https://developer.spotify.com/documentation/soloist).
 
-[See the live Spotify display preview](https://jedrek0429.github.io/soloist-display/).
+[See the live preview here](https://jedrek0429.github.io/soloist-display/)
 
 <p align="center">
   <img src="docs/screenshots/triple-threat.png" alt="Soloist Display — Triple Threat album art with partial disc and track details" width="48%">

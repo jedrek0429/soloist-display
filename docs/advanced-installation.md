@@ -39,6 +39,38 @@ The installer sets up completions for Bash, Zsh and Fish. Bash needs the `bash-c
 
 After installing a new shell, `soloist-display update` refreshes completions even if Display is already up to date. You can also generate scripts manually with `soloist-display completions bash|zsh|fish`.
 
+## Portable CLI (Windows and macOS previews)
+
+The Windows x86_64 and macOS Apple Silicon releases currently run in **External-only** mode.
+They share the CLI flag and audio-device argument definitions with the Linux manager,
+but do not yet include the Linux installer or managed service lifecycle.
+
+```sh
+soloist-display --help
+soloist-display doctor
+soloist-display launch       # open the now-playing display
+soloist-display settings     # open the settings page
+soloist-display device list
+soloist-display device use 2 # choose output for the visualiser, not Spotify
+soloist-display device default
+soloist-display completions powershell # use bash/zsh/fish on other shells
+```
+
+Run the executable with no arguments to serve the local display as before.
+`launch` and `settings` open the relevant URL in the operating system's
+default browser, reusing a running local server when available. If the
+standalone server is not running, they start it in the current process,
+which must remain running to keep the display available.
+
+Global flags `--no-color`, `--quiet`, `--verbose`, and `--yes`
+use the shared parser. Installation and renewal commands still work only
+on Linux; `--yes` is reserved for the upcoming desktop installer lifecycle.
+Shell completion scripts are generated to stdout and are not automatically installed.
+
+On Linux, `soloist-display device list/use/set/default` delegates to the
+installed audio bridge. The device selector affects only the visualiser
+capture output and never changes Soloist's playback device.
+
 ## Managed or External?
 
 **Managed** is the default. Display installs and maintains a Soloist binary and user service. It checks the official Spotify CDN weekly. To check now:

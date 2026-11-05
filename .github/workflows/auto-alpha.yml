@@ -60,7 +60,22 @@ jobs:
             version="$base-alpha.$((highest + 1))"
             tag="v$version"
             git checkout --detach "$SOURCE_SHA"
-            sed -i -E "s/^(version = \\")[^\\"]+(\\"$)/\\1$version\\2/" Cargo.toml
+            VERSION="$version" python3 - <<'PY'
+          import os
+          import pathlib
+          import re
+
+          path = pathlib.Path("Cargo.toml")
+          content = path.read_text()
+          updated, count = re.subn(
+              r'(?m)^version = "[^"]+"$',
+              'version = "' + os.environ["VERSION"] + '"',
+              content,
+          )
+          if count != 1:
+              raise SystemExit("Expected exactly one workspace version")
+          path.write_text(updated)
+          PY
             cargo update --workspace
             cargo metadata --format-version 1 --no-deps --locked >/dev/null
             cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- verify-workspace-version "$tag"

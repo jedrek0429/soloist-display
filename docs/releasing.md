@@ -13,8 +13,12 @@ approved stable lane. Release candidates are not used.
 
 All prereleases create a versioned commit off the branch head. They do not
 change their source branch. A rerun for the same source commit reuses its tag.
-The shared `Signed release` pipeline builds and signs the release. A prerelease
-is never marked latest.
+The shared `Signed release` pipeline builds the six Linux executables and signs
+the Linux installer manifests. For alpha/beta tags, it also builds unsigned,
+External-only Windows x86_64 and macOS Apple Silicon desktop previews from the
+*exact tagged commit*. Both desktop builds must pass before publication, and
+their ZIP archives are attached to the same GitHub Release. Stable releases do
+not run desktop preview builds. A prerelease is never marked latest.
 
 ## Stable release
 
@@ -50,8 +54,12 @@ availability, Linux architecture coverage and hardware smoke tests. CI cross-bui
 are not a substitute for testing playback on real ARM hardware.
 
 Verify release notes, the six Linux binaries, signed release and bootstrap
-manifests, and the version-pinned `install.sh`. Test install, update, repair,
-Spotify Connect, settings and uninstall on the published build.
+manifests, and the version-pinned `install.sh`. For alpha/beta, also verify
+`soloist-display-preview-windows-x86_64-vX.Y.Z-CHANNEL.N.zip` and
+`soloist-display-preview-macos-arm64-vX.Y.Z-CHANNEL.N.zip`, each containing
+`BUILD.txt` with the exact tag and commit SHA. Publication fails if either
+preview build or artifact validation fails. Test install, update, repair,
+Spotify Connect, settings and uninstall on the published Linux build.
 
 ## Channels and trust
 
@@ -62,6 +70,9 @@ The default installer picks the latest stable release once one exists.
 `--allow-downgrade`. The public GitHub Pages installer and release badge stay
 on stable when alpha or beta releases are published.
 
-Display release manifests are signed. Managed Soloist renewal downloads Spotify
-builds over HTTPS and checks activation, but Spotify does not provide a
-separately verified upstream signature. These are different trust models.
+Display release manifests sign and cover the Linux assets only. The experimental
+Windows/macOS preview ZIPs are **unsigned** and deliberately excluded from the
+Linux installer manifests; they are neither supported stable installers nor
+Managed Soloist builds. Managed Soloist renewal downloads Spotify builds over
+HTTPS and checks activation, but Spotify does not provide a separately
+verified upstream signature. These are different trust models.

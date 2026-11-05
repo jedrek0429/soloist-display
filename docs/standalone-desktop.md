@@ -2,7 +2,9 @@
 
 These Windows x86_64 and macOS Apple Silicon builds are **experimental** and do not install anything. Spotify Soloist does not support Intel Macs, so macOS x86_64 binaries are not built. They do not contain the Linux installer, start services, manage Spotify Soloist, update binaries or provide a Managed mode.
 
-To get the latest integrated build, open [Desktop prerelease builds](https://github.com/jedrek0429/soloist-display/actions/workflows/standalone-desktop.yml), select the newest **successful** run on the current `alpha/*` or `beta/*` integration branch, then download your OS from **Artifacts**. These GitHub Actions artifacts expire after 14 days and may require GitHub sign-in. The archive contains `BUILD.txt` with the exact source commit.
+**Versioned alpha/beta preview:** open [GitHub Releases](https://github.com/jedrek0429/soloist-display/releases), choose the desired `vX.Y.Z-alpha.N` or `vX.Y.Z-beta.N` release, and download `soloist-display-preview-windows-x86_64-<tag>.zip` or `soloist-display-preview-macos-arm64-<tag>.zip` under **Assets**. These are built from the exact tagged commit, and each ZIP contains `BUILD.txt` with its tag and commit SHA. Preview ZIPs are not produced for stable releases.
+
+**Integrated branch snapshots:** [Desktop prerelease builds](https://github.com/jedrek0429/soloist-display/actions/workflows/standalone-desktop.yml) still publishes branch-specific artifacts on successful `alpha/*` and `beta/*` pushes. Unlike release downloads, these are temporary GitHub Actions artifacts (14-day retention, potentially requiring GitHub sign-in) and contain the branch commit, not necessarily the tagged release commit.
 
 Unzip the archive and run from a terminal:
 
@@ -27,6 +29,6 @@ The spectrum uses CPAL to capture the computer's **default audio output**, not a
 
 Settings are saved in the user's native configuration directory: `%APPDATA%\\soloist-display\\config.json` on Windows, `~/Library/Application Support/soloist-display/config.json` on macOS. Set `SOLOIST_DISPLAY_CONFIG_DIR` to override the settings directory for isolated tests. The HTTP and spectrum ports can be overridden using `SOLOIST_DISPLAY_HTTP_PORT` and `SOLOIST_DISPLAY_AUDIO_PORT`.
 
-These are unsigned prerelease-branch CI executables, **not published releases or installers**. PR checks validate code without uploading duplicate downloads; only successful integrated alpha/beta build jobs publish artifacts. macOS Gatekeeper and Windows SmartScreen may warn about them. Do not bypass security controls on an untrusted download. A passing CI smoke test verifies that the local pages start; it does not verify real audio capture or Spotify playback on desktop hardware.
+These desktop executables are **experimental and unsigned**, including when attached to GitHub Releases. They are not installers and are excluded from the signed Linux manifests. PR checks validate code without uploading duplicate branch snapshots; alpha/beta release publication requires both tagged desktop builds and their smoke tests to pass. macOS Gatekeeper and Windows SmartScreen may warn about these binaries. Do not bypass security controls on an untrusted download. A passing CI smoke test verifies that the local pages start; it does not verify real audio capture or Spotify playback on desktop hardware.
 
-Linux installation, systemd services, Managed Soloist and the signed release pipeline remain unchanged.
+Linux installation, systemd services, Managed Soloist, and Linux asset signing remain unchanged.

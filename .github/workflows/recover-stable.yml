@@ -1,0 +1,78 @@
+name: Recover stable branch
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Published stable release tag (e.g. v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-stable
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Mint release app token
+        id: release-app
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-workflows: write
+
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ steps.release-app.outputs.token }}
+
+      - name: Verify published release and update stable
+        env:
+          GH_TOKEN: ${{ steps.release-app.outputs.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
+            echo "Only stable version tags are supported" >&2
+            exit 1
+          }
+
+          git fetch origin refs/heads/main:refs/remotes/origin/main refs/heads/stable:refs/remotes/origin/stable "refs/tags/$TAG:refs/tags/$TAG"
+          release_tag="$(gh release view "$TAG" --json tagName,isDraft,isPrerelease --jq 'select(.isDraft == false and .isPrerelease == false) | .tagName')"
+          test "$release_tag" = "$TAG"
+          latest="$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)"
+          test "$latest" = "$TAG" || {
+            echo "Refusing to move stable to an older release ($TAG; latest is $latest)" >&2
+            exit 1
+          }
+
+          sha="$(git rev-parse "$TAG^{commit}")"
+          git merge-base --is-ancestor "$sha^" origin/main || {
+            echo "Release commit parent is not in main history" >&2
+            exit 1
+          }
+
+          version="${TAG#v}"
+          actual="$(git show "$sha:Cargo.toml" | sed -n 's/^version = "\([^"]*\)"$/\1/p' | head -n 1)"
+          test "$actual" = "$version" || {
+            echo "Cargo.toml version $actual does not match $TAG" >&2
+            exit 1
+          }
+
+          old="$(git ls-remote origin refs/heads/stable | cut -f1)"
+          test -n "$old"
+          if [ "$old" = "$sha" ]; then
+            echo "stable already matches $TAG ($sha)"
+            exit 0
+          fi
+          git push --force-with-lease="refs/heads/stable:$old" origin "$sha:refs/heads/stable"
+          test "$(git ls-remote origin refs/heads/stable | cut -f1)" = "$sha"
+          echo "stable now matches $TAG ($sha)"

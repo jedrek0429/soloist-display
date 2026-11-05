@@ -49,6 +49,12 @@ jobs:
         run: |
           cargo test --locked -p soloist-audio-bridge
           cargo build --release --locked -p soloist-audio-bridge
+      - name: Portable CLI smoke test
+        if: github.event_name != 'pull_request'
+        shell: pwsh
+        run: |
+          target/release/soloist-audio-bridge.exe --help
+          target/release/soloist-audio-bridge.exe --version
       - name: Package standalone executable
         if: github.event_name != 'pull_request'
         shell: pwsh
@@ -112,6 +118,11 @@ jobs:
           test "$(uname -m)" = "arm64"
           cargo test --locked -p soloist-audio-bridge
           cargo build --release --locked -p soloist-audio-bridge
+      - name: Portable CLI smoke test
+        if: github.event_name != 'pull_request'
+        run: |
+          target/release/soloist-audio-bridge --help
+          target/release/soloist-audio-bridge --version
       - name: Package standalone executable
         if: github.event_name != 'pull_request'
         run: |

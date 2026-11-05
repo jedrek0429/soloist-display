@@ -8,8 +8,7 @@ use cpal::{
 use std::{
     env,
     error::Error,
-    fs,
-    io,
+    fs, io,
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -66,7 +65,10 @@ fn save_to(path: &Path, selected: &Selection) -> Result<()> {
     }
     let stamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
     let temp = path.with_extension(format!("{}.{}.tmp", std::process::id(), stamp));
-    fs::write(&temp, serde_json::to_vec_pretty(&serde_json::json!({"id": id}))?)?;
+    fs::write(
+        &temp,
+        serde_json::to_vec_pretty(&serde_json::json!({"id": id}))?,
+    )?;
     if let Err(error) = fs::rename(&temp, path) {
         let _ = fs::remove_file(&temp);
         return Err(error.into());
@@ -129,7 +131,10 @@ fn available() -> Result<Vec<(Device, DeviceInfo)>> {
 
 fn default_index(devices: &[(Device, DeviceInfo)]) -> Result<usize> {
     #[cfg(target_os = "linux")]
-    if let Some(preferred) = env::var("SOLOIST_DISPLAY_MONITOR").ok().filter(|s| !s.is_empty()) {
+    if let Some(preferred) = env::var("SOLOIST_DISPLAY_MONITOR")
+        .ok()
+        .filter(|s| !s.is_empty())
+    {
         return devices
             .iter()
             .position(|(_, d)| d.id == preferred || d.raw_id == preferred || d.name == preferred)
@@ -178,7 +183,10 @@ pub fn active_device() -> Result<(Device, bool, String, String)> {
 
     let devices = available()?;
     let index = active_index(&devices, &selection)?;
-    let (device, info) = devices.into_iter().nth(index).ok_or("audio output vanished")?;
+    let (device, info) = devices
+        .into_iter()
+        .nth(index)
+        .ok_or("audio output vanished")?;
     let key = match selection {
         Selection::Default => format!("default:{}", info.id),
         Selection::Id(_) => format!("pinned:{}", info.id),
@@ -214,20 +222,29 @@ fn resolve_selector(devices: &[&DeviceInfo], selector: &str) -> Result<usize> {
 pub fn list() -> Result<()> {
     let devices = available()?;
     let selection = current_selection()?;
+    let default_choice = if selection == Selection::Default {
+        default_index(&devices).ok()
+    } else {
+        None
+    };
     println!("Audio bridge devices (system output captured for the audio visualiser):");
     if devices.is_empty() {
         println!("  No audio outputs available.");
     }
     for (index, (_, info)) in devices.iter().enumerate() {
         let selected = match &selection {
-            Selection::Default => info.system_default,
+            Selection::Default => default_choice == Some(index),
             Selection::Id(id) => id == &info.id,
         };
         println!(
             "  {}. {}{}{}",
             index + 1,
             info.name,
-            if info.system_default { " [system default]" } else { "" },
+            if info.system_default {
+                " [system default]"
+            } else {
+                ""
+            },
             if selected { " [selected]" } else { "" }
         );
         println!("     ID: {}", info.id);
@@ -236,7 +253,14 @@ pub fn list() -> Result<()> {
         Selection::Default => println!("Selection: system default output"),
         Selection::Id(id) => {
             let present = devices.iter().any(|(_, info)| info.id == id);
-            println!("Selection: {id}{}", if present { "" } else { " (unavailable; no fallback)" });
+            println!(
+                "Selection: {id}{}",
+                if present {
+                    ""
+                } else {
+                    " (unavailable; no fallback)"
+                }
+            );
         }
     }
     println!("Select: soloist-display device use <number|ID|exact-name>");
@@ -307,9 +331,15 @@ mod tests {
         let path = dir.path().join("audio-device.json");
         assert_eq!(read_from(&path).unwrap(), Selection::Default);
         save_to(&path, &Selection::Id("wasapi:long-id".into())).unwrap();
-        assert_eq!(read_from(&path).unwrap(), Selection::Id("wasapi:long-id".into()));
+        assert_eq!(
+            read_from(&path).unwrap(),
+            Selection::Id("wasapi:long-id".into())
+        );
         save_to(&path, &Selection::Id("wasapi:new-id".into())).unwrap();
-        assert_eq!(read_from(&path).unwrap(), Selection::Id("wasapi:new-id".into()));
+        assert_eq!(
+            read_from(&path).unwrap(),
+            Selection::Id("wasapi:new-id".into())
+        );
         save_to(&path, &Selection::Default).unwrap();
         assert_eq!(read_from(&path).unwrap(), Selection::Default);
     }

@@ -1,19 +1,9 @@
 name: Desktop prerelease builds
 
-# PRs get native compile checks; integrated alpha/beta branches publish test
-# executables. Each Actions run owns its artifacts; this is not a GitHub Release.
+# PRs get lightweight native compile checks. Full desktop preview builds
+# run only on demand; tagged alpha/beta releases build their own immutable
+# Windows/macOS assets in release.yml.
 on:
-  push:
-    branches: ['alpha/**', 'beta/**']
-    paths:
-      - 'audio-bridge/**'
-      - 'Cargo.lock'
-      - 'Cargo.toml'
-      - 'src/**'
-      - 'index.html'
-      - 'settings.html'
-      - 'styles.css'
-      - 'config.json'
   pull_request:
     branches: ['alpha/**', 'beta/**']
     paths:
@@ -29,7 +19,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: desktop-beta-${{ github.event.pull_request.number || github.ref }}
+  group: desktop-preview-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -44,7 +34,7 @@ jobs:
       - name: Fast compile check (PR)
         if: github.event_name == 'pull_request'
         run: cargo check --locked -p soloist-audio-bridge
-      - name: Build and test integrated desktop beta
+      - name: Build and test manual desktop preview
         if: github.event_name != 'pull_request'
         run: |
           cargo test --locked -p soloist-audio-bridge
@@ -92,11 +82,11 @@ jobs:
               Get-Content (Join-Path $env:RUNNER_TEMP 'display.stderr')
             }
           }
-      - name: Upload downloadable Windows beta
-        if: github.event_name != 'pull_request' && (startsWith(github.ref, 'refs/heads/alpha/') || startsWith(github.ref, 'refs/heads/beta/'))
+      - name: Upload manual Windows preview
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v7
         with:
-          name: soloist-display-windows-x86_64-beta
+          name: soloist-display-preview-windows-x86_64
           path: dist/
           if-no-files-found: error
           retention-days: 14
@@ -114,7 +104,7 @@ jobs:
         run: |
           test "$(uname -m)" = "arm64"
           cargo check --locked -p soloist-audio-bridge
-      - name: Build and test integrated desktop beta
+      - name: Build and test manual desktop preview
         if: github.event_name != 'pull_request'
         run: |
           test "$(uname -m)" = "arm64"
@@ -151,11 +141,11 @@ jobs:
           test -s /tmp/soloist-page.html
           curl -fsS http://127.0.0.1:18080/config.json | grep -q 'soloistWebSocket'
           curl -fsS http://127.0.0.1:18080/settings | grep -q 'html'
-      - name: Upload downloadable macOS beta
-        if: github.event_name != 'pull_request' && (startsWith(github.ref, 'refs/heads/alpha/') || startsWith(github.ref, 'refs/heads/beta/'))
+      - name: Upload manual macOS preview
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v7
         with:
-          name: soloist-display-macos-arm64-beta
+          name: soloist-display-preview-macos-arm64
           path: dist/
           if-no-files-found: error
           retention-days: 14

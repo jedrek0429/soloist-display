@@ -8,7 +8,7 @@ on:
       - 'install.sh'
       - '.github/workflows/installer-integration.yml'
   push:
-    branches: [main, beta/cpal-integration]
+    branches: [main]
     paths:
       - 'installer/**'
       - 'Cargo.toml'

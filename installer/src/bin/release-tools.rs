@@ -35,7 +35,6 @@ fn valid_tag(tag: &str) -> Result<Version> {
     Ok(parsed)
 }
 
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ReleaseChannel {
     Stable,
@@ -65,7 +64,10 @@ fn release_channel(version: &Version) -> Option<(ReleaseChannel, u64)> {
     Some((channel, sequence))
 }
 
-fn release_notes_base<'a>(current_tag: &str, published: impl IntoIterator<Item = &'a str>) -> Result<Option<String>> {
+fn release_notes_base<'a>(
+    current_tag: &str,
+    published: impl IntoIterator<Item = &'a str>,
+) -> Result<Option<String>> {
     let current = valid_tag(current_tag)?;
     let (channel, sequence) = release_channel(&current)
         .ok_or_else(|| anyhow!("unsupported release channel: {current_tag}"))?;
@@ -78,7 +80,9 @@ fn release_notes_base<'a>(current_tag: &str, published: impl IntoIterator<Item =
             continue;
         }
         let Ok(other) = valid_tag(tag) else { continue };
-        let Some((other_channel, other_sequence)) = release_channel(&other) else { continue };
+        let Some((other_channel, other_sequence)) = release_channel(&other) else {
+            continue;
+        };
         let same_version = version_key(&other) == version_key(&current);
         let older_version = version_key(&other) < version_key(&current);
 
@@ -87,15 +91,30 @@ fn release_notes_base<'a>(current_tag: &str, published: impl IntoIterator<Item =
         let priority = match (channel, other_channel) {
             (ReleaseChannel::Stable, ReleaseChannel::Stable) if older_version => 1,
             (ReleaseChannel::Alpha, ReleaseChannel::Alpha)
-                if same_version && other_sequence < sequence => 3,
+                if same_version && other_sequence < sequence =>
+            {
+                3
+            }
             (ReleaseChannel::Beta, ReleaseChannel::Beta)
-                if same_version && other_sequence < sequence => 3,
+                if same_version && other_sequence < sequence =>
+            {
+                3
+            }
             (ReleaseChannel::Beta, ReleaseChannel::Alpha) if same_version => 2,
             (ReleaseChannel::Alpha | ReleaseChannel::Beta, ReleaseChannel::Stable)
-                if older_version => 1,
+                if older_version =>
+            {
+                1
+            }
             _ => continue,
         };
-        let rank = (priority, other.major, other.minor, other.patch, other_sequence);
+        let rank = (
+            priority,
+            other.major,
+            other.minor,
+            other.patch,
+            other_sequence,
+        );
         if best.as_ref().is_none_or(|(old, _)| rank > *old) {
             best = Some((rank, tag.to_owned()));
         }
@@ -103,14 +122,13 @@ fn release_notes_base<'a>(current_tag: &str, published: impl IntoIterator<Item =
     Ok(best.map(|(_, tag)| tag))
 }
 
-
 fn validate_prerelease_floor<'a>(
     tag: &str,
     published: impl IntoIterator<Item = &'a str>,
 ) -> Result<()> {
     let candidate = valid_tag(tag)?;
-    let (channel, _) = release_channel(&candidate)
-        .ok_or_else(|| anyhow!("unsupported prerelease tag: {tag}"))?;
+    let (channel, _) =
+        release_channel(&candidate).ok_or_else(|| anyhow!("unsupported prerelease tag: {tag}"))?;
     if channel == ReleaseChannel::Stable {
         bail!("expected alpha or beta prerelease tag, got {tag}");
     }
@@ -438,10 +456,17 @@ mod tests {
     #[test]
     fn incremental_release_notes_bases() {
         let tags = [
-            "v1.0.0-alpha.9", "v1.0.0", "v1.1.0-alpha.1",
-            "v1.1.0-alpha.2", "v1.1.0-alpha.3", "v1.1.0-alpha.4",
-            "v1.1.0-beta.1", "v1.1.0-beta.2", "v2.0.0",
-            "v1.1.0-rc.1", "not-a-tag",
+            "v1.0.0-alpha.9",
+            "v1.0.0",
+            "v1.1.0-alpha.1",
+            "v1.1.0-alpha.2",
+            "v1.1.0-alpha.3",
+            "v1.1.0-alpha.4",
+            "v1.1.0-beta.1",
+            "v1.1.0-beta.2",
+            "v2.0.0",
+            "v1.1.0-rc.1",
+            "not-a-tag",
         ];
         let cases = [
             ("v1.1.0-alpha.1", Some("v1.0.0")),
@@ -453,7 +478,13 @@ mod tests {
             ("v0.1.0-alpha.1", None),
         ];
         for (tag, expected) in cases {
-            assert_eq!(release_notes_base(tag, tags.iter().copied()).unwrap().as_deref(), expected, "{tag}");
+            assert_eq!(
+                release_notes_base(tag, tags.iter().copied())
+                    .unwrap()
+                    .as_deref(),
+                expected,
+                "{tag}"
+            );
         }
         assert!(release_notes_base("v1.1.0-rc.1", tags.iter().copied()).is_err());
     }

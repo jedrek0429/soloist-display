@@ -564,6 +564,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             return Ok(());
         }
     }
+    if cli::verbose() {
+        eprintln!("Configuration: {}", config_path().display());
+    }
     let port = env::var("SOLOIST_DISPLAY_HTTP_PORT").unwrap_or_else(|_| "8080".into());
     let open_url = open_page.map(|page| format!("http://127.0.0.1:{port}{page}"));
     if let Some(ref url) = open_url {

@@ -94,30 +94,22 @@ jobs:
           retention-days: 14
 
   macos:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: macos-15
-            target: arm64
-          - runner: macos-15-intel
-            target: x86_64
-    runs-on: ${{ matrix.runner }}
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          key: standalone-macos-${{ matrix.target }}
+          key: standalone-macos-arm64
       - name: Fast compile check (PR)
         if: github.event_name == 'pull_request'
         run: |
-          test "$(uname -m)" = "${{ matrix.target }}"
+          test "$(uname -m)" = "arm64"
           cargo check --locked -p soloist-audio-bridge
       - name: Build and test integrated desktop beta
         if: github.event_name != 'pull_request'
         run: |
-          test "$(uname -m)" = "${{ matrix.target }}"
+          test "$(uname -m)" = "arm64"
           cargo test --locked -p soloist-audio-bridge
           cargo build --release --locked -p soloist-audio-bridge
       - name: Package standalone executable
@@ -148,7 +140,7 @@ jobs:
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/beta/cpal-integration'
         uses: actions/upload-artifact@v7
         with:
-          name: soloist-display-macos-${{ matrix.target }}-beta
+          name: soloist-display-macos-arm64-beta
           path: dist/
           if-no-files-found: error
           retention-days: 14

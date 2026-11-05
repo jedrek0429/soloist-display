@@ -1,13 +1,13 @@
 # Standalone desktop preview (External Soloist only)
 
-These Windows and macOS builds are **experimental** and do not install anything. They do not contain the Linux installer, start services, manage Spotify Soloist, update binaries or provide a Managed mode.
+These Windows x86_64 and macOS Apple Silicon builds are **experimental** and do not install anything. Spotify Soloist does not support Intel Macs, so macOS x86_64 binaries are not built. They do not contain the Linux installer, start services, manage Spotify Soloist, update binaries or provide a Managed mode.
 
 To get the latest integrated build, open [Desktop beta builds](https://github.com/jedrek0429/soloist-display/actions/workflows/standalone-desktop.yml?query=branch%3Abeta%2Fcpal-integration), select the newest **successful** run on `beta/cpal-integration`, then download your OS from **Artifacts**. These GitHub Actions artifacts expire after 14 days and may require GitHub sign-in. The archive contains `BUILD.txt` with the exact source commit.
 
 Unzip the archive and run from a terminal:
 
 - Windows x86_64: `./soloist-display.exe` (PowerShell)
-- macOS Apple Silicon or Intel: `chmod +x ./soloist-display && ./soloist-display`
+- macOS Apple Silicon (ARM64): `chmod +x ./soloist-display && ./soloist-display`
 
 Open **http://127.0.0.1:8080**. Settings are at **http://127.0.0.1:8080/settings**.
 

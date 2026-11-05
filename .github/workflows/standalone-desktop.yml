@@ -1,0 +1,141 @@
+name: Desktop beta builds
+
+# PRs are validated, but downloadable binaries are published only after integration
+# into beta. Each Actions run owns its artifacts; this is not a GitHub Release.
+on:
+  push:
+    branches: [beta/cpal-integration]
+    paths:
+      - 'audio-bridge/**'
+      - 'Cargo.lock'
+      - 'Cargo.toml'
+      - 'src/**'
+      - 'index.html'
+      - 'settings.html'
+      - 'styles.css'
+      - 'config.json'
+      - '.github/workflows/standalone-desktop.yml'
+  pull_request:
+    branches: [beta/cpal-integration]
+    paths:
+      - 'audio-bridge/**'
+      - 'Cargo.lock'
+      - 'Cargo.toml'
+      - 'src/**'
+      - 'index.html'
+      - 'settings.html'
+      - 'styles.css'
+      - 'config.json'
+      - '.github/workflows/standalone-desktop.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-beta-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: standalone-windows
+      - name: Build and test external-only display
+        run: |
+          cargo test --locked -p soloist-audio-bridge
+          cargo build --release --locked -p soloist-audio-bridge
+      - name: Package standalone executable
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory dist -Force | Out-Null
+          Copy-Item target/release/soloist-audio-bridge.exe dist/soloist-display.exe
+          Copy-Item docs/standalone-desktop.md dist/README.md
+          Set-Content -Path dist/BUILD.txt -Value "commit=$env:GITHUB_SHA", "mode=external-only"
+      - name: Smoke test HTTP server without running Soloist
+        shell: pwsh
+        run: |
+          $env:SOLOIST_DISPLAY_CONFIG_DIR = Join-Path $env:RUNNER_TEMP 'soloist-standalone'
+          $env:SOLOIST_DISPLAY_HTTP_PORT = '18080'
+          $env:SOLOIST_DISPLAY_AUDIO_PORT = '19191'
+          $proc = Start-Process -FilePath (Resolve-Path dist/soloist-display.exe) -PassThru -RedirectStandardOutput (Join-Path $env:RUNNER_TEMP 'display.stdout') -RedirectStandardError (Join-Path $env:RUNNER_TEMP 'display.stderr')
+          try {
+            $ready = $false
+            for ($i = 0; $i -lt 30; $i++) {
+              try {
+                $response = Invoke-WebRequest -Uri 'http://127.0.0.1:18080/' -TimeoutSec 2
+                if ($response.StatusCode -eq 200) { $ready = $true; break }
+              } catch { Start-Sleep -Milliseconds 500 }
+            }
+            if (-not $ready) { throw 'Standalone HTTP server did not start' }
+            $config = Invoke-RestMethod -Uri 'http://127.0.0.1:18080/config.json'
+            if ($config.soloistWebSocket -ne 'ws://127.0.0.1:9090') { throw 'External Soloist default is wrong' }
+            $settings = Invoke-WebRequest -Uri 'http://127.0.0.1:18080/settings'
+            if ($settings.StatusCode -ne 200) { throw 'Settings page unavailable' }
+          } finally {
+            if ($proc -and -not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
+            if (Test-Path (Join-Path $env:RUNNER_TEMP 'display.stderr')) {
+              Get-Content (Join-Path $env:RUNNER_TEMP 'display.stderr')
+            }
+          }
+      - name: Upload downloadable Windows beta
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/beta/cpal-integration'
+        uses: actions/upload-artifact@v7
+        with:
+          name: soloist-display-windows-x86_64-beta
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            target: arm64
+          - runner: macos-15-intel
+            target: x86_64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: standalone-macos-${{ matrix.target }}
+      - name: Build and test external-only display
+        run: |
+          test "$(uname -m)" = "${{ matrix.target }}"
+          cargo test --locked -p soloist-audio-bridge
+          cargo build --release --locked -p soloist-audio-bridge
+      - name: Package standalone executable
+        run: |
+          mkdir -p dist
+          install -m755 target/release/soloist-audio-bridge dist/soloist-display
+          cp docs/standalone-desktop.md dist/README.md
+          printf 'commit=%s\nmode=external-only\n' "$GITHUB_SHA" > dist/BUILD.txt
+      - name: Smoke test HTTP server without running Soloist
+        env:
+          SOLOIST_DISPLAY_CONFIG_DIR: ${{ runner.temp }}/soloist-standalone
+          SOLOIST_DISPLAY_HTTP_PORT: '18080'
+          SOLOIST_DISPLAY_AUDIO_PORT: '19191'
+        run: |
+          ./dist/soloist-display > /tmp/soloist-display.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; cat /tmp/soloist-display.log' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18080/ -o /tmp/soloist-page.html; then break; fi
+            sleep 0.5
+          done
+          test -s /tmp/soloist-page.html
+          curl -fsS http://127.0.0.1:18080/config.json | grep -q 'soloistWebSocket'
+          curl -fsS http://127.0.0.1:18080/settings | grep -q 'html'
+      - name: Upload downloadable macOS beta
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/beta/cpal-integration'
+        uses: actions/upload-artifact@v7
+        with:
+          name: soloist-display-macos-${{ matrix.target }}-beta
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14

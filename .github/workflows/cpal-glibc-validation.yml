@@ -1,6 +1,15 @@
 name: CPAL glibc validation
 
 on:
+  pull_request:
+    branches: ['alpha/**', 'beta/**']
+    paths:
+      - 'audio-bridge/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'installer/**'
+      - 'scripts/ci-build-glibc.sh'
+      - '.github/workflows/cpal-glibc-validation.yml'
   workflow_dispatch:
 
 jobs:
@@ -14,6 +23,9 @@ jobs:
           - runner: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
     runs-on: ${{ matrix.runner }}
+    # Cross-architecture GNU builds remain an explicit pre-release/manual gate.
+    # On affected PRs, check the native Linux GNU/CPAL build only.
+    if: github.event_name == 'workflow_dispatch' || matrix.target == 'x86_64-unknown-linux-gnu'
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -27,6 +39,7 @@ jobs:
       - run: bash scripts/ci-build-glibc.sh ${{ matrix.target }}
 
   armv7:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7

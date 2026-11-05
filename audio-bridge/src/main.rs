@@ -477,7 +477,7 @@ async fn web_server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let args: Vec<String> = env::args().skip(1).collect();
     let command = cli::parse(&args)
         .map_err(|message| std::io::Error::new(std::io::ErrorKind::InvalidInput, message))?;

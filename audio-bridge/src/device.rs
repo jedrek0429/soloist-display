@@ -39,18 +39,27 @@ fn read_selection(path: &Path) -> io::Result<Option<String>> {
         Err(error) => return Err(error),
     };
     let id = content.trim_end_matches(['\n', '\r']);
-    if id.is_empty() || id.len() > 2048 || id.contains(['\r', '\n']) {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid saved audio device ID"));
+    if id.is_empty() || id.len() > 2048 || (id.contains('\r') || id.contains('\n')) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "invalid saved audio device ID",
+        ));
     }
     Ok(Some(id.to_owned()))
 }
 
 fn write_selection(path: &Path, id: &str) -> io::Result<()> {
-    if id.is_empty() || id.len() > 2048 || id.contains(['\r', '\n']) {
-        return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid audio device ID"));
+    if id.is_empty() || id.len() > 2048 || (id.contains('\r') || id.contains('\n')) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "invalid audio device ID",
+        ));
     }
     let parent = path.parent().ok_or_else(|| {
-        io::Error::new(io::ErrorKind::InvalidInput, "audio device path has no parent")
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "audio device path has no parent",
+        )
     })?;
     fs::create_dir_all(parent)?;
     let tmp = path.with_extension(format!("{}.tmp", std::process::id()));
@@ -130,7 +139,10 @@ mod tests {
         let path = dir.path().join("audio-device.id");
         assert_eq!(read_selection(&path).unwrap(), None);
         write_selection(&path, "wasapi:{test-device}").unwrap();
-        assert_eq!(read_selection(&path).unwrap().as_deref(), Some("wasapi:{test-device}"));
+        assert_eq!(
+            read_selection(&path).unwrap().as_deref(),
+            Some("wasapi:{test-device}")
+        );
         clear_selection(&path).unwrap();
         assert_eq!(read_selection(&path).unwrap(), None);
         clear_selection(&path).unwrap();

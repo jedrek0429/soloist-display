@@ -25,12 +25,12 @@ pub fn parse(args: &[String]) -> Result<Command, String> {
         [arg] if arg == "--help" || arg == "-h" => Ok(Command::Help),
         [arg] if arg == "--version" || arg == "-V" => Ok(Command::Version),
         [device, list] if device == "device" && list == "list" => Ok(Command::DeviceList),
-        [device, set, id] if device == "device" && set == "set" => {
+        [device, set, id] if device == "device" && set == "set" && !id.is_empty() => {
             Ok(Command::DeviceSet(id.clone()))
         }
         [device, default] if device == "device" && default == "default" => {
             Ok(Command::DeviceDefault)
-        },
+        }
         _ => Err("unknown command; use --help to list available commands".into()),
     }
 }
@@ -39,7 +39,9 @@ pub fn help() {
     println!("Soloist Display (External-only desktop preview)");
     println!("Usage: soloist-display [doctor|device list|device set <id>|device default|--help|--version]");
     println!("Run without arguments to serve http://127.0.0.1:8080");
-    println!("device selects the system audio output captured by the audio bridge for the visualiser.");
+    println!(
+        "device selects the system audio output captured by the audio bridge for the visualiser."
+    );
     println!("It does not change the Spotify Connect playback device or the system default.");
     println!("  device list       List available audio outputs and their stable IDs");
     println!("  device set <id>   Use the selected output for the audio visualiser");
@@ -183,7 +185,7 @@ mod tests {
             Command::DeviceDefault
         );
         assert!(parse(&["device".into(), "set".into()]).is_err());
-        assert!(parse(&["device".into(), "set".into(), "".into()]).is_ok());
+        assert!(parse(&["device".into(), "set".into(), "".into()]).is_err());
         assert!(parse(&["install".into()]).is_err());
         assert!(parse(&["uninstall".into()]).is_err());
         assert!(parse(&["update".into()]).is_err());

@@ -874,6 +874,21 @@ mod tests {
     }
 
     #[test]
+    fn display_probe_rejects_unrelated_http_server() {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port().to_string();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0; 256];
+            let _ = stream.read(&mut request);
+            stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello").unwrap();
+        });
+        assert!(!display_running(&port).unwrap());
+        server.join().unwrap();
+    }
+
+    #[test]
     fn migrates_global_diameter_to_each_appearance() {
         let path = env::temp_dir().join(format!(
             "soloist-display-diameter-{}.json",

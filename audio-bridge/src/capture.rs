@@ -42,7 +42,7 @@ macro_rules! capture_stream {
 }
 
 pub fn run(sender: broadcast::Sender<String>) -> CaptureResult<()> {
-    let (device, loopback, selected_id) = device::active_device()?;
+    let (device, loopback, _, selected_key) = device::active_device()?;
     let format = if loopback {
         device.default_output_config()?
     } else {
@@ -82,8 +82,8 @@ pub fn run(sender: broadcast::Sender<String>) -> CaptureResult<()> {
     loop {
         if last_check.elapsed() >= Duration::from_secs(1) {
             last_check = Instant::now();
-            let (_, _, current_id) = device::active_device()?;
-            if current_id != selected_id {
+            let (_, _, _, current_key) = device::active_device()?;
+            if current_key != selected_key {
                 eprintln!("Audio bridge output changed; reopening capture stream");
                 return Ok(());
             }
@@ -154,7 +154,7 @@ mod tests {
         if env::var_os("SOLOIST_DISPLAY_CPAL_MONITOR_SMOKE").is_none() {
             return;
         }
-        let (device, loopback, _) =
+        let (device, loopback, _, _) =
             device::active_device().expect("find requested monitor source");
         assert!(!loopback);
         assert_eq!(device.id().expect("device id").id(), "soloist_ci.monitor");

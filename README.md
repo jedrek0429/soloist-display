@@ -11,12 +11,12 @@ Turn a Linux computer or Raspberry Pi into a Spotify Connect speaker with a full
 [See the live Spotify display preview](https://jedrek0429.github.io/soloist-display/).
 
 <p align="center">
-  <img src="docs/screenshots/triple-threat.webp" alt="Soloist Display — album art and track details with a vinyl record" width="48%">
-  <img src="docs/screenshots/vinyl-cover.webp" alt="Soloist Display — vinyl record and expanded track information" width="48%">
+  <img src="docs/screenshots/triple-threat.png" alt="Soloist Display — Triple Threat album art with partial disc and track details" width="48%">
+  <img src="docs/screenshots/bach-vinyl.png" alt="Soloist Display — large vinyl view with track details" width="48%">
 </p>
 <p align="center">
-  <img src="docs/screenshots/kind-of-blue.webp" alt="Soloist Display — Kind of Blue album display" width="48%">
-  <img src="docs/screenshots/crt-setup.webp" alt="Soloist Display running on a CRT television" width="48%">
+  <img src="docs/screenshots/chris-rainbow.png" alt="Soloist Display — Chris Rainbow album art with progress bar and track details" width="48%">
+  <img src="docs/screenshots/standby-clock.png" alt="Soloist Display — standby screen with vinyl clock" width="48%">
 </p>
 
 Play music through your Linux computer or Raspberry Pi as a Spotify Connect speaker. Pick tracks on your phone; Soloist Display handles playback and shows animated album art, track details and a live audio spectrum.

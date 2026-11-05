@@ -42,7 +42,10 @@ fn config_path() -> PathBuf {
     #[cfg(target_os = "windows")]
     let base = env::var_os("APPDATA")
         .map(PathBuf::from)
-        .or_else(|| env::var_os("USERPROFILE").map(|home| PathBuf::from(home).join("AppData/Roaming")))
+        .or_else(|| {
+            env::var_os("USERPROFILE")
+                .map(|home| PathBuf::from(home).join("AppData/Roaming"))
+        })
         .unwrap_or_else(|| PathBuf::from("."));
 
     #[cfg(target_os = "macos")]

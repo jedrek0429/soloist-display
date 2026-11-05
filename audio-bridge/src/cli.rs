@@ -132,9 +132,11 @@ mod tests {
                 request.into_text().unwrap().as_str(),
                 r#"{"type":"command","command":"get_auth_state"}"#
             );
-            ws.send(Message::Text(r#"{"type":"auth_state","ready":true}"#.into()))
-                .await
-                .unwrap();
+            ws.send(Message::Text(
+                r#"{"type":"auth_state","ready":true}"#.into(),
+            ))
+            .await
+            .unwrap();
         });
         assert!(protocol_healthy(&endpoint).await);
         server.await.unwrap();

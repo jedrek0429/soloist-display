@@ -4,8 +4,46 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#101010">
-<meta name="description" content="Soloist Display — a beautiful now-playing display powered by Spotify Soloist.">
-<title>Soloist Display</title>
+<meta name="description" content="Turn a Linux PC or Raspberry Pi into a Spotify Connect speaker with a full-screen music display, album artwork and a live audio spectrum.">
+<meta name="robots" content="index,follow,max-image-preview:large">
+<link rel="canonical" href="https://jedrek0429.github.io/soloist-display/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Soloist Display">
+<meta property="og:title" content="Spotify Connect Speaker & Display | Soloist Display">
+<meta property="og:description" content="Turn a Linux PC or Raspberry Pi into a Spotify Connect speaker with a beautiful display, animated album artwork and a live audio spectrum.">
+<meta property="og:url" content="https://jedrek0429.github.io/soloist-display/">
+<meta property="og:image" content="https://jedrek0429.github.io/soloist-display/og-image.webp">
+<meta property="og:image:type" content="image/webp">
+<meta property="og:image:width" content="640">
+<meta property="og:image:height" content="336">
+<meta property="og:image:alt" content="Soloist Display showing Chris Rainbow album artwork and track information">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Spotify Connect Speaker & Display | Soloist Display">
+<meta name="twitter:description" content="Spotify Connect speaker and music display for Linux and Raspberry Pi. Play music and see animated album artwork and a live audio spectrum.">
+<meta name="twitter:image" content="https://jedrek0429.github.io/soloist-display/og-image.webp">
+<title>Spotify Connect Speaker & Display | Soloist Display</title>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Soloist Display",
+  "url": "https://jedrek0429.github.io/soloist-display/",
+  "description": "Free, open-source software that turns a Linux PC or Raspberry Pi into a Spotify Connect speaker with a full-screen music display, animated album artwork and a live audio spectrum.",
+  "applicationCategory": "MultimediaApplication",
+  "operatingSystem": "Linux",
+  "softwareRequirements": "Linux with systemd and glibc 2.38 or later; Spotify Premium",
+  "image": "https://jedrek0429.github.io/soloist-display/og-image.webp",
+  "downloadUrl": "https://github.com/jedrek0429/soloist-display/releases",
+  "codeRepository": "https://github.com/jedrek0429/soloist-display",
+  "license": "https://github.com/jedrek0429/soloist-display/blob/main/LICENSE",
+  "isAccessibleForFree": true,
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  }
+}
+</script>
 <link rel="preload" as="image" href="./kind-of-blue.jpg" fetchpriority="high">
 <link rel="preload" as="style" href="./styles.css">
 <style>
@@ -21,15 +59,19 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--ink);outline-offset
 .brand{font-size:26px;font-weight:600;letter-spacing:-.03em}
 .nav-link{border:1px solid var(--line);padding:9px 14px;white-space:nowrap}
 .nav-link:hover{background:var(--ink);color:var(--bg);text-decoration:none}
-main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:clamp(30px,5vw,76px);align-items:center;padding:28px 0}
-.hero{text-align:left;min-width:0}
+main{flex:1;min-height:0;display:grid;grid-template:"hero preview" auto "about preview" auto / minmax(0,1fr) minmax(0,1.1fr);column-gap:clamp(30px,5vw,76px);row-gap:24px;align-content:center;align-items:center;padding:28px 0}
+.hero{grid-area:hero;text-align:left;min-width:0}
 h1{font-size:clamp(40px,4.6vw,72px);font-weight:600;letter-spacing:-.055em;line-height:1.05;margin:0 0 16px;text-wrap:balance}
 .description{color:#aaa;margin:0 0 13px;font-size:clamp(17px,1.6vw,22px);line-height:1.35;max-width:490px}.powered{color:#aaa;margin:0;font-size:15px}
 .powered a{color:var(--ink);text-underline-offset:3px;text-decoration:underline}
-.preview{margin:0;position:relative;aspect-ratio:4/3;width:100%;overflow:hidden;border:1px solid var(--line);background:#151515}
+.preview{grid-area:preview;margin:0;position:relative;aspect-ratio:4/3;width:100%;overflow:hidden;border:1px solid var(--line);background:#151515}
 .preview iframe{display:block;width:100%;height:100%;border:0;pointer-events:none}
 
 .install{margin-top:34px}
+.about{grid-area:about;min-width:0;max-width:490px;border-top:1px solid var(--line);padding-top:20px}
+.about h2{font-size:18px;font-weight:600;letter-spacing:-.02em;line-height:1.3;margin:0 0 9px}
+.about p{color:#aaa;font-size:14px;line-height:1.5;margin:0}
+.about .requirement{font-size:13px;color:#888;margin-top:10px}
 .label{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#aaa;margin-bottom:12px}
 .command{display:flex;border:1px solid var(--line);min-width:0}
 .command code{flex:1;min-width:0;overflow:auto;white-space:nowrap;padding:16px;font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace}
@@ -38,7 +80,9 @@ h1{font-size:clamp(40px,4.6vw,72px);font-weight:600;letter-spacing:-.055em;line-
 .version{display:inline-block;margin-top:10px;font-size:12px;color:#888}
 
 [hidden]{display:none!important}
-@media(min-width:801px) and (max-height:710px){.topbar{padding:14px 0}main{padding:14px 0}.preview{max-height:calc(100dvh - 105px);width:auto;justify-self:center;max-width:100%}.install{margin-top:22px}}
+@media(min-width:801px) and (max-height:800px){main{row-gap:16px}.install{margin-top:24px}.about{padding-top:16px}.about p{font-size:13px;line-height:1.45}}
+@media(min-width:801px) and (max-height:710px){.topbar{padding:14px 0}main{padding:14px 0}.preview{max-height:calc(100dvh - 105px);width:auto;justify-self:center;max-width:100%}.install{margin-top:18px}}
+@media(min-width:801px) and (max-width:1100px){h1{font-size:clamp(36px,4.2vw,48px)}.description{font-size:18px}.about h2{font-size:16px}.about p{font-size:13px}}
 @media(max-width:800px){.shell{width:calc(100% - 40px)}main{display:flex;flex-direction:column;align-items:stretch;gap:32px;padding:42px 0}.hero{width:100%}h1{font-size:clamp(38px,8vw,60px)}.preview{width:100%;max-width:680px;align-self:center}}
 @media(max-width:560px){.shell{width:calc(100% - 32px)}.topbar{padding:20px 0}.brand{font-size:22px}main{padding-top:38px;gap:28px}.command{flex-direction:column}.command button{padding:12px;border-left:0;border-top:1px solid var(--line)}}
 @media(prefers-reduced-motion:reduce){.preview iframe{visibility:visible}}
@@ -50,6 +94,7 @@ h1{font-size:clamp(40px,4.6vw,72px);font-weight:600;letter-spacing:-.055em;line-
 <main>
 <section class="hero"><h1>Your music deserves a display.</h1><p class="description">Turn any device into a Spotify Connect speaker with a beautiful display.</p><p class="powered">Powered by <a href="https://developer.spotify.com/documentation/soloist">Soloist</a>.</p><section class="install" id="install"><span class="label">Install</span><div class="command"><code id="command">curl -fsSL https://jedrek0429.github.io/soloist-display/install.sh | sh</code><button type="button" id="copy">Copy</button></div><a class="version" href="https://github.com/jedrek0429/soloist-display/releases/tag/v1.0.0-alpha.9">v1.0.0-alpha.9</a></section></section>
 <figure class="preview" aria-label="Live Soloist Display preview: Miles Davis, So What"><iframe src="./preview.html" title="Animated Soloist Display showing So What by Miles Davis" loading="eager" tabindex="-1"></iframe></figure>
+<section class="about" aria-labelledby="about-heading"><h2 id="about-heading">Spotify Connect for Linux and Raspberry Pi</h2><p>Soloist Display turns your computer into a Spotify Connect speaker. Control playback from the Spotify app on your phone or computer, while Soloist Display plays the music and shows animated album artwork, track details and a live audio spectrum.</p><p class="requirement">Requires Spotify Premium.</p></section>
 </main>
 </div>
 <script>

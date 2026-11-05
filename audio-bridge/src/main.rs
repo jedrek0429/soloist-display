@@ -485,7 +485,9 @@ fn open_browser(url: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-async fn web_server(open_page: Option<String>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn web_server(
+    open_page: Option<String>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let port = env::var("SOLOIST_DISPLAY_HTTP_PORT").unwrap_or_else(|_| "8080".into());
     let state = WebState {
         path: Arc::new(config_path()),

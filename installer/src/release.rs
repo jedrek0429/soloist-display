@@ -81,6 +81,12 @@ pub fn select_release_tag(
         if format!("v{parsed}") != tag || !parsed.build.is_empty() {
             return None;
         }
+        if !parsed.pre.is_empty() {
+            let prerelease = parsed.pre.as_str();
+            if !(prerelease.starts_with("alpha.") || prerelease.starts_with("beta.")) {
+                return None;
+            }
+        }
         Some((parsed, tag))
     });
     let mut available: Vec<_> = versions.collect();
@@ -431,9 +437,10 @@ mod channel_tests {
     #[test]
     fn stable_is_default_after_first_stable_release() {
         let releases = vec![
-            json!({"draft":false,"tag_name":"v1.2.0-rc.3"}),
+            json!({"draft":false,"tag_name":"v1.2.0-beta.3"}),
             json!({"draft":false,"tag_name":"v1.0.0"}),
             json!({"draft":false,"tag_name":"v1.1.0-beta.4"}),
+            json!({"draft":false,"tag_name":"v2.0.0-rc.1"}),
             json!({"draft":true,"tag_name":"v9.0.0"}),
         ];
         assert_eq!(select_release_tag(&releases, None).unwrap(), "v1.0.0");
@@ -443,7 +450,22 @@ mod channel_tests {
         );
         assert_eq!(
             select_release_tag(&releases, Some(ReleaseChannel::Prerelease)).unwrap(),
-            "v1.2.0-rc.3"
+            "v1.2.0-beta.3"
+        );
+    }
+
+    #[test]
+    fn only_alpha_and_beta_are_considered_for_latest() {
+        let releases = vec![
+            json!({"draft":false,"tag_name":"v2.0.0-rc.1"}),
+            json!({"draft":false,"tag_name":"v1.1.0-alpha.8"}),
+            json!({"draft":false,"tag_name":"v1.1.0-beta.67"}),
+            json!({"draft":false,"tag_name":"v1.0.0"}),
+        ];
+        assert_eq!(select_release_tag(&releases, None).unwrap(), "v1.0.0");
+        assert_eq!(
+            select_release_tag(&releases, Some(ReleaseChannel::Prerelease)).unwrap(),
+            "v1.1.0-beta.67"
         );
     }
 

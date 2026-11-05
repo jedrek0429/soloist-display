@@ -621,7 +621,9 @@ test('connected standby notice survives the empty state and expires after two se
   assert.equal([...timers.values()][0].ms,2000);
   set('ready'); // An empty get_state result must not erase the notice.
   assert.equal(notice.textContent,'Connected!');
-  [...timers.values()][0].fn();
+  const [timerId,timer]=timers.entries().next().value;
+  timers.delete(timerId); // Simulate the timer being consumed by the event loop.
+  timer.fn();
   assert.equal(notice.textContent,'');
   vm.runInContext('connectedNoticePending=true',context);
   set('ready');

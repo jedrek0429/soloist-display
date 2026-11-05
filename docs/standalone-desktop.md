@@ -15,11 +15,11 @@ Open **http://127.0.0.1:8080**. Settings are at **http://127.0.0.1:8080/settings
 
 ```powershell
 .\soloist-display.exe device list
-.\soloist-display.exe device set "wasapi:YOUR-DEVICE-ID"
+.\soloist-display.exe device use 2
 .\soloist-display.exe device default
 ```
 
-Use the exact ID printed by `device list`; do not copy the example literally. The choice is saved in `audio-device.id` beside the Display settings and takes effect automatically in a running audio bridge. `device default` removes the override and follows the system's default output. These commands select **only the system audio output captured by the audio bridge for the visualiser**, not the Spotify Connect playback device; they never change the OS default or install/manage Soloist. A selected output that disappears produces an explicit capture error instead of silently switching to the wrong device. Linux continues to support the legacy `SOLOIST_DISPLAY_MONITOR` override when no device was explicitly selected.
+Use the number printed by `device list`, a stable device ID or an exact, unambiguous device name. The list number is only for convenience; the saved selection always uses the stable ID. `device set <id>` remains an alias for `device use`. The choice is saved in `audio-device.id` beside the Display settings and takes effect automatically in a running audio bridge. `device default` removes the override and follows the system's default output. These commands select **only the system audio output captured by the audio bridge for the visualiser**, not the Spotify Connect playback device; they never change the OS default or install/manage Soloist. A selected output that disappears produces an explicit capture error instead of silently switching to the wrong device. Linux continues to support the legacy `SOLOIST_DISPLAY_MONITOR` override when no device was explicitly selected.
 
 Start your existing Spotify Soloist separately. Display connects to its WebSocket at `ws://127.0.0.1:9090` by default. If you use another local endpoint, change **Soloist** in Display settings. While Soloist is offline, the UI shows its waiting/reconnecting state; it must never install or start Soloist itself.
 

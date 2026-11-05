@@ -8,6 +8,8 @@ use axum::{
 use futures_util::SinkExt;
 mod capture;
 mod cli;
+#[path = "../../cli_arguments.rs"]
+mod cli_arguments;
 #[path = "../../cli_output.rs"]
 mod cli_output;
 mod device;
@@ -456,7 +458,34 @@ async fn static_file(axum::extract::Path(path): axum::extract::Path<String>) -> 
         .into_response()
 }
 
-async fn web_server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+fn open_browser(url: &str) -> std::io::Result<()> {
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        let mut c = std::process::Command::new("rundll32.exe");
+        c.arg("url.dll,FileProtocolHandler").arg(url);
+        c
+    };
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut c = std::process::Command::new("open");
+        c.arg(url);
+        c
+    };
+    #[cfg(target_os = "linux")]
+    let mut command = {
+        let mut c = std::process::Command::new("xdg-open");
+        c.arg(url);
+        c
+    };
+    command
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()?;
+    Ok(())
+}
+
+async fn web_server(open_page: Option<String>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let port = env::var("SOLOIST_DISPLAY_HTTP_PORT").unwrap_or_else(|_| "8080".into());
     let state = WebState {
         path: Arc::new(config_path()),
@@ -473,7 +502,14 @@ async fn web_server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .route("/*path", get(static_file))
         .with_state(state);
     let listener = TcpListener::bind(format!("127.0.0.1:{port}")).await?;
-    eprintln!("Display and settings: http://127.0.0.1:{port}");
+    if !cli::quiet() {
+        eprintln!("Display and settings: http://127.0.0.1:{port}");
+    }
+    if let Some(page) = open_page {
+        if let Err(error) = open_browser(&page) {
+            eprintln!("Could not open browser: {error}. Open {page} manually.");
+        }
+    }
     axum::serve(listener, app).await?;
     Ok(())
 }
@@ -481,10 +517,20 @@ async fn web_server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let args: Vec<String> = env::args().skip(1).collect();
-    let command = cli::parse(&args)
-        .map_err(|message| std::io::Error::new(std::io::ErrorKind::InvalidInput, message))?;
+    let command = match cli::parse(&args) {
+        Ok(command) => command,
+        Err(message) => {
+            eprintln!("{message}");
+            std::process::exit(2);
+        }
+    };
+    let open_page = match &command {
+        cli::Command::Launch => Some("/"),
+        cli::Command::Settings => Some("/settings"),
+        _ => None,
+    };
     match command {
-        cli::Command::Serve => {}
+        cli::Command::Serve | cli::Command::Launch | cli::Command::Settings => {}
         cli::Command::Doctor => {
             if cli::doctor().await {
                 return Ok(());
@@ -497,6 +543,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
         cli::Command::Version => {
             println!("Soloist Display {}", env!("CARGO_PKG_VERSION"));
+            return Ok(());
+        }
+        cli::Command::Completions(shell) => {
+            cli::completions(shell);
             return Ok(());
         }
         cli::Command::DeviceList => {
@@ -512,7 +562,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             return Ok(());
         }
     }
-    let mut web_task = tokio::spawn(async { web_server().await });
+    let port = env::var("SOLOIST_DISPLAY_HTTP_PORT").unwrap_or_else(|_| "8080".into());
+    let open_url = open_page.map(|page| format!("http://127.0.0.1:{port}{page}"));
+    if let Some(ref url) = open_url {
+        if std::net::TcpStream::connect(format!("127.0.0.1:{port}")).is_ok() {
+            open_browser(url)?;
+            return Ok(());
+        }
+    }
+    let mut web_task = tokio::spawn(async move { web_server(open_url).await });
     let port = env::var("SOLOIST_DISPLAY_AUDIO_PORT").unwrap_or_else(|_| "9091".into());
     let listener = TcpListener::bind(format!("127.0.0.1:{port}")).await?;
     let (sender, _) = broadcast::channel::<String>(64);

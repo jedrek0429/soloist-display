@@ -1,6 +1,11 @@
 //! Read-only diagnostics for the standalone External Soloist preview.
 
-use crate::{cli_output, config_path, device, read_settings};
+use crate::{cli_output, cli_arguments::{DeviceCommand, GlobalFlags}, config_path, device, read_settings};
+use clap::{error::ErrorKind, CommandFactory, Parser, Subcommand};
+use clap_complete::{generate, Shell};
+use std::sync::atomic::{AtomicBool, Ordering};
+static QUIET: AtomicBool = AtomicBool::new(false);
+static VERBOSE: AtomicBool = AtomicBool::new(false);
 use futures_util::{SinkExt, StreamExt};
 use std::time::Duration;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
@@ -10,56 +15,90 @@ const DEFAULT_SOLOIST: &str = "ws://127.0.0.1:9090";
 #[derive(Debug, PartialEq, Eq)]
 pub enum Command {
     Serve,
+    Launch,
+    Settings,
     Doctor,
     Help,
     Version,
+    Completions(Shell),
     DeviceList,
     DeviceSet(String),
     DeviceDefault,
 }
 
+#[derive(Parser, Debug)]
+#[command(name = "soloist-display", version, about = "Run and configure Soloist Display")]
+struct DesktopCli {
+    #[command(flatten)]
+    flags: GlobalFlags,
+    #[command(subcommand)]
+    command: Option<DesktopSubcommand>,
+}
+
+#[derive(Subcommand, Debug)]
+enum DesktopSubcommand {
+    /// Open the now-playing display (starts the server if necessary).
+    Launch,
+    /// Open display settings (starts the server if necessary).
+    Settings,
+    /// Check local Soloist connectivity and audio output.
+    Doctor,
+    /// Choose the audio output captured by the visualiser.
+    Device {
+        #[command(subcommand)]
+        command: DeviceCommand,
+    },
+    /// Generate shell completions.
+    Completions { shell: Shell },
+}
+
 pub fn parse(args: &[String]) -> Result<Command, String> {
-    match args {
-        [] => Ok(Command::Serve),
-        [arg] if arg == "doctor" => Ok(Command::Doctor),
-        [arg] if arg == "--help" || arg == "-h" => Ok(Command::Help),
-        [arg] if arg == "--version" || arg == "-V" => Ok(Command::Version),
-        [device, list] if device == "device" && list == "list" => Ok(Command::DeviceList),
-        [device, set, id]
-            if device == "device" && (set == "use" || set == "set") && !id.is_empty() =>
-        {
-            Ok(Command::DeviceSet(id.clone()))
-        }
-        [device, default] if device == "device" && default == "default" => {
-            Ok(Command::DeviceDefault)
-        }
-        _ => Err("unknown command; use --help to list available commands".into()),
-    }
+    let parsed = DesktopCli::try_parse_from(
+        std::iter::once("soloist-display").chain(args.iter().map(String::as_str)),
+    );
+    let cli = match parsed {
+        Ok(value) => value,
+        Err(error) if error.kind() == ErrorKind::DisplayHelp => return Ok(Command::Help),
+        Err(error) if error.kind() == ErrorKind::DisplayVersion => return Ok(Command::Version),
+        Err(error) => return Err(error.to_string()),
+    };
+    cli.flags.configure_color();
+    QUIET.store(cli.flags.quiet, Ordering::Relaxed);
+    VERBOSE.store(cli.flags.verbose, Ordering::Relaxed);
+    Ok(match cli.command {
+        None => Command::Serve,
+        Some(DesktopSubcommand::Launch) => Command::Launch,
+        Some(DesktopSubcommand::Settings) => Command::Settings,
+        Some(DesktopSubcommand::Doctor) => Command::Doctor,
+        Some(DesktopSubcommand::Completions { shell }) => Command::Completions(shell),
+        Some(DesktopSubcommand::Device { command }) => match command {
+            DeviceCommand::List => Command::DeviceList,
+            DeviceCommand::Use { output } | DeviceCommand::Set { output } => {
+                Command::DeviceSet(output)
+            }
+            DeviceCommand::Default => Command::DeviceDefault,
+        },
+    })
+}
+
+pub fn quiet() -> bool {
+    QUIET.load(Ordering::Relaxed)
+}
+
+pub fn verbose() -> bool {
+    VERBOSE.load(Ordering::Relaxed)
 }
 
 pub fn help() {
-    cli_output::heading("External-only desktop preview");
-    println!("Usage: soloist-display [COMMAND]");
-    println!(
-        "       soloist-display              Start display and settings at http://127.0.0.1:8080"
-    );
+    DesktopCli::command().print_help().expect("stdout available");
     println!();
-    cli_output::section("Commands");
-    cli_output::command("doctor", "Check External Soloist and audio output");
-    cli_output::command("device list", "List audio outputs and stable IDs");
-    cli_output::command(
-        "device use <number|ID|name>",
-        "Select the visualiser source",
-    );
-    cli_output::command("device set <number|ID|name>", "Alias for device use");
-    cli_output::command("device default", "Follow the system default output");
-    println!();
-    cli_output::section("Options");
-    cli_output::command("-h, --help", "Show this help");
-    cli_output::command("-V, --version", "Show version");
-    println!();
-    println!("Device selection affects only the audio visualiser, not Spotify Connect playback.");
-    println!("Managed Soloist and lifecycle commands are not supported on this platform.");
+    println!("Device selection only changes the visualiser source, not Spotify playback.");
+    println!("Managed Soloist and lifecycle commands are not yet supported on desktop.");
+}
+
+pub fn completions(shell: Shell) {
+    let mut app = DesktopCli::command();
+    generate(shell, &mut app, "soloist-display", &mut std::io::stdout());
 }
 
 /// Device selection controls only the output loopback used for visualisation.
@@ -218,6 +257,10 @@ mod tests {
         assert!(parse(&["device".into(), "set".into()]).is_err());
         assert!(parse(&["device".into(), "use".into()]).is_err());
         assert!(parse(&["device".into(), "set".into(), "".into()]).is_err());
+        assert_eq!(parse(&["launch".into()]).unwrap(), Command::Launch);
+        assert_eq!(parse(&["settings".into()]).unwrap(), Command::Settings);
+        assert!(matches!(parse(&["completions".into(), "powershell".into()]), Ok(Command::Completions(_))));
+        assert!(parse(&["--verbose".into(), "--quiet".into()]).is_err());
         assert!(parse(&["install".into()]).is_err());
         assert!(parse(&["uninstall".into()]).is_err());
         assert!(parse(&["update".into()]).is_err());

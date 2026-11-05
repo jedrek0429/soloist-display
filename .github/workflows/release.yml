@@ -144,6 +144,52 @@ jobs:
           fi
           gh release create "$GITHUB_REF_NAME" dist/* "${args[@]}"
 
+  sync-stable:
+    needs: publish
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_BOT_TOKEN || github.token }}
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Point stable at the published release commit
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          tag="$GITHUB_REF_NAME"
+          [[ "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          git fetch origin refs/heads/main refs/heads/stable
+          release_tag="$(gh release view "$tag" --json tagName,isDraft,isPrerelease --jq 'select(.isDraft == false and .isPrerelease == false) | .tagName')"
+          test "$release_tag" = "$tag"
+          latest="$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)"
+          if [ "$latest" != "$tag" ]; then
+            echo "$tag is not the latest published stable release ($latest); refusing to move stable" >&2
+            exit 1
+          fi
+          sha="$(git rev-parse "$tag^{commit}")"
+          test "$(git rev-parse HEAD)" = "$sha"
+          test "$(git rev-parse "$sha^")" = "$(git ls-remote origin refs/heads/main | cut -f1)" || {
+            echo "main has advanced since the release was prepared; confirming release ancestry instead"
+            git merge-base --is-ancestor "$sha^" origin/main
+          }
+          cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- verify-workspace-version "$tag"
+          old="$(git ls-remote origin refs/heads/stable | cut -f1)"
+          test -n "$old"
+          if [ "$old" = "$sha" ]; then
+            echo "stable already matches $tag"
+            exit 0
+          fi
+          # stable is an exact release pointer, not a merge history.
+          # Its ruleset must grant this release bot bypass (including force updates).
+          git push --force-with-lease="refs/heads/stable:$old" origin "$sha:refs/heads/stable"
+          test "$(git ls-remote origin refs/heads/stable | cut -f1)" = "$sha"
+
   pages:
     needs: publish
     uses: ./.github/workflows/pages.yml

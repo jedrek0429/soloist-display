@@ -1579,7 +1579,8 @@ pub fn doctor(paths: &Paths) -> Result<bool> {
     macro_rules! check {
         ($label:expr, $value:expr, $help:expr) => {{
             let value = $value;
-            if !crate::cli_output::check($label, value, &$help.to_string()) {
+            let hint = $help;
+            if !crate::cli_output::check($label, value, hint.as_ref()) {
                 ok = false;
             }
         }};

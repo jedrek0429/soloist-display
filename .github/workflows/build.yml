@@ -18,20 +18,6 @@ on:
       - 'site/**'
       - '.github/workflows/**'
   pull_request:
-    paths:
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'audio-bridge/**'
-      - 'installer/**'
-      - 'src/**'
-      - 'config.json'
-      - 'index.html'
-      - 'settings.html'
-      - 'styles.css'
-      - 'install.sh'
-      - 'scripts/**'
-      - 'site/**'
-      - '.github/workflows/**'
 concurrency:
   group: checks-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -40,14 +26,38 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+      - name: Detect documentation-only pull requests
+        id: scope
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The PR checkout is a merge commit; its first parent is the base.
+          # Treat only README/docs changes as documentation-only. Unknown files
+          # must run the full test suite, not silently bypass it.
+          files="$(git diff --name-only HEAD^1 HEAD)"
+          if [ -n "$files" ] && ! printf '%s\n' "$files" | grep -Ev '^(README\.md|docs/)' >/dev/null; then
+            echo 'code_changed=false' >> "$GITHUB_OUTPUT"
+            echo 'Documentation-only PR: required test check succeeds without compiling Rust.'
+          else
+            echo 'code_changed=true' >> "$GITHUB_OUTPUT"
+          fi
       - uses: dtolnay/rust-toolchain@stable
+        if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
         with:
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo fmt --all -- --check
-      - run: cargo test --workspace --all-targets
-      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
+        uses: Swatinem/rust-cache@v2
+      - if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
+        run: cargo fmt --all -- --check
+      - if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
+        run: cargo test --workspace --all-targets
+      - if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
+        run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Shell checks
+        if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y shellcheck
@@ -56,12 +66,14 @@ jobs:
           sh -n scripts/test-bootstrap-e2e.sh
           sh -n scripts/test-release-lifecycle.sh
       - name: Frontend syntax
+        if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
         run: |
           for file in src/*.js; do node --check --input-type=module < "$file"; done
           node --experimental-default-type=module --test scripts/test-standby.mjs
           node --experimental-default-type=module --test scripts/test-landing-preview.mjs
           cargo run --quiet -p soloist-display-installer --bin release-tools -- check-settings .
       - name: Release bootstrap pin smoke test
+        if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
         run: |
           mkdir -p /tmp/bootstrap-test
           for target in x86_64-unknown-linux-musl aarch64-unknown-linux-musl armv7-unknown-linux-musleabihf; do
@@ -74,6 +86,7 @@ jobs:
           ! grep -q '@SOLOIST_DISPLAY_' /tmp/bootstrap-test/install.sh
           sh scripts/test-bootstrap-e2e.sh
       - name: CLI smoke test
+        if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
         run: |
           cargo build --workspace
           target/debug/soloist-display --help

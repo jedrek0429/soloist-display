@@ -21,10 +21,9 @@ is never marked latest.
 Run **Actions → Prepare stable release** on `main` and enter:
 
 - **version:** `1.0.0`, `1.0.1` or `1.1.0` (no prerelease suffix).
-- **target_branch:** source branch to promote, normally `main`; an `alpha/vX.Y.Z`
-  or `beta/vX.Y.Z` branch may also be selected.
 
-The workflow creates `release/vX.Y.Z` from the selected source, integrates the
+To promote a beta, first merge `beta/vX.Y.Z` into `main` and let CI pass.
+The workflow creates `release/vX.Y.Z` from `main`, integrates the
 previous `stable` history, bumps Cargo versions and opens a PR into `stable`.
 A missing `stable` branch is bootstrapped from `main` for the first release.
 Integration conflicts stop the workflow; never silently discard stable fixes.

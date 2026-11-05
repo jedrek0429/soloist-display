@@ -31,7 +31,7 @@ jobs:
           cp site/sitemap.xml "$RUNNER_TEMP/pages/sitemap.xml"
           cp site/og-image.webp "$RUNNER_TEMP/pages/og-image.webp"
           RELEASE_TAG="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
-            --jq '[.[] | select(.draft == false)] | sort_by(.published_at) | last | .tag_name // empty')"
+            --jq '[.[] | select(.draft == false)] as $all | ($all | map(select(.prerelease == false))) as $stable | (if ($stable | length) > 0 then $stable else $all end) | sort_by(.published_at) | last | .tag_name // empty')"
           if [ -n "$RELEASE_TAG" ]; then
             printf '%s\n' "$RELEASE_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'
             sed -i "s@<!-- release-version -->@<a class=\"version\" href=\"https://github.com/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}\">${RELEASE_TAG}</a>@" "$RUNNER_TEMP/pages/index.html"

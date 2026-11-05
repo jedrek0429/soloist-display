@@ -57,6 +57,7 @@ Downloads and verifies the Soloist Display installer, then runs it.
   --verbose     show additional diagnostics
   --help        show this help
   SOLOIST_DISPLAY_VERSION=SEMVER  select signed release (default: latest)
+  SOLOIST_DISPLAY_CHANNEL=NAME   stable, alpha, beta or prerelease
   --version     show bootstrap version
 EOF
     exit 0

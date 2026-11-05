@@ -82,4 +82,4 @@ Port conflicts stop installation. Unrelated processes are not killed.
 
 ## Releases
 
-Bootstrap supports `SOLOIST_DISPLAY_VERSION` and `SOLOIST_DISPLAY_CHANNEL=stable|prerelease`. Version selection and downgrades are covered in [advanced installation](advanced-installation.md); signing and publishing are covered in [releasing](releasing.md).
+Bootstrap supports `SOLOIST_DISPLAY_VERSION` and `SOLOIST_DISPLAY_CHANNEL=stable|alpha|beta|prerelease`. Version selection and downgrades are covered in [advanced installation](advanced-installation.md); signing and publishing are covered in [releasing](releasing.md).

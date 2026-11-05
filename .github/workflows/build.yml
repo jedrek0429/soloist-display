@@ -2,7 +2,7 @@ name: Checks
 on:
   workflow_dispatch:
   push:
-    branches: [main, beta/cpal-integration]
+    branches: [main]
     paths:
       - 'Cargo.toml'
       - 'Cargo.lock'
@@ -62,7 +62,7 @@ jobs:
       - if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: CPAL PulseAudio output monitor smoke test
-        if: github.ref == 'refs/heads/beta/cpal-integration' || (github.event_name == 'pull_request' && github.head_ref == 'feat/cpal-system-loopback')
+        if: github.event_name == 'workflow_dispatch'
         run: |
           sudo apt-get install -y pulseaudio pulseaudio-utils
           pulseaudio --start --exit-idle-time=-1

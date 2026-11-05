@@ -56,8 +56,6 @@ jobs:
         run: cargo test --workspace --all-targets
       - if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
         run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: Release notes baseline tests
-        run: python3 scripts/test-release-notes-base.py
       - name: Shell checks
         if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
         run: |

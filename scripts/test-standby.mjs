@@ -58,7 +58,6 @@ test('a track wins over an inconsistent empty outer field',()=>{
   assert.equal(isEmptyPlayback({item:{uri:'spotify:track:b'},status:'stopped'}),false);
 });
 
-
 test('a Spotify Connect handoff preserves the current track identity',()=>{
   const track={uri:'spotify:track:0sMR4StyIAXLE0WrfaZIDu',name:"I'm Old Fashioned",artists:[{name:'John Coltrane'}]};
   const same={uri:track.uri,name:track.name};

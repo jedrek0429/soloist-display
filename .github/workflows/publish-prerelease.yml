@@ -43,9 +43,9 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git fetch --tags origin
           # Refuse outdated maintenance lines before creating a release tag.
-          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \\
-            --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name' \\
-            | cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- \\
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name' \
+            | cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- \
               validate-prerelease-floor "v${base}-${channel}.1"
 
           # This tagged, version-only commit always has the source SHA as its parent.

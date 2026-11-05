@@ -244,7 +244,7 @@ test('rapid first metadata updates never animate an outgoing placeholder',async(
 
 test('idle to new track drops hidden artwork and waits for the arriving disc',()=>{
   const source=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
-  const code=source.slice(source.indexOf('function updateItem(item){'),source.indexOf('function syncPosition('));
+  const code=source.slice(source.indexOf('function isCurrentTrack('),source.indexOf('function syncPosition('));
   const changes=[];
   let reset=0,shown;
   const elements={track:{textContent:''},artist:{textContent:''}};

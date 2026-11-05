@@ -40,9 +40,7 @@ pub fn classify(
     endpoint_reachable: bool,
     independent_service_exists: bool,
 ) -> EngineMode {
-    if previously_managed
-        && executable.is_some_and(|path| owns_executable(path, managed_root))
-    {
+    if previously_managed && executable.is_some_and(|path| owns_executable(path, managed_root)) {
         EngineMode::Managed
     } else if executable.is_some() || endpoint_reachable || independent_service_exists {
         EngineMode::External

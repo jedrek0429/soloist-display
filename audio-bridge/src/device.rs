@@ -162,13 +162,28 @@ fn active_index(devices: &[(Device, DeviceInfo)], selected: &Selection) -> Resul
     }
 }
 
-/// Device ID is returned for change detection by the capture loop.
-pub fn active_device() -> Result<(Device, bool, String)> {
-    let devices = available()?;
+/// Preserve the OS's default output handle rather than pinning it to an
+/// enumerated endpoint. The key also includes the selection mode, so switching
+/// from a pinned device to default reopens the stream even if IDs are equal.
+pub fn active_device() -> Result<(Device, bool, String, String)> {
     let selection = current_selection()?;
+    #[cfg(not(target_os = "linux"))]
+    if selection == Selection::Default {
+        let device = host()?
+            .default_output_device()
+            .ok_or("no default system audio output device")?;
+        let id = device.id()?.to_string();
+        return Ok((device, true, id.clone(), format!("default:{id}")));
+    }
+
+    let devices = available()?;
     let index = active_index(&devices, &selection)?;
     let (device, info) = devices.into_iter().nth(index).ok_or("audio output vanished")?;
-    Ok((device, cfg!(not(target_os = "linux")), info.id))
+    let key = match selection {
+        Selection::Default => format!("default:{}", info.id),
+        Selection::Id(_) => format!("pinned:{}", info.id),
+    };
+    Ok((device, cfg!(not(target_os = "linux")), info.id, key))
 }
 
 fn choose_index(devices: &[(Device, DeviceInfo)], selector: &str) -> Result<usize> {

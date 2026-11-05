@@ -472,7 +472,8 @@ fn display_running(port: &str) -> std::io::Result<bool> {
     let mut response = Vec::new();
     stream.take(4096).read_to_end(&mut response)?;
     let response = String::from_utf8_lossy(&response);
-    Ok(response.starts_with("HTTP/1.1 200 ") && response.split("\r\n\r\n").nth(1) == Some("soloist-display"))
+    Ok(response.starts_with("HTTP/1.1 200 ")
+        && response.split("\r\n\r\n").nth(1) == Some("soloist-display"))
 }
 
 fn open_browser(url: &str) -> std::io::Result<()> {
@@ -513,7 +514,10 @@ async fn web_server(
     let app = Router::new()
         .route("/config.json", get(get_config).put(put_config))
         .route("/defaults.json", get(get_defaults))
-        .route("/.well-known/soloist-display", get(|| async { "soloist-display" }))
+        .route(
+            "/.well-known/soloist-display",
+            get(|| async { "soloist-display" }),
+        )
         .route("/", get(|| static_file(axum::extract::Path(String::new()))))
         .route(
             "/settings",
@@ -882,7 +886,11 @@ mod tests {
             let (mut stream, _) = listener.accept().unwrap();
             let mut request = [0; 256];
             let _ = stream.read(&mut request);
-            stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello").unwrap();
+            stream
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello",
+                )
+                .unwrap();
         });
         assert!(!display_running(&port).unwrap());
         server.join().unwrap();

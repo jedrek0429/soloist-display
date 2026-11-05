@@ -1,101 +1,94 @@
-name: Publish alpha on push
+name: Publish prerelease on push
 
 on:
   push:
     branches:
       - 'alpha/v*'
+      - 'beta/v*'
 
 permissions:
   contents: write
   actions: write
 
-# Do not cancel a pending push: each source commit deserves its own alpha.
-# Tag creation is retried if two runs choose the same alpha number.
+# Serialise version allocation across alpha and beta branches.
+concurrency:
+  group: prerelease-tags
+  cancel-in-progress: false
+
 jobs:
-  alpha:
+  tag:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          persist-credentials: true
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
-      - name: Create a versioned tag from this push
-        id: tag
+      - name: Create versioned prerelease tag
+        id: version
         env:
           SOURCE_SHA: ${{ github.sha }}
           SOURCE_REF: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          if [[ ! "$SOURCE_REF" =~ ^alpha/v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
-            echo "Expected alpha/vMAJOR.MINOR.PATCH, got $SOURCE_REF" >&2
+          if [[ ! "$SOURCE_REF" =~ ^(alpha|beta)/v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "Expected alpha/vX.Y.Z or beta/vX.Y.Z" >&2
             exit 1
           fi
-          base="${BASH_REMATCH[1]}"
+          channel="${BASH_REMATCH[1]}"
+          base="${BASH_REMATCH[2]}"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch --tags origin
 
-          # A rerun for the same push must not publish another release.
-          git fetch origin 'refs/tags/v*:refs/tags/v*' --force
-          for existing in $(git tag -l "v${base}-alpha.*"); do
-            if [[ "$existing" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$ ]] &&
-               [[ "$(git rev-parse "${existing}^{commit}^" 2>/dev/null || true)" == "$SOURCE_SHA" ]]; then
-              echo "tag=$existing" >> "$GITHUB_OUTPUT"
-              echo "Using existing release tag $existing for $SOURCE_SHA"
+          # This tagged, version-only commit always has the source SHA as its parent.
+          # Re-running a push never increments the prerelease number.
+          for tag in $(git tag -l "v${base}-${channel}.*"); do
+            if [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.[0-9]+$ ]] &&
+               [[ "$(git rev-parse "${tag}^{commit}^" 2>/dev/null || true)" == "$SOURCE_SHA" ]]; then
+              echo "tag=$tag" >> "$GITHUB_OUTPUT"
               exit 0
             fi
           done
 
-          for attempt in $(seq 1 20); do
-            git fetch origin 'refs/tags/v*:refs/tags/v*' --force
-            highest=0
-            for existing in $(git tag -l "v${base}-alpha.*"); do
-              if [[ "$existing" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.([0-9]+)$ ]]; then
-                number="${BASH_REMATCH[1]}"
-                if (( 10#$number > highest )); then highest=$((10#$number)); fi
-              fi
-            done
-            version="$base-alpha.$((highest + 1))"
-            tag="v$version"
-            git checkout --detach "$SOURCE_SHA"
-            VERSION="$version" python3 - <<'PY'
+          highest=0
+          for tag in $(git tag -l "v${base}-${channel}.*"); do
+            if [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.([0-9]+)$ ]]; then
+              n="${BASH_REMATCH[2]}"
+              if (( 10#$n > highest )); then highest=$((10#$n)); fi
+            fi
+          done
+          version="$base-$channel.$((highest + 1))"
+          tag="v$version"
+          git switch --detach "$SOURCE_SHA"
+          VERSION="$version" python3 - <<'PY'
           import os
-          import pathlib
+          from pathlib import Path
           import re
 
-          path = pathlib.Path("Cargo.toml")
-          content = path.read_text()
+          path = Path("Cargo.toml")
+          source = path.read_text()
           updated, count = re.subn(
               r'(?m)^version = "[^"]+"$',
               'version = "' + os.environ["VERSION"] + '"',
-              content,
+              source,
           )
           if count != 1:
               raise SystemExit("Expected exactly one workspace version")
           path.write_text(updated)
           PY
-            cargo update --workspace
-            cargo metadata --format-version 1 --no-deps --locked >/dev/null
-            cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- verify-workspace-version "$tag"
-            git add Cargo.toml Cargo.lock
-            git commit -m "chore: build $tag"
-            git tag -a "$tag" -m "Soloist Display $tag (source $SOURCE_SHA)"
-            if git push origin "refs/tags/$tag"; then
-              echo "tag=$tag" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            git tag -d "$tag"
-            echo "Tag $tag was claimed by another run; retrying ($attempt/20)"
-          done
-          echo "Could not reserve an alpha tag after 20 attempts" >&2
-          exit 1
+          cargo update --workspace
+          cargo metadata --format-version 1 --no-deps --locked >/dev/null
+          cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- verify-workspace-version "$tag"
+          git add Cargo.toml Cargo.lock
+          git commit --allow-empty -m "chore: build $tag"
+          git tag -a "$tag" -m "Soloist Display $tag (source $SOURCE_SHA)"
+          git push origin "refs/tags/$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
-      - name: Start the signed prerelease pipeline
+      - name: Dispatch signed prerelease
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.tag.outputs.tag }}
-        run: |
-          set -euo pipefail
-          gh workflow run release.yml --ref "$TAG"
+          TAG: ${{ steps.version.outputs.tag }}
+        run: gh workflow run release.yml --ref "$TAG"

@@ -144,7 +144,7 @@ jobs:
           # Only already-published releases are eligible, not draft/unused tags.
           previous="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
             --jq '.[] | select(.draft == false) | .tag_name' \
-            | python3 scripts/release-notes-base.py "$GITHUB_REF_NAME")"
+            | cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- release-notes-base "$GITHUB_REF_NAME")"
           args=(--repo "$GITHUB_REPOSITORY" --verify-tag --title "Soloist Display $GITHUB_REF_NAME" --generate-notes)
           if [[ -n "$previous" ]]; then
             echo "Release notes baseline: $previous -> $GITHUB_REF_NAME"

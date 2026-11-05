@@ -1,10 +1,10 @@
-name: Desktop beta builds
+name: Desktop prerelease builds
 
-# PRs are validated, but downloadable binaries are published only after integration
-# into beta. Each Actions run owns its artifacts; this is not a GitHub Release.
+# PRs get native compile checks; integrated alpha/beta branches publish test
+# executables. Each Actions run owns its artifacts; this is not a GitHub Release.
 on:
   push:
-    branches: [beta/cpal-integration]
+    branches: ['alpha/**', 'beta/**']
     paths:
       - 'audio-bridge/**'
       - 'Cargo.lock'
@@ -15,7 +15,7 @@ on:
       - 'styles.css'
       - 'config.json'
   pull_request:
-    branches: [beta/cpal-integration]
+    branches: ['alpha/**', 'beta/**']
     paths:
       - 'audio-bridge/**'
       - 'Cargo.lock'
@@ -93,7 +93,7 @@ jobs:
             }
           }
       - name: Upload downloadable Windows beta
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/beta/cpal-integration'
+        if: github.event_name != 'pull_request' && (startsWith(github.ref, 'refs/heads/alpha/') || startsWith(github.ref, 'refs/heads/beta/'))
         uses: actions/upload-artifact@v7
         with:
           name: soloist-display-windows-x86_64-beta
@@ -152,7 +152,7 @@ jobs:
           curl -fsS http://127.0.0.1:18080/config.json | grep -q 'soloistWebSocket'
           curl -fsS http://127.0.0.1:18080/settings | grep -q 'html'
       - name: Upload downloadable macOS beta
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/beta/cpal-integration'
+        if: github.event_name != 'pull_request' && (startsWith(github.ref, 'refs/heads/alpha/') || startsWith(github.ref, 'refs/heads/beta/'))
         uses: actions/upload-artifact@v7
         with:
           name: soloist-display-macos-arm64-beta

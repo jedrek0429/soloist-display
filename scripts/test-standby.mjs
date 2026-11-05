@@ -259,7 +259,7 @@ test('idle to new track drops hidden artwork and waits for the arriving disc',()
   };
   const context=vm.createContext({
     root,director,$:name=>elements[name],settings:{changeDiscOn:'album'},
-    coverFor:()=>'',durationMs:()=>0,albumKeyFor:()=>null,artistFor:()=> 'Artist',
+    coverFor:()=>'',durationMs:()=>0,albumKeyFor:()=>null,artistFor:()=> 'Artist',sameTrack,
     cancelPauseTimer(){},performance:{now:()=>1},
     setDisplayState:state=>{root.dataset.displayState=state}
   });

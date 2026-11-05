@@ -8,6 +8,8 @@ use axum::{
 use futures_util::SinkExt;
 mod capture;
 mod cli;
+#[path = "../../cli_output.rs"]
+mod cli_output;
 mod device;
 mod pcm;
 mod spectrum;
@@ -487,7 +489,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             if cli::doctor().await {
                 return Ok(());
             }
-            return Err(std::io::Error::other("doctor: checks failed").into());
+            std::process::exit(1);
         }
         cli::Command::Help => {
             cli::help();

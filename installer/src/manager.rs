@@ -1573,13 +1573,14 @@ pub fn launch(paths: &Paths, settings: bool) -> Result<()> {
 
 pub fn doctor(paths: &Paths) -> Result<bool> {
     let mut ok = true;
+    crate::cli_output::heading("Linux installation");
+    crate::cli_output::section("Diagnostics");
     let state = InstallState::load(paths)?;
     macro_rules! check {
         ($label:expr, $value:expr, $help:expr) => {{
             let value = $value;
-            println!("{:<22} {}", $label, if value { "ok" } else { "FAILED" });
-            if !value {
-                eprintln!("  {}", $help);
+            let hint = $help;
+            if !crate::cli_output::check($label, value, hint.as_ref()) {
                 ok = false;
             }
         }};
@@ -1625,8 +1626,8 @@ pub fn doctor(paths: &Paths) -> Result<bool> {
             SoloistOwnership::Independent => "external",
             SoloistOwnership::None => "unconfigured",
         };
-        println!("{:<22} {}", "Soloist mode", mode);
-        println!("{:<22} {}", "Soloist endpoint", endpoint);
+        crate::cli_output::field("Soloist mode", mode);
+        crate::cli_output::field("Soloist endpoint", endpoint);
         check!(
             "Soloist WebSocket",
             paths.is_test() || soloist::external_healthy(&state.soloist),
@@ -1644,15 +1645,10 @@ pub fn doctor(paths: &Paths) -> Result<bool> {
                     "Managed Soloist runtime metadata is unavailable; check the state directory before repairing."
                 );
                 if let Ok(runtime) = runtime {
-                    println!(
-                        "{:<22} {}",
-                        "Soloist data directory",
-                        runtime.data_dir.display()
-                    );
-                    println!(
-                        "{:<22} {}",
+                    crate::cli_output::field("Soloist data directory", runtime.data_dir.display());
+                    crate::cli_output::field(
                         "Soloist cache directory",
-                        runtime.cache_dir.display()
+                        runtime.cache_dir.display(),
                     );
                     check!(
                         "WebSocket configuration",
@@ -1695,16 +1691,15 @@ pub fn doctor(paths: &Paths) -> Result<bool> {
             }
             SoloistOwnership::Independent => {
                 let present = service::soloist_unit_present(paths);
-                println!(
-                    "{:<22} {}",
+                crate::cli_output::field(
                     "External systemd unit",
                     if present {
                         "detected (not managed)"
                     } else {
                         "absent (optional)"
-                    }
+                    },
                 );
-                println!("{:<22} disabled (external mode)", "Automatic renewal");
+                crate::cli_output::field("Automatic renewal", "disabled (external mode)");
             }
             SoloistOwnership::None => {
                 check!(

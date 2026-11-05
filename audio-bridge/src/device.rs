@@ -153,11 +153,22 @@ mod tests {
     #[test]
     fn selects_by_list_number_stable_id_or_unique_name() {
         let devices = vec![
-            Output { id: "wasapi:first".into(), name: "Speakers".into(), is_default: true },
-            Output { id: "wasapi:second".into(), name: "Headphones".into(), is_default: false },
+            Output {
+                id: "wasapi:first".into(),
+                name: "Speakers".into(),
+                is_default: true,
+            },
+            Output {
+                id: "wasapi:second".into(),
+                name: "Headphones".into(),
+                is_default: false,
+            },
         ];
         assert_eq!(resolve(&devices, "2").unwrap().id, "wasapi:second");
-        assert_eq!(resolve(&devices, "wasapi:second").unwrap().name, "Headphones");
+        assert_eq!(
+            resolve(&devices, "wasapi:second").unwrap().name,
+            "Headphones"
+        );
         assert_eq!(resolve(&devices, "Headphones").unwrap().id, "wasapi:second");
         assert!(resolve(&devices, "0").is_err());
         assert!(resolve(&devices, "3").is_err());
@@ -166,8 +177,16 @@ mod tests {
     #[test]
     fn refuses_ambiguous_names() {
         let devices = vec![
-            Output { id: "id:a".into(), name: "HDMI".into(), is_default: true },
-            Output { id: "id:b".into(), name: "HDMI".into(), is_default: false },
+            Output {
+                id: "id:a".into(),
+                name: "HDMI".into(),
+                is_default: true,
+            },
+            Output {
+                id: "id:b".into(),
+                name: "HDMI".into(),
+                is_default: false,
+            },
         ];
         assert!(resolve(&devices, "HDMI").is_err());
         assert_eq!(resolve(&devices, "id:b").unwrap().id, "id:b");

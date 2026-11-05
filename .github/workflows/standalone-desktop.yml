@@ -14,7 +14,6 @@ on:
       - 'settings.html'
       - 'styles.css'
       - 'config.json'
-      - '.github/workflows/standalone-desktop.yml'
   pull_request:
     branches: [beta/cpal-integration]
     paths:
@@ -42,11 +41,16 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: standalone-windows
-      - name: Build and test external-only display
+      - name: Fast compile check (PR)
+        if: github.event_name == 'pull_request'
+        run: cargo check --locked -p soloist-audio-bridge
+      - name: Build and test integrated desktop beta
+        if: github.event_name != 'pull_request'
         run: |
           cargo test --locked -p soloist-audio-bridge
           cargo build --release --locked -p soloist-audio-bridge
       - name: Package standalone executable
+        if: github.event_name != 'pull_request'
         shell: pwsh
         run: |
           New-Item -ItemType Directory dist -Force | Out-Null
@@ -54,6 +58,7 @@ jobs:
           Copy-Item docs/standalone-desktop.md dist/README.md
           Set-Content -Path dist/BUILD.txt -Value "commit=$env:GITHUB_SHA", "mode=external-only"
       - name: Smoke test HTTP server without running Soloist
+        if: github.event_name != 'pull_request'
         shell: pwsh
         run: |
           $env:SOLOIST_DISPLAY_CONFIG_DIR = Join-Path $env:RUNNER_TEMP 'soloist-standalone'
@@ -104,18 +109,26 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: standalone-macos-${{ matrix.target }}
-      - name: Build and test external-only display
+      - name: Fast compile check (PR)
+        if: github.event_name == 'pull_request'
+        run: |
+          test "$(uname -m)" = "${{ matrix.target }}"
+          cargo check --locked -p soloist-audio-bridge
+      - name: Build and test integrated desktop beta
+        if: github.event_name != 'pull_request'
         run: |
           test "$(uname -m)" = "${{ matrix.target }}"
           cargo test --locked -p soloist-audio-bridge
           cargo build --release --locked -p soloist-audio-bridge
       - name: Package standalone executable
+        if: github.event_name != 'pull_request'
         run: |
           mkdir -p dist
           install -m755 target/release/soloist-audio-bridge dist/soloist-display
           cp docs/standalone-desktop.md dist/README.md
           printf 'commit=%s\nmode=external-only\n' "$GITHUB_SHA" > dist/BUILD.txt
       - name: Smoke test HTTP server without running Soloist
+        if: github.event_name != 'pull_request'
         env:
           SOLOIST_DISPLAY_CONFIG_DIR: ${{ runner.temp }}/soloist-standalone
           SOLOIST_DISPLAY_HTTP_PORT: '18080'

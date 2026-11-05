@@ -49,6 +49,16 @@ synchronisation job fails. Do not disable protection globally as a workaround.
 After fixing permissions, rerun the failed `sync-stable` job for the published
 tag. Do not rerun release creation or move a published tag.
 
+## Generated release notes
+
+Changelogs explicitly compare alpha.N with the previous alpha for the same
+version, beta.N with the previous beta (or the last alpha for the first beta),
+and stable releases with the previous stable release. The first alpha of a new
+version compares with the preceding stable release. Only published releases
+are eligible baselines; GitHub's implicit release-note baseline is not used.
+If prerelease branches diverge, GitHub's commit comparison may still include
+overlapping changes; align the branches before moving from alpha to beta.
+
 ## Release verification
 
 Before stable publication, review the signing key, official Soloist download

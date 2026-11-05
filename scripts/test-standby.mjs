@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import vm from 'node:vm';
-import {isEmptyPlayback,pauseDelayMs} from '../src/soloist.js';
+import {isEmptyPlayback,pauseDelayMs,sameTrack,normalize,artistFor,albumKeyFor,coverFor,durationMs,positionMs,playing as isPlaying} from '../src/soloist.js';
 
 test('disc and standby use separate vinyl labels and setting keys',()=>{
   const source=fs.readFileSync(new URL('../src/settings.js',import.meta.url),'utf8');
@@ -56,6 +56,72 @@ test('pausing does not remove the artwork',()=>{
 test('a track wins over an inconsistent empty outer field',()=>{
   assert.equal(isEmptyPlayback({item:null,playback:{item:{uri:'spotify:track:a'},status:'playing'}}),false);
   assert.equal(isEmptyPlayback({item:{uri:'spotify:track:b'},status:'stopped'}),false);
+});
+
+test('a Spotify Connect handoff preserves the current track identity',()=>{
+  const track={uri:'spotify:track:0sMR4StyIAXLE0WrfaZIDu',name:"I'm Old Fashioned",artists:[{name:'John Coltrane'}]};
+  const same={uri:track.uri,name:track.name};
+  const partial={name:track.name};
+  assert.equal(sameTrack(track,same),true);
+  assert.equal(sameTrack(track,partial),true);
+  assert.equal(sameTrack(partial,track),true);
+  assert.equal(sameTrack(track,{uri:'spotify:track:another',name:track.name}),false);
+  assert.equal(sameTrack(track,{name:'Different track'}),false);
+});
+
+test('handoff transient empty playback never clears or reanimates the preview',()=>{
+  const src=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
+  const code=src.slice(src.indexOf('let currentUri=null,'),src.indexOf('function connect('));
+  const timers=new Map();let sequence=0,changes=0,resets=0;
+  const elements={track:{textContent:''},artist:{textContent:''}};
+  const root={dataset:{displayState:'ready',metadataReady:'false'}};
+  const director={
+    started:false,
+    reset(){resets++;this.started=false},
+    change(url,onShow){changes++;this.started=true;onShow();return Promise.resolve()},
+    changePanel(){throw Error('handoff should not animate panel')},
+    setPlaying(){},
+  };
+  const context=vm.createContext({
+    root,director,$:id=>elements[id],settings:{changeDiscOn:'album'},
+    config:{idlePauseDelaySeconds:300},
+    normalize,isEmptyPlayback,artistFor,coverFor,albumKeyFor,durationMs,positionMs,
+    sameTrack,isPlaying,pauseDelayMs,performance:{now:()=>1000},
+    setTimeout:(callback,ms)=>{const id=++sequence;timers.set(id,{callback,ms});return id},
+    clearTimeout:id=>timers.delete(id),
+    setDisplayState:state=>{root.dataset.displayState=state}
+  });
+  vm.runInContext(code,context);
+  const event=obj=>{context.input=obj;vm.runInContext('handleSoloist(input)',context)};
+  const track={uri:'spotify:track:0sMR4StyIAXLE0WrfaZIDu',name:"I'm Old Fashioned",artists:[{name:'John Coltrane'}],
+    album:{images:[{url:'cover.jpg'}]}};
+  event({type:'playback_state',status:'playing',item:track,is_active:false});
+  assert.equal(changes,1);
+  assert.equal(root.dataset.displayState,'playing');
+  const originalArtwork=elements.track.textContent;
+  // Soloist may report an empty playback snapshot while Connect switches speakers.
+  event({type:'playback_state',status:'idle',item:null,is_active:true});
+  assert.equal(root.dataset.displayState,'playing');
+  assert.equal(changes,1);
+  assert.equal(resets,0);
+  assert.equal([...timers.values()][0].ms,2000);
+  event({type:'device_changed',is_active:true});
+  event({type:'playback_state',status:'playing',item:{name:track.name},is_active:true});
+  assert.equal(timers.size,0);
+  assert.equal(changes,1,'same track must not fly out, even with missing URI and artwork');
+  assert.equal(resets,0);
+  assert.equal(elements.track.textContent,originalArtwork);
+  event({type:'track_changed',item:track});
+  assert.equal(changes,1,'restored full metadata must not restart the animation');
+  // A real persistent empty snapshot should still return to idle.
+  event({type:'playback_state',status:'idle',item:null,is_active:true});
+  const [timerId,timer]=timers.entries().next().value;
+  timers.delete(timerId);
+  timer.callback();
+  assert.equal(root.dataset.displayState,'ready');
+  assert.equal(resets,1);
+  event({type:'track_changed',item:{...track,uri:'spotify:track:new',name:'Next track'}});
+  assert.equal(changes,2,'a genuinely different track must animate');
 });
 
 test('pause delay supports any whole second up to a day, or never',()=>{
@@ -178,7 +244,7 @@ test('rapid first metadata updates never animate an outgoing placeholder',async(
 
 test('idle to new track drops hidden artwork and waits for the arriving disc',()=>{
   const source=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
-  const code=source.slice(source.indexOf('function updateItem(item){'),source.indexOf('function syncPosition('));
+  const code=source.slice(source.indexOf('function isCurrentTrack('),source.indexOf('function syncPosition('));
   const changes=[];
   let reset=0,shown;
   const elements={track:{textContent:''},artist:{textContent:''}};
@@ -191,7 +257,7 @@ test('idle to new track drops hidden artwork and waits for the arriving disc',()
   };
   const context=vm.createContext({
     root,director,$:name=>elements[name],settings:{changeDiscOn:'album'},
-    coverFor:()=>'',durationMs:()=>0,albumKeyFor:()=>null,artistFor:()=> 'Artist',
+    coverFor:()=>'',durationMs:()=>0,albumKeyFor:()=>null,artistFor:()=> 'Artist',sameTrack,
     cancelPauseTimer(){},performance:{now:()=>1},
     setDisplayState:state=>{root.dataset.displayState=state}
   });

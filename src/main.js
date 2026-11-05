@@ -1,4 +1,4 @@
-import {artistFor,albumKeyFor,coverFor,normalize,positionMs,durationMs,playing as isPlaying,isEmptyPlayback,pauseDelayMs} from './soloist.js';
+import {artistFor,albumKeyFor,coverFor,normalize,positionMs,durationMs,playing as isPlaying,isEmptyPlayback,pauseDelayMs,sameTrack} from './soloist.js';
 import {DiscDirector} from './motion.js';
 import {Spectrum} from './spectrum.js';
 
@@ -134,7 +134,26 @@ function setDisplayState(state){
   }
 }
 let currentUri=null,position=0,positionTime=performance.now(),duration=0,playing=false;
-let pauseTimer=null;
+let pauseTimer=null,emptyPlaybackTimer=null;
+function cancelEmptyPlayback(){
+  if(emptyPlaybackTimer!==null)clearTimeout(emptyPlaybackTimer);
+  emptyPlaybackTimer=null;
+}
+function scheduleEmptyPlayback(){
+  if(!currentUri){
+    clearTrack();
+    setDisplayState('ready');
+    return;
+  }
+  // A device transfer may briefly report an idle snapshot before the same item resumes.
+  // Keep the existing artwork until the empty state has remained stable.
+  if(emptyPlaybackTimer!==null)return;
+  emptyPlaybackTimer=setTimeout(()=>{
+    emptyPlaybackTimer=null;
+    clearTrack();
+    setDisplayState('ready');
+  },2000);
+}
 function cancelPauseTimer(){
   if(pauseTimer!==null)clearTimeout(pauseTimer);
   pauseTimer=null;
@@ -150,6 +169,7 @@ function showPausedAfterDelay(){
   },wait);
 }
 function clearTrack(){
+  cancelEmptyPlayback();
   cancelPauseTimer();
   root.dataset.metadataReady='false';
   $('track').textContent='';
@@ -169,16 +189,24 @@ function clearTrack(){
 
 let lastTrack=null;
 let currentAlbumKey=null;
+function isCurrentTrack(item,uri,cover){
+  if(uri!==currentUri&&!(currentUri!==null&&sameTrack(item,lastTrack)))return false;
+  // A Connect handoff can resend a partial snapshot of the displayed track.
+  // Keep the richer previous artwork instead of starting another transition.
+  if(item.uri||item.id)currentUri=item.uri||item.id;
+  if(cover||!lastTrack)lastTrack=item;
+  return true;
+}
 function updateItem(item){
   if(!item)return;
   const name=item?.decorations?.identity?.name||item.name||'';
   const cover=coverFor(item);
   // A partial state without any track metadata is not an album to animate.
   if(!name.trim()&&!cover)return;
-  lastTrack=item;
   const uri=item.uri||item.id||[name,cover].join('|');
   duration=durationMs(item)||duration;
-  if(uri===currentUri)return;
+  if(isCurrentTrack(item,uri,cover))return;
+  lastTrack=item;
   cancelPauseTimer();
   const fromIdle=root.dataset.displayState!=='playing';
   // Idle may retain a paused album internally. It is not a visible outgoing disc.
@@ -211,28 +239,34 @@ function syncPosition(ms){
   // Ignore jitter; seek or genuine drift should still correct the clock.
   if(!positionTime||Math.abs(ms-estimated)>750){position=ms;positionTime=now}
 }
+function updatePlaybackStatus(status){
+  if(status===null)return;
+  playing=isPlaying(status);
+  director.setPlaying(playing,{instantResume:playing&&root.dataset.displayState==='paused'});
+  if(playing){
+    cancelPauseTimer();
+    if(currentUri&&director.started)setDisplayState('playing');
+  }else if(currentUri){
+    showPausedAfterDelay();
+  }
+}
+function updatePosition(value){
+  if(value===null)return;
+  const ms=positionMs(value);
+  if(Number.isFinite(ms))syncPosition(ms);
+}
 function handleSoloist(event){
   const {item,position:pos,status}=normalize(event);
   if(isEmptyPlayback(event)){
-    clearTrack();
-    setDisplayState('ready');
+    scheduleEmptyPlayback();
     return;
   }
+  if(item||(status!==null&&status!=='idle'&&status!=='stopped'))cancelEmptyPlayback();
   if(item)updateItem(item);
-  if(status!==null){
-    playing=isPlaying(status);
-    director.setPlaying(playing,{instantResume:playing&&root.dataset.displayState==='paused'});
-    if(playing){
-      cancelPauseTimer();
-      if(currentUri&&director.started)setDisplayState('playing');
-    }else if(currentUri){
-      showPausedAfterDelay();
-    }
-  }
-  if(pos!==null){const ms=positionMs(pos);if(Number.isFinite(ms))syncPosition(ms)}
+  updatePlaybackStatus(status);
+  updatePosition(pos);
   if(event.type==='position_sync'||event.type==='position_changed'){
-    const ms=positionMs(event.position??event);
-    if(Number.isFinite(ms))syncPosition(ms);
+    updatePosition(event.position??event);
   }
 }
 function connect(url,onData,onOpen,onDisconnect,onConnecting){

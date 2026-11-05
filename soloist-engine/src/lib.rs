@@ -24,6 +24,12 @@ pub fn owns_executable(path: &Path, managed_root: &Path) -> bool {
     if !path.is_absolute() || !managed_root.is_absolute() {
         return false;
     }
+    let Ok(metadata) = std::fs::symlink_metadata(managed_root) else {
+        return false;
+    };
+    if !metadata.is_dir() || metadata.file_type().is_symlink() {
+        return false;
+    }
     let (Ok(path), Ok(root)) = (path.canonicalize(), managed_root.canonicalize()) else {
         return false;
     };
@@ -135,6 +141,30 @@ mod tests {
         symlink(&outside, &link).unwrap();
         assert_eq!(
             classify(true, Some(&link), &root, false, false),
+            EngineMode::External
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_managed_root_does_not_claim_external_installation() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempfile::tempdir().unwrap();
+        let external = dir.path().join("external-install");
+        fs::create_dir_all(&external).unwrap();
+        let executable = external.join("soloist");
+        fs::write(&executable, b"external").unwrap();
+        let managed_root = dir.path().join("managed");
+        symlink(&external, &managed_root).unwrap();
+        assert_eq!(
+            classify(
+                true,
+                Some(&managed_root.join("soloist")),
+                &managed_root,
+                false,
+                false
+            ),
             EngineMode::External
         );
     }

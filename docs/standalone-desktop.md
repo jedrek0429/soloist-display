@@ -9,7 +9,7 @@ Unzip the archive and run from a terminal:
 - Windows x86_64: `./soloist-display.exe` (PowerShell)
 - macOS Apple Silicon (ARM64): `chmod +x ./soloist-display && ./soloist-display`
 
-Open **http://127.0.0.1:8080**. Settings are at **http://127.0.0.1:8080/settings**.
+Open **http://127.0.0.1:8080**. Settings are at **http://127.0.0.1:8080/settings**. Run `soloist-display.exe doctor` on Windows or `./soloist-display doctor` on macOS to check the External Soloist protocol and default output device without managing processes.
 
 Start your existing Spotify Soloist separately. Display connects to its WebSocket at `ws://127.0.0.1:9090` by default. If you use another local endpoint, change **Soloist** in Display settings. While Soloist is offline, the UI shows its waiting/reconnecting state; it must never install or start Soloist itself.
 

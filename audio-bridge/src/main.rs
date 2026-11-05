@@ -586,10 +586,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
         std::thread::sleep(std::time::Duration::from_secs(2));
     });
-    eprintln!(
-        "Spectrum WebSocket listening on ws://127.0.0.1:{port} (6 bands, {:.1} Hz)",
-        RATE as f32 / HOP as f32
-    );
+    if !cli::quiet() {
+        eprintln!(
+            "Spectrum WebSocket listening on ws://127.0.0.1:{port} (6 bands, {:.1} Hz)",
+            RATE as f32 / HOP as f32
+        );
+    }
     loop {
         let (socket, _) = tokio::select! {
             result = listener.accept() => result?,

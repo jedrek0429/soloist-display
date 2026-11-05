@@ -1,7 +1,7 @@
 name: Distribution smoke tests
 on:
   push:
-    branches: [main, beta/cpal-integration]
+    branches: [main]
     paths:
       - 'installer/**'
       - 'audio-bridge/**'
@@ -12,11 +12,6 @@ on:
       - 'install.sh'
       - '.github/workflows/**'
       - 'scripts/**'
-  pull_request:
-    paths:
-      - 'installer/**'
-      - 'audio-bridge/**'
-      - '.github/workflows/distribution-smoke.yml'
   schedule:
     - cron: '17 4 * * 1'
   workflow_dispatch:
@@ -27,7 +22,6 @@ concurrency:
 
 jobs:
   build:
-    if: github.event_name != 'pull_request' || github.head_ref == 'feat/cpal-glibc-linux-packaging'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7

@@ -85,3 +85,9 @@ test('landing explanation stays in the main grid and follows the preview on mobi
   assert.match(landing,/@media\(min-width:801px\) and \(max-height:800px\)/);
   assert.doesNotMatch(landing,/class="eyebrow"|class="features"/);
 });
+
+test('header keeps the site brand separate from the GitHub navigation label',()=>{
+  const landing=read('../site/index.html');
+  assert.match(landing,/<header class="topbar">\s*<a class="brand"[^>]*>Soloist Display<\/a>\s*<nav aria-label="Project links">\s*<a class="nav-link"[^>]*>GitHub<\/a>\s*<\/nav>\s*<\/header>/);
+  assert.doesNotMatch(landing,/>Soloist Display<\/a><a[^>]*>GitHub<\/a>/);
+});

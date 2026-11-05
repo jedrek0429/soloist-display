@@ -90,7 +90,12 @@ h1{font-size:clamp(40px,4.6vw,72px);font-weight:600;letter-spacing:-.055em;line-
 </head>
 <body>
 <div class="shell">
-<header class="topbar"><a class="brand" href="./" aria-label="Soloist Display home">Soloist Display</a><a class="nav-link" href="https://github.com/jedrek0429/soloist-display">GitHub</a></header>
+<header class="topbar">
+<a class="brand" href="./" aria-label="Soloist Display home">Soloist Display</a>
+<nav aria-label="Project links">
+<a class="nav-link" href="https://github.com/jedrek0429/soloist-display">GitHub</a>
+</nav>
+</header>
 <main>
 <section class="hero"><h1>Your music deserves a display.</h1><p class="description">Turn any device into a Spotify Connect speaker with a beautiful display.</p><p class="powered">Powered by <a href="https://developer.spotify.com/documentation/soloist">Soloist</a>.</p><section class="install" id="install"><span class="label">Install</span><div class="command"><code id="command">curl -fsSL https://jedrek0429.github.io/soloist-display/install.sh | sh</code><button type="button" id="copy">Copy</button></div><!-- release-version --></section></section>
 <figure class="preview" aria-label="Live Soloist Display preview: Miles Davis, So What"><iframe src="./preview.html" title="Animated Soloist Display showing So What by Miles Davis" loading="eager" tabindex="-1"></iframe></figure>

@@ -47,13 +47,7 @@ jobs:
       - name: Install system dependencies
         if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
         run: |
-          # GitHub-hosted Ubuntu runners may use an Azure mirror list.
-          # Compare the standard Ubuntu archive for this CI run.
-          for source in /etc/apt/apt-mirrors.txt /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list; do
-            if [ -f "$source" ]; then
-              sudo sed -i 's|azure.archive.ubuntu.com|archive.ubuntu.com|g' "$source"
-            fi
-          done
+          sudo sed -i 's|azure.archive.ubuntu.com|archive.ubuntu.com|g' /etc/apt/apt-mirrors.txt
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libasound2-dev libpulse-dev shellcheck
       - uses: dtolnay/rust-toolchain@stable

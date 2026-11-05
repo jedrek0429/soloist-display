@@ -4,6 +4,23 @@ Tags follow [SemVer](https://semver.org/) and match the workspace Cargo version:
 
 Published tags are immutable. Need a fix? Publish a new tag. Don't rewrite history.
 
+## Continuous alpha releases
+
+Every push to `alpha/vMAJOR.MINOR.PATCH` creates a signed `vMAJOR.MINOR.PATCH-alpha.N` prerelease.
+The `Publish alpha on push` workflow picks the next unused alpha number for that
+version, makes a version-only commit **outside the branch**, tags it and dispatches
+`Signed release`. The development branch is not rewritten, so version bumps cannot
+trigger another push release. Re-running the same push reuses its tag.
+
+Keep the workflow on the alpha branch (or merge the latest `main` into it) before
+expecting the trigger to work. The source branch may keep its development version;
+the tagged commit contains the exact Cargo version required for publication.
+Do not create manual alpha tags for the same commits. The signed release workflow
+is responsible for publishing binaries, manifests and prerelease metadata.
+
+Stable `1.0.x` releases still use **Prepare release** and a PR to `main`.
+Publishing an alpha must not replace the stable version or installer on GitHub Pages.
+
 ## Prepare a release
 
 Open **Actions → Prepare release → Run workflow** on `main`. Enter a SemVer version such as `1.0.0-beta.1`, `1.0.0-rc.1` or `1.0.0` (the `v` prefix is optional).

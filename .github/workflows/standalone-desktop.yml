@@ -55,6 +55,8 @@ jobs:
         run: |
           target/release/soloist-audio-bridge.exe --help
           target/release/soloist-audio-bridge.exe --version
+          target/release/soloist-audio-bridge.exe device list
+          target/release/soloist-audio-bridge.exe device default
       - name: Package standalone executable
         if: github.event_name != 'pull_request'
         shell: pwsh
@@ -123,6 +125,8 @@ jobs:
         run: |
           target/release/soloist-audio-bridge --help
           target/release/soloist-audio-bridge --version
+          target/release/soloist-audio-bridge device list
+          target/release/soloist-audio-bridge device default
       - name: Package standalone executable
         if: github.event_name != 'pull_request'
         run: |

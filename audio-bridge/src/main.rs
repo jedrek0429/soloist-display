@@ -8,6 +8,7 @@ use axum::{
 use futures_util::SinkExt;
 mod capture;
 mod cli;
+mod device;
 mod pcm;
 mod spectrum;
 use serde_json::Value;
@@ -476,7 +477,7 @@ async fn web_server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let args: Vec<String> = env::args().skip(1).collect();
     let command = cli::parse(&args)
         .map_err(|message| std::io::Error::new(std::io::ErrorKind::InvalidInput, message))?;
@@ -494,6 +495,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         cli::Command::Version => {
             println!("Soloist Display {}", env!("CARGO_PKG_VERSION"));
+            return Ok(());
+        }
+        cli::Command::DeviceList => {
+            cli::list_devices()?;
+            return Ok(());
+        }
+        cli::Command::DeviceSet(id) => {
+            cli::set_device(&id)?;
+            return Ok(());
+        }
+        cli::Command::DeviceDefault => {
+            cli::default_device()?;
             return Ok(());
         }
     }

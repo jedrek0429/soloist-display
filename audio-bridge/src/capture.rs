@@ -1,62 +1,17 @@
-use crate::{pcm::PcmInput, spectrum::Spectrum};
+use crate::{device, pcm::PcmInput, spectrum::Spectrum};
 use cpal::{
-    traits::{DeviceTrait, HostTrait, StreamTrait},
+    traits::{DeviceTrait, StreamTrait},
     SampleFormat,
 };
 use std::{
     env,
     error::Error,
     sync::mpsc::{self, SyncSender},
-    time::Duration,
+    time::{Duration, Instant},
 };
 use tokio::sync::broadcast;
 
 type CaptureResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
-
-#[cfg(target_os = "linux")]
-fn output_device() -> CaptureResult<(cpal::Device, bool)> {
-    let host = cpal::host_from_id(cpal::HostId::PulseAudio)?;
-    let preferred = env::var("SOLOIST_DISPLAY_MONITOR")
-        .ok()
-        .filter(|name| !name.is_empty());
-    let default_sink = host
-        .default_output_device()
-        .and_then(|device| device.id().ok())
-        .map(|id| format!("{}.monitor", id.id()));
-
-    let mut fallback = None;
-    for device in host.input_devices()? {
-        let id = device.id()?;
-        let source = id.id();
-        if let Some(name) = &preferred {
-            if source == name || device.to_string() == *name || id.to_string() == *name {
-                return Ok((device, false));
-            }
-        } else if source.ends_with(".monitor") {
-            if default_sink.as_deref() == Some(source) {
-                return Ok((device, false));
-            }
-            if fallback.is_none() {
-                fallback = Some(device);
-            }
-        }
-    }
-    if preferred.is_some() {
-        return Err("requested PulseAudio monitor source does not exist".into());
-    }
-    fallback.map(|device| (device, false)).ok_or_else(|| {
-        "no PulseAudio/PipeWire output monitor found (microphone capture is not a fallback)".into()
-    })
-}
-
-#[cfg(any(windows, target_os = "macos"))]
-fn output_device() -> CaptureResult<(cpal::Device, bool)> {
-    let host = cpal::default_host();
-    let device = host
-        .default_output_device()
-        .ok_or("no default system audio output device")?;
-    Ok((device, true))
-}
 
 // CPAL reports WASAPI buffer discontinuities as errors even though capture
 // continues. Restarting for each xrun drops the next audio buffers.
@@ -87,7 +42,7 @@ macro_rules! capture_stream {
 }
 
 pub fn run(sender: broadcast::Sender<String>) -> CaptureResult<()> {
-    let (device, loopback) = output_device()?;
+    let (device, loopback, selected_id) = device::active_device()?;
     let format = if loopback {
         device.default_output_config()?
     } else {
@@ -123,7 +78,16 @@ pub fn run(sender: broadcast::Sender<String>) -> CaptureResult<()> {
 
     let mut pcm = PcmInput::new();
     let mut spectrum = Spectrum::new();
+    let mut last_check = Instant::now();
     loop {
+        if last_check.elapsed() >= Duration::from_secs(1) {
+            last_check = Instant::now();
+            let (_, _, current_id) = device::active_device()?;
+            if current_id != selected_id {
+                eprintln!("Audio bridge output changed; reopening capture stream");
+                return Ok(());
+            }
+        }
         if let Ok(error) = error_rx.try_recv() {
             return Err(format!("CPAL stream stopped: {error}").into());
         }
@@ -190,7 +154,8 @@ mod tests {
         if env::var_os("SOLOIST_DISPLAY_CPAL_MONITOR_SMOKE").is_none() {
             return;
         }
-        let (device, loopback) = output_device().expect("find requested monitor source");
+        let (device, loopback, _) =
+            device::active_device().expect("find requested monitor source");
         assert!(!loopback);
         assert_eq!(device.id().expect("device id").id(), "soloist_ci.monitor");
         let supported = device

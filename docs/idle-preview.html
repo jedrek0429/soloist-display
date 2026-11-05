@@ -46,6 +46,7 @@
 <option value="ready">Ready</option>
 <option value="paused">Paused</option>
 <option value="connecting">Connecting</option>
+<option value="connected">Connected</option>
 <option value="offline">Disconnected</option>
 <option value="reconnecting">Reconnecting</option>
 </select>
@@ -66,7 +67,7 @@ function render(){
   const state=$('connection').value;
   root.dataset.displayState=state;
   $('standby-title').textContent=$('caption').value;
-  $('standby-connection').textContent=state==='offline'?'Disconnected':state==='reconnecting'?'Reconnecting':'';
+  $('standby-connection').textContent={connecting:'Connecting...',connected:'Connected!',offline:'Disconnected',reconnecting:'Reconnecting...'}[state]||'';
 }
 function clock(){
   const now=new Date();

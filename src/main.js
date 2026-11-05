@@ -103,9 +103,35 @@ for(const [key,value] of Object.entries({
 }))root.style.setProperty(key,value);
 const director=new DiscDirector({discs:[$('disc-a'),$('disc-b')],backdrops:[$('backdrop-a'),$('backdrop-b')],info:$('info'),settings});
 const spectrum=new Spectrum($('visualizer'), config.visualizerSensitivity ?? 1, config.visualizerSmoothing ?? 0.7, {autoNormalize:config.visualizerAutoNormalize===true,peakHold:config.visualizerPeakHold===true});
+let connectionNoticeTimer=null,connectedNoticePending=false;
+function showConnectedNotice(){
+  clearTimeout(connectionNoticeTimer);
+  $('standby-connection').textContent='Connected!';
+  connectionNoticeTimer=setTimeout(()=>{
+    connectionNoticeTimer=null;
+    $('standby-connection').textContent='';
+  },2000);
+}
 function setDisplayState(state){
   root.dataset.displayState=state;
-  $('standby-connection').textContent=state==='offline'?'Disconnected':state==='reconnecting'?'Reconnecting':'';
+  if(state!=='connecting')root.dataset.initializing='false';
+  if(state==='ready'&&connectedNoticePending){
+    connectedNoticePending=false;
+    showConnectedNotice();
+    return;
+  }
+  if(state!=='ready')connectedNoticePending=false;
+  const notice=$('standby-connection');
+  const labels={connecting:'Connecting...',offline:'Disconnected',reconnecting:'Reconnecting...'};
+  if(labels[state]){
+    clearTimeout(connectionNoticeTimer);
+    connectionNoticeTimer=null;
+    notice.textContent=labels[state];
+  }else if(connectionNoticeTimer===null||state!=='ready'){
+    clearTimeout(connectionNoticeTimer);
+    connectionNoticeTimer=null;
+    notice.textContent='';
+  }
 }
 let currentUri=null,position=0,positionTime=performance.now(),duration=0,playing=false;
 let pauseTimer=null;
@@ -197,7 +223,7 @@ function handleSoloist(event){
     if(Number.isFinite(ms))syncPosition(ms);
   }
 }
-function connect(url,onData,onOpen,onDisconnect){
+function connect(url,onData,onOpen,onDisconnect,onConnecting){
   let retry=500,connected=false;
   function lost(){
     onDisconnect?.(connected?'reconnecting':'offline');
@@ -205,6 +231,7 @@ function connect(url,onData,onOpen,onDisconnect){
     retry=Math.min(retry*1.7,12000);
   }
   function open(){
+    onConnecting?.();
     let socket;
     try{socket=new WebSocket(url)}catch{lost();return}
     socket.onopen=()=>{connected=true;retry=500;onOpen?.(socket)};
@@ -215,11 +242,20 @@ function connect(url,onData,onOpen,onDisconnect){
   open();
 }
 connect(config.soloistWebSocket||'ws://127.0.0.1:9090',handleSoloist,s=>{
-  if(!currentUri)setDisplayState('connecting');
+  connectedNoticePending=!currentUri;
+  if(!currentUri){
+    if(root.dataset.initializing==='false')setDisplayState('ready');
+    else setTimeout(()=>{
+      // An empty get_state response is not guaranteed. Do not stay blank forever.
+      if(!currentUri&&s.readyState===WebSocket.OPEN&&root.dataset.displayState==='connecting')setDisplayState('ready');
+    },600);
+  }
   s.send(JSON.stringify({type:'command',command:'get_state'}));
 },state=>{
   clearTrack();
   setDisplayState(state);
+},()=>{
+  if(!currentUri)setDisplayState('connecting');
 });
 if(config.visualizer!==false&&settings.panelEnabled){
   let retry=500;

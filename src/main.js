@@ -197,7 +197,7 @@ function updateItem(item){
   if(!name.trim()&&!cover)return;
   const uri=item.uri||item.id||[name,cover].join('|');
   duration=durationMs(item)||duration;
-  if(uri===currentUri||currentUri!==null&&sameTrack(item,lastTrack)){
+  if(uri===currentUri||(currentUri!==null&&sameTrack(item,lastTrack))){
     // The current album is already displayed. A new snapshot is not a disc change.
     // Keep the richer previous metadata when the handoff sends a partial entity.
     if(item.uri||item.id)currentUri=item.uri||item.id;
@@ -243,7 +243,7 @@ function handleSoloist(event){
     scheduleEmptyPlayback();
     return;
   }
-  if(item||status!==null&&status!=='idle'&&status!=='stopped'){
+  if(item||(status!==null&&status!=='idle'&&status!=='stopped')){
     cancelEmptyPlayback();
   }
   if(item)updateItem(item);

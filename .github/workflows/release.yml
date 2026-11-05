@@ -129,6 +129,7 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
       - name: Restore signed release assets
         uses: actions/download-artifact@v8
         with:
@@ -138,7 +139,25 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
+          # GitHub's implicit baseline ignores prerelease channel sequencing.
+          # Only already-published releases are eligible, not draft/unused tags.
+          previous="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq '.[] | select(.draft == false) | .tag_name' \
+            | cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- release-notes-base "$GITHUB_REF_NAME")"
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+              --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name' \
+              | cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- \
+                validate-prerelease-floor "$GITHUB_REF_NAME"
+          fi
           args=(--repo "$GITHUB_REPOSITORY" --verify-tag --title "Soloist Display $GITHUB_REF_NAME" --generate-notes)
+          if [[ -n "$previous" ]]; then
+            echo "Release notes baseline: $previous -> $GITHUB_REF_NAME"
+            args+=(--notes-start-tag "$previous")
+          else
+            echo "No earlier published baseline; generating initial release notes"
+          fi
           if [[ "$GITHUB_REF_NAME" == *-* ]]; then
             args+=(--prerelease --latest=false)
           fi

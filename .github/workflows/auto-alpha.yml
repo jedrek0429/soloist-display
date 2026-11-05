@@ -1,0 +1,86 @@
+name: Publish alpha on push
+
+on:
+  push:
+    branches:
+      - 'alpha/v*'
+
+permissions:
+  contents: write
+  actions: write
+
+# Do not cancel a pending push: each source commit deserves its own alpha.
+# Tag creation is retried if two runs choose the same alpha number.
+jobs:
+  alpha:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Create a versioned tag from this push
+        id: tag
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          SOURCE_REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$SOURCE_REF" =~ ^alpha/v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "Expected alpha/vMAJOR.MINOR.PATCH, got $SOURCE_REF" >&2
+            exit 1
+          fi
+          base="${BASH_REMATCH[1]}"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          # A rerun for the same push must not publish another release.
+          git fetch origin 'refs/tags/v*:refs/tags/v*' --force
+          for existing in $(git tag -l "v${base}-alpha.*"); do
+            if [[ "$existing" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$ ]] &&
+               [[ "$(git rev-parse "${existing}^{commit}^" 2>/dev/null || true)" == "$SOURCE_SHA" ]]; then
+              echo "tag=$existing" >> "$GITHUB_OUTPUT"
+              echo "Using existing release tag $existing for $SOURCE_SHA"
+              exit 0
+            fi
+          done
+
+          for attempt in $(seq 1 20); do
+            git fetch origin 'refs/tags/v*:refs/tags/v*' --force
+            highest=0
+            for existing in $(git tag -l "v${base}-alpha.*"); do
+              if [[ "$existing" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.([0-9]+)$ ]]; then
+                number="${BASH_REMATCH[1]}"
+                if (( 10#$number > highest )); then highest=$((10#$number)); fi
+              fi
+            done
+            version="$base-alpha.$((highest + 1))"
+            tag="v$version"
+            git checkout --detach "$SOURCE_SHA"
+            sed -i -E "s/^(version = \\")[^\\"]+(\\"$)/\\1$version\\2/" Cargo.toml
+            cargo update --workspace
+            cargo metadata --format-version 1 --no-deps --locked >/dev/null
+            cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- verify-workspace-version "$tag"
+            git add Cargo.toml Cargo.lock
+            git commit -m "chore: build $tag"
+            git tag -a "$tag" -m "Soloist Display $tag (source $SOURCE_SHA)"
+            if git push origin "refs/tags/$tag"; then
+              echo "tag=$tag" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            git tag -d "$tag"
+            echo "Tag $tag was claimed by another run; retrying ($attempt/20)"
+          done
+          echo "Could not reserve an alpha tag after 20 attempts" >&2
+          exit 1
+
+      - name: Start the signed prerelease pipeline
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh workflow run release.yml --ref "$TAG"

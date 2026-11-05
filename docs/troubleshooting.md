@@ -1,3 +1,12 @@
+# Known issues
+## Windows audio output switching
+
+Currently, Soloist on Windows does not automatically follow changes to the system's default audio output while the original device remains available. [This has been reported](https://github.com/spotify/soloist/issues/30).
+
+Soloist Display's audio visualiser should switch to the new default device independently, causing the visualiser to stop responding to playback.
+
+Until the Soloist issue is fixed (which is unlikely any time soon), **restart Soloist to make it use the new default audio output**. 
+
 # Troubleshooting
 
 Start here:

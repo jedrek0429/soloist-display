@@ -53,7 +53,8 @@ Spotify Connect, settings and uninstall on the published build.
 ## Channels and trust
 
 The default installer picks the latest stable release once one exists.
-`SOLOIST_DISPLAY_CHANNEL=prerelease` selects the highest SemVer prerelease;
+`SOLOIST_DISPLAY_CHANNEL=alpha` selects alpha releases, and `beta` selects beta releases.
+`prerelease` remains a compatibility alias for the combined alpha/beta track.
 `SOLOIST_DISPLAY_VERSION` pins an exact version. Explicit downgrades need
 `--allow-downgrade`. The public GitHub Pages installer and release badge stay
 on stable when alpha or beta releases are published.

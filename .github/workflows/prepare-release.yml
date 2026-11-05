@@ -1,11 +1,17 @@
-name: Prepare release
+name: Prepare stable release
+
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version (e.g. 1.0.0-beta.1)'
+        description: 'Stable version (e.g. 1.0.1)'
         type: string
         required: true
+      target_branch:
+        description: 'Source branch to promote into stable'
+        type: string
+        required: true
+        default: main
 
 permissions:
   contents: write
@@ -13,11 +19,11 @@ permissions:
   actions: write
 
 concurrency:
-  group: prepare-release
+  group: prepare-stable-release
   cancel-in-progress: false
 
 jobs:
-  bump:
+  prepare:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -26,74 +32,105 @@ jobs:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Validate version
-        id: version
+
+      - name: Validate and prepare release branch
+        id: release
         env:
-          REQUESTED_VERSION: ${{ inputs.version }}
+          VERSION_INPUT: ${{ inputs.version }}
+          SOURCE_BRANCH: ${{ inputs.target_branch }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          version="${REQUESTED_VERSION#v}"
-          if [[ "$version" == *+* ]]; then
-            echo "Build metadata is not supported in release tags" >&2
+          version="${VERSION_INPUT#v}"
+          if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Only stable MAJOR.MINOR.PATCH versions are allowed" >&2
             exit 1
           fi
-          cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- validate-tag "v$version"
-          current="$(sed -n 's/^version = "\([^"]*\)"$/\1/p' Cargo.toml)"
-          test -n "$current"
-          cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- validate-bump "$current" "$version"
+          if [[ "$SOURCE_BRANCH" != main && ! "$SOURCE_BRANCH" =~ ^(alpha|beta)/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Source must be main, alpha/vX.Y.Z or beta/vX.Y.Z" >&2
+            exit 1
+          fi
           tag="v$version"
           branch="release/$tag"
+          git fetch origin "$SOURCE_BRANCH"
           if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
             echo "Tag $tag already exists" >&2
             exit 1
           fi
           if git ls-remote --exit-code --heads origin "refs/heads/$branch" >/dev/null; then
-            echo "Branch $branch already exists" >&2
+            echo "Release branch $branch already exists" >&2
             exit 1
           fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "branch=$branch" >> "$GITHUB_OUTPUT"
 
-      - name: Update Cargo version
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-          BRANCH: ${{ steps.version.outputs.branch }}
-        run: |
-          set -euo pipefail
-          git switch -c "$BRANCH"
-          test "$(grep -c '^version = "' Cargo.toml)" -eq 1
-          sed -i -E "s/^(version = \")[^\"]+(\"$)/\1${VERSION}\2/" Cargo.toml
+          # First stable is bootstrapped from main. Later releases never write
+          # directly to stable; they must merge an explicit release PR.
+          if ! git ls-remote --exit-code --heads origin refs/heads/stable >/dev/null; then
+            baseline="$(git rev-parse origin/main)"
+            gh api "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f ref=refs/heads/stable -f sha="$baseline"
+          fi
+          git fetch origin stable
+          git switch --create "$branch" "origin/$SOURCE_BRANCH"
+
+          # Merge the last released state to preserve stable ancestry after
+          # squash merges. Stop on conflicts rather than choosing silently.
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git merge --no-edit --no-ff origin/stable || {
+            echo "Source conflicts with stable. Resolve integration before releasing." >&2
+            exit 1
+          }
+          current="$(sed -n 's/^version = "\([^"]*\)"$/\1/p' Cargo.toml)"
+          stable_version="$(git show origin/stable:Cargo.toml | sed -n 's/^version = "\([^"]*\)"$/\1/p')"
+          test -n "$current"
+          test -n "$stable_version"
+          cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- validate-tag "$tag"
+          cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- validate-bump "$current" "$version"
+          cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- validate-bump "$stable_version" "$version"
+
+          VERSION="$version" python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import re
+
+          path = Path("Cargo.toml")
+          contents, count = re.subn(
+              r'(?m)^version = "[^"]+"$',
+              'version = "' + os.environ["VERSION"] + '"',
+              path.read_text(),
+          )
+          if count != 1:
+              raise SystemExit("Expected one workspace version")
+          path.write_text(contents)
+          PY
           cargo update --workspace
-          cargo metadata --format-version 1 --no-deps --locked > /dev/null
-          cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- verify-workspace-version "v$VERSION"
+          cargo metadata --format-version 1 --no-deps --locked >/dev/null
+          cargo run --quiet --locked -p soloist-display-installer --bin release-tools -- verify-workspace-version "$tag"
           git add Cargo.toml Cargo.lock
-          if git diff --cached --quiet; then
-            echo "No version changes" >&2
-            exit 1
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "chore: bump v$VERSION"
-          git push origin "HEAD:refs/heads/$BRANCH"
+          git commit -m "chore: bump $tag"
+          git push origin "HEAD:refs/heads/$branch"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
-      - name: Open pull request
+      - name: Open stable pull request
         env:
           GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN || github.token }}
-          VERSION: ${{ steps.version.outputs.version }}
-          BRANCH: ${{ steps.version.outputs.branch }}
+          BRANCH: ${{ steps.release.outputs.branch }}
+          TAG: ${{ steps.release.outputs.tag }}
+          SOURCE_BRANCH: ${{ inputs.target_branch }}
         run: |
-          gh pr create --base main --head "$BRANCH" \
-            --title "chore: bump v$VERSION" \
-            --body "Update the workspace version and Cargo.lock to v$VERSION.
+          gh pr create --base stable --head "$BRANCH" \
+            --title "chore: bump $TAG" \
+            --body "Promote \`$SOURCE_BRANCH\` to the protected \`stable\` branch as $TAG.
 
-          Merging this PR tags the merged commit and starts the signed release pipeline."
+          Merge this PR only after all checks pass. The merged stable commit is tagged and published by Signed release."
 
-      - name: Run checks if GITHUB_TOKEN created the PR
+      - name: Run checks for token-created PR
         env:
           GH_TOKEN: ${{ github.token }}
-          BRANCH: ${{ steps.version.outputs.branch }}
+          BRANCH: ${{ steps.release.outputs.branch }}
           TOKEN_CREATED_PR: ${{ secrets.RELEASE_BOT_TOKEN == '' }}
         run: |
-          if [ "$TOKEN_CREATED_PR" = "true" ]; then
+          if [ "$TOKEN_CREATED_PR" = true ]; then
             gh workflow run build.yml --ref "$BRANCH"
           fi

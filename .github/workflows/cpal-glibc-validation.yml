@@ -1,26 +1,11 @@
 name: CPAL glibc validation
 
 on:
-  pull_request:
-    paths:
-      - 'audio-bridge/**'
-      - 'Cargo.lock'
-      - 'installer/**'
-      - 'scripts/ci-build-glibc.sh'
-      - '.github/workflows/cpal-glibc-validation.yml'
-  push:
-    branches: [beta/cpal-integration]
-    paths:
-      - 'audio-bridge/**'
-      - 'Cargo.lock'
-      - 'installer/**'
-      - 'scripts/ci-build-glibc.sh'
-      - '.github/workflows/cpal-glibc-validation.yml'
   workflow_dispatch:
 
 jobs:
   native:
-    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/beta/cpal-integration' || github.head_ref == 'feat/cpal-glibc-linux-packaging'
+    if: github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
@@ -43,7 +28,7 @@ jobs:
       - run: bash scripts/ci-build-glibc.sh ${{ matrix.target }}
 
   armv7:
-    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/beta/cpal-integration' || github.head_ref == 'feat/cpal-glibc-linux-packaging'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7

@@ -1646,7 +1646,10 @@ pub fn doctor(paths: &Paths) -> Result<bool> {
                 );
                 if let Ok(runtime) = runtime {
                     crate::cli_output::field("Soloist data directory", runtime.data_dir.display());
-                    crate::cli_output::field("Soloist cache directory", runtime.cache_dir.display());
+                    crate::cli_output::field(
+                        "Soloist cache directory",
+                        runtime.cache_dir.display(),
+                    );
                     check!(
                         "WebSocket configuration",
                         Some(runtime.websocket_url.as_str())
@@ -1690,7 +1693,11 @@ pub fn doctor(paths: &Paths) -> Result<bool> {
                 let present = service::soloist_unit_present(paths);
                 crate::cli_output::field(
                     "External systemd unit",
-                    if present { "detected (not managed)" } else { "absent (optional)" },
+                    if present {
+                        "detected (not managed)"
+                    } else {
+                        "absent (optional)"
+                    },
                 );
                 crate::cli_output::field("Automatic renewal", "disabled (external mode)");
             }

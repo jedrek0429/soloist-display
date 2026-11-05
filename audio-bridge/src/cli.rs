@@ -40,12 +40,17 @@ pub fn parse(args: &[String]) -> Result<Command, String> {
 pub fn help() {
     cli_output::heading("External-only desktop preview");
     println!("Usage: soloist-display [COMMAND]");
-    println!("       soloist-display              Start display and settings at http://127.0.0.1:8080");
+    println!(
+        "       soloist-display              Start display and settings at http://127.0.0.1:8080"
+    );
     println!();
     cli_output::section("Commands");
     cli_output::command("doctor", "Check External Soloist and audio output");
     cli_output::command("device list", "List audio outputs and stable IDs");
-    cli_output::command("device use <number|ID|name>", "Select the visualiser source");
+    cli_output::command(
+        "device use <number|ID|name>",
+        "Select the visualiser source",
+    );
     cli_output::command("device set <number|ID|name>", "Alias for device use");
     cli_output::command("device default", "Follow the system default output");
     println!();

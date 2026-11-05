@@ -3,10 +3,10 @@
 set -eu
 
 BOOTSTRAP_VERSION=1
-PIN_RELEASE_BASE='https://github.com/jedrek0429/soloist-display/releases/download/v1.0.0-alpha.9'
-PIN_X86_64='380c2f708dda783c6d584afdca68896a1cc739ffb4ec461880c8742b561cfa0a'
-PIN_AARCH64='90700076f5a683589f056edea52e275a5a42d70c169faa7f16c33bea47f2d721'
-PIN_ARMV7='4dd6af2c06ff8eb58676d8dad5dddabbdd2a6507eeb3aad24745f715cc178c22'
+PIN_RELEASE_BASE='https://github.com/jedrek0429/soloist-display/releases/download/v1.1.0-alpha.1'
+PIN_X86_64='a8883e19164793bd6fdcb9335ec72918fbcf2fea6705b2bee2d41d6590eafe87'
+PIN_AARCH64='e164f2c3a4450ce63c6ce46084c335f45b80156abe64ae9603e517413213abe4'
+PIN_ARMV7='7416e3e00f8c47a6960b5340bccb5bd8860a61c305c681c2ba0eaa7f7be1a04c'
 version=${SOLOIST_DISPLAY_VERSION-latest}
 case "$version" in
   latest)
@@ -57,6 +57,7 @@ Downloads and verifies the Soloist Display installer, then runs it.
   --verbose     show additional diagnostics
   --help        show this help
   SOLOIST_DISPLAY_VERSION=SEMVER  select signed release (default: latest)
+  SOLOIST_DISPLAY_CHANNEL=NAME   stable, alpha, beta or prerelease
   --version     show bootstrap version
 EOF
     exit 0
@@ -68,9 +69,9 @@ esac
 bits=$(getconf LONG_BIT 2>/dev/null || printf unknown)
 machine=$(uname -m 2>/dev/null || printf unknown)
 case "$machine:$bits" in
-  x86_64:64|amd64:64) target=x86_64-unknown-linux-musl ;;
-  aarch64:64|arm64:64) target=aarch64-unknown-linux-musl ;;
-  armv7*:32|armv8*:32|armhf:32|aarch64:32) target=armv7-unknown-linux-musleabihf ;;
+  x86_64:64|amd64:64) target=x86_64-unknown-linux-gnu; legacy_target=x86_64-unknown-linux-musl ;;
+  aarch64:64|arm64:64) target=aarch64-unknown-linux-gnu; legacy_target=aarch64-unknown-linux-musl ;;
+  armv7*:32|armv8*:32|armhf:32|aarch64:32) target=armv7-unknown-linux-gnueabihf; legacy_target=armv7-unknown-linux-musleabihf ;;
   *) fail "unsupported architecture or userland: $machine ($bits-bit)" ;;
 esac
 
@@ -111,7 +112,9 @@ fetch "$RELEASE_BASE/bootstrap-manifest.sig" "$signature_b64" || fail 'could not
 openssl base64 -d -A -in "$signature_b64" -out "$signature" 2>/dev/null || fail 'invalid installer signature encoding'
 openssl pkeyutl -verify -pubin -inkey "$public_key" -rawin -in "$manifest" -sigfile "$signature" >/dev/null 2>&1 || fail 'installer metadata signature verification failed'
 
-record=$(awk -v target="$target" '$1 == target && $2 ~ /^[0-9a-f]{64}$/ && $3 ~ /^https:\/\// { print $2 " " $3; found++ } END { if (found != 1) exit 1 }' "$manifest") || fail "authenticated metadata has no unique installer for $target"
+record=$(awk -v target="$target" '$1 == target && $2 ~ /^[0-9a-f]{64}$/ && $3 ~ /^https:\/\// { print $2 " " $3; found++ } END { if (found != 1) exit 1 }' "$manifest") ||
+  record=$(awk -v target="$legacy_target" '$1 == target && $2 ~ /^[0-9a-f]{64}$/ && $3 ~ /^https:\/\// { print $2 " " $3; found++ } END { if (found != 1) exit 1 }' "$manifest") ||
+  fail "authenticated metadata has no unique installer for $target or $legacy_target"
 expected_sha=${record%% *}
 installer_url=${record#* }
   ;;

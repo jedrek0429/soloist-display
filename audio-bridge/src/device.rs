@@ -187,15 +187,21 @@ pub fn active_device() -> Result<(Device, bool, String, String)> {
 }
 
 fn choose_index(devices: &[(Device, DeviceInfo)], selector: &str) -> Result<usize> {
+    let info = devices.iter().map(|(_, info)| info).collect::<Vec<_>>();
+    resolve_selector(&info, selector)
+}
+
+fn resolve_selector(devices: &[&DeviceInfo], selector: &str) -> Result<usize> {
     if let Ok(number) = selector.parse::<usize>() {
-        return number.checked_sub(1)
+        return number
+            .checked_sub(1)
             .filter(|&index| index < devices.len())
             .ok_or_else(|| "device number is out of range; run 'device list'".into());
     }
     let matches: Vec<usize> = devices
         .iter()
         .enumerate()
-        .filter(|(_, (_, info))| info.id == selector || info.name == selector)
+        .filter(|(_, info)| info.id == selector || info.name == selector)
         .map(|(index, _)| index)
         .collect();
     match matches.as_slice() {
@@ -272,20 +278,10 @@ mod tests {
         }
     }
 
-    // Selector logic without creating streams or requiring any real audio device.
+    // Exercise the same selector used for real CPAL devices, without audio hardware.
     fn select_info(devices: &[DeviceInfo], selector: &str) -> Result<usize> {
-        if let Ok(number) = selector.parse::<usize>() {
-            return number.checked_sub(1).filter(|&index| index < devices.len())
-                .ok_or_else(|| "number out of range".into());
-        }
-        let matches: Vec<_> = devices.iter().enumerate()
-            .filter(|(_, info)| info.id == selector || info.name == selector)
-            .map(|(i, _)| i).collect();
-        match matches.as_slice() {
-            [index] => Ok(*index),
-            [] => Err("not found".into()),
-            _ => Err("ambiguous".into()),
-        }
+        let info = devices.iter().collect::<Vec<_>>();
+        resolve_selector(&info, selector)
     }
 
     #[test]

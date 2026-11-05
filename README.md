@@ -16,7 +16,7 @@ Turn a Linux computer or Raspberry Pi into a Spotify Connect speaker with a full
 </p>
 <p align="center">
   <img src="docs/screenshots/chris-rainbow.png" alt="Soloist Display — Chris Rainbow album art with progress bar and track details" width="48%">
-  <img src="docs/screenshots/standby-clock.png" alt="Soloist Display — standby screen with vinyl clock" width="48%">
+  <img src="docs/screenshots/standby-vinyl.png" alt="Soloist Display — standby screen with vinyl clock" width="48%">
 </p>
 
 Play music through your Linux computer or Raspberry Pi as a Spotify Connect speaker. Pick tracks on your phone; Soloist Display handles playback and shows animated album art, track details and a live audio spectrum.

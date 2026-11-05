@@ -60,16 +60,16 @@ jobs:
               -f ref=refs/heads/stable -f sha="$baseline"
           fi
           git fetch origin stable
-          git switch --create "$branch" origin/main
+          git switch --create "$branch" origin/stable
 
-          # Merge the last released state to preserve stable ancestry after
-          # squash merges. Stop on conflicts rather than choosing silently.
+          # Keep stable ancestry without importing stale files from stable.
+          # The release tree must match main, apart from the Cargo version bump.
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git merge --no-edit --no-ff origin/stable || {
-            echo "Source conflicts with stable. Resolve integration before releasing." >&2
-            exit 1
-          }
+          git restore --source=origin/main --staged --worktree :/
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: sync main for $tag"
+          fi
           current="$(sed -n 's/^version = "\([^"]*\)"$/\1/p' Cargo.toml)"
           stable_version="$(git show origin/stable:Cargo.toml | sed -n 's/^version = "\([^"]*\)"$/\1/p')"
           test -n "$current"

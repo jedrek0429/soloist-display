@@ -5,6 +5,18 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 temp=$(mktemp -d)
 trap 'rm -rf "$temp"' EXIT HUP INT TERM
 mkdir -p "$temp/bin" "$temp/assets"
+# Exercise the public release-tools CLI commands required by publishing workflows.
+printf '%s\n' v1.0.0 v1.2.0 |
+  "$root/target/debug/release-tools" validate-prerelease-floor v1.3.0-alpha.1
+if printf '%s\n' v1.3.0 |
+  "$root/target/debug/release-tools" validate-prerelease-floor v1.3.0-alpha.1 > "$temp/out" 2>&1; then
+  echo 'Prerelease floor accepted a version that is already stable' >&2
+  exit 1
+fi
+grep -q 'must be greater than latest stable' "$temp/out"
+notes_base=$(printf '%s\n' v1.0.0 v1.1.0-alpha.1 v1.1.0-alpha.2 |
+  "$root/target/debug/release-tools" release-notes-base v1.1.0-alpha.3)
+test "$notes_base" = v1.1.0-alpha.2
 cat > "$temp/assets/installer" <<'EOF'
 #!/bin/sh
 printf '%s\n' "$*" > "$SOLOIST_TEST_INVOKED"

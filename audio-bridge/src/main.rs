@@ -8,6 +8,8 @@ use axum::{
 use futures_util::SinkExt;
 mod capture;
 mod cli;
+#[path = "../../cli_arguments.rs"]
+mod cli_arguments;
 #[path = "../../cli_output.rs"]
 mod cli_output;
 mod device;
@@ -456,7 +458,54 @@ async fn static_file(axum::extract::Path(path): axum::extract::Path<String>) -> 
         .into_response()
 }
 
-async fn web_server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+fn display_running(port: &str) -> std::io::Result<bool> {
+    use std::io::{Read, Write};
+    use std::time::Duration;
+    let mut stream = match std::net::TcpStream::connect(format!("127.0.0.1:{port}")) {
+        Ok(stream) => stream,
+        Err(error) if error.kind() == std::io::ErrorKind::ConnectionRefused => return Ok(false),
+        Err(error) => return Err(error),
+    };
+    stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+    stream.set_write_timeout(Some(Duration::from_secs(2)))?;
+    stream.write_all(b"GET /.well-known/soloist-display HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")?;
+    let mut response = Vec::new();
+    stream.take(4096).read_to_end(&mut response)?;
+    let response = String::from_utf8_lossy(&response);
+    Ok(response.starts_with("HTTP/1.1 200 ")
+        && response.split("\r\n\r\n").nth(1) == Some("soloist-display"))
+}
+
+fn open_browser(url: &str) -> std::io::Result<()> {
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        let mut c = std::process::Command::new("rundll32.exe");
+        c.arg("url.dll,FileProtocolHandler").arg(url);
+        c
+    };
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut c = std::process::Command::new("open");
+        c.arg(url);
+        c
+    };
+    #[cfg(target_os = "linux")]
+    let mut command = {
+        let mut c = std::process::Command::new("xdg-open");
+        c.arg(url);
+        c
+    };
+    command
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()?;
+    Ok(())
+}
+
+async fn web_server(
+    open_page: Option<String>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let port = env::var("SOLOIST_DISPLAY_HTTP_PORT").unwrap_or_else(|_| "8080".into());
     let state = WebState {
         path: Arc::new(config_path()),
@@ -465,6 +514,10 @@ async fn web_server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let app = Router::new()
         .route("/config.json", get(get_config).put(put_config))
         .route("/defaults.json", get(get_defaults))
+        .route(
+            "/.well-known/soloist-display",
+            get(|| async { "soloist-display" }),
+        )
         .route("/", get(|| static_file(axum::extract::Path(String::new()))))
         .route(
             "/settings",
@@ -473,7 +526,14 @@ async fn web_server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .route("/*path", get(static_file))
         .with_state(state);
     let listener = TcpListener::bind(format!("127.0.0.1:{port}")).await?;
-    eprintln!("Display and settings: http://127.0.0.1:{port}");
+    if !cli::quiet() {
+        eprintln!("Display and settings: http://127.0.0.1:{port}");
+    }
+    if let Some(page) = open_page {
+        if let Err(error) = open_browser(&page) {
+            eprintln!("Could not open browser: {error}. Open {page} manually.");
+        }
+    }
     axum::serve(listener, app).await?;
     Ok(())
 }
@@ -481,10 +541,20 @@ async fn web_server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let args: Vec<String> = env::args().skip(1).collect();
-    let command = cli::parse(&args)
-        .map_err(|message| std::io::Error::new(std::io::ErrorKind::InvalidInput, message))?;
+    let command = match cli::parse(&args) {
+        Ok(command) => command,
+        Err(message) => {
+            eprintln!("{message}");
+            std::process::exit(2);
+        }
+    };
+    let open_page = match &command {
+        cli::Command::Launch => Some("/"),
+        cli::Command::Settings => Some("/settings"),
+        _ => None,
+    };
     match command {
-        cli::Command::Serve => {}
+        cli::Command::Serve | cli::Command::Launch | cli::Command::Settings => {}
         cli::Command::Doctor => {
             if cli::doctor().await {
                 return Ok(());
@@ -497,6 +567,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
         cli::Command::Version => {
             println!("Soloist Display {}", env!("CARGO_PKG_VERSION"));
+            return Ok(());
+        }
+        cli::Command::Completions(shell) => {
+            cli::completions(shell);
             return Ok(());
         }
         cli::Command::DeviceList => {
@@ -512,7 +586,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             return Ok(());
         }
     }
-    let mut web_task = tokio::spawn(async { web_server().await });
+    if cli::verbose() {
+        eprintln!("Configuration: {}", config_path().display());
+    }
+    let port = env::var("SOLOIST_DISPLAY_HTTP_PORT").unwrap_or_else(|_| "8080".into());
+    let open_url = open_page.map(|page| format!("http://127.0.0.1:{port}{page}"));
+    if let Some(ref url) = open_url {
+        if display_running(&port)? {
+            open_browser(url)?;
+            return Ok(());
+        }
+    }
+    let mut web_task = tokio::spawn(async move { web_server(open_url).await });
     let port = env::var("SOLOIST_DISPLAY_AUDIO_PORT").unwrap_or_else(|_| "9091".into());
     let listener = TcpListener::bind(format!("127.0.0.1:{port}")).await?;
     let (sender, _) = broadcast::channel::<String>(64);
@@ -523,10 +608,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
         std::thread::sleep(std::time::Duration::from_secs(2));
     });
-    eprintln!(
-        "Spectrum WebSocket listening on ws://127.0.0.1:{port} (6 bands, {:.1} Hz)",
-        RATE as f32 / HOP as f32
-    );
+    if !cli::quiet() {
+        eprintln!(
+            "Spectrum WebSocket listening on ws://127.0.0.1:{port} (6 bands, {:.1} Hz)",
+            RATE as f32 / HOP as f32
+        );
+    }
     loop {
         let (socket, _) = tokio::select! {
             result = listener.accept() => result?,
@@ -788,6 +875,25 @@ mod tests {
         assert_eq!(migrated["transitionDuration"], 3400);
         assert_eq!(migrated["visualizerSensitivity"], 2.5);
         assert!(migrated.get("centerHoleDot").is_none());
+    }
+
+    #[test]
+    fn display_probe_rejects_unrelated_http_server() {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port().to_string();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0; 256];
+            let _ = stream.read(&mut request);
+            stream
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello",
+                )
+                .unwrap();
+        });
+        assert!(!display_running(&port).unwrap());
+        server.join().unwrap();
     }
 
     #[test]

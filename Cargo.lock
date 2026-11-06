@@ -2058,13 +2058,21 @@ dependencies = [
 name = "soloist-audio-bridge"
 version = "1.1.0"
 dependencies = [
+ "anyhow",
  "axum",
+ "base64 0.22.1",
  "clap",
  "clap_complete",
  "cpal",
+ "ed25519-dalek",
  "futures-util",
+ "hex",
+ "reqwest",
  "rustfft",
+ "semver",
+ "serde",
  "serde_json",
+ "sha2 0.11.1",
  "tempfile",
  "tokio",
  "tokio-tungstenite",

@@ -48,6 +48,14 @@ grep -Fxq 'install' "$temp/invoked"
 grep -Fxq 'tty' "$temp/stdin"
 # A rendered alpha bootstrap must pin its matching signed release by default.
 sed 's@/v0.0.0/@/v1.0.0-alpha.1/@g' "$temp/manifest" > "$temp/alpha-manifest"
+printf '%s %s %s\n' x86_64-pc-windows-msvc "$hash" \
+  'https://github.com/jedrek0429/soloist-display/releases/download/v1.0.0-alpha.1/soloist-display-windows-x86_64.exe' >> "$temp/alpha-manifest"
+printf '%s %s %s\n' aarch64-apple-darwin "$hash" \
+  'https://github.com/jedrek0429/soloist-display/releases/download/v1.0.0-alpha.1/soloist-display-macos-arm64' >> "$temp/alpha-manifest"
+"$root/target/debug/release-tools" render-bootstrap "$root/install.ps1" "$temp/alpha-manifest" \
+  https://github.com/jedrek0429/soloist-display/releases/download/v1.0.0-alpha.1 > "$temp/alpha.ps1"
+grep -Fq "$hash" "$temp/alpha.ps1"
+! grep -q '@SOLOIST_DISPLAY_' "$temp/alpha.ps1"
 "$root/target/debug/release-tools" render-bootstrap "$root/install.sh" "$temp/alpha-manifest" \
   https://github.com/jedrek0429/soloist-display/releases/download/v1.0.0-alpha.1 > "$temp/alpha.sh"
 sh -n "$temp/alpha.sh"

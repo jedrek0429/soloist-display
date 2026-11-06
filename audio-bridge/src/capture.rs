@@ -1,10 +1,13 @@
 use crate::{device, pcm::PcmInput, spectrum::Spectrum};
+#[cfg(target_os = "linux")]
+use cpal::traits::HostTrait;
 use cpal::{
-    traits::{DeviceTrait, HostTrait, StreamTrait},
+    traits::{DeviceTrait, StreamTrait},
     SampleFormat,
 };
+#[cfg(target_os = "linux")]
+use std::env;
 use std::{
-    env,
     error::Error,
     sync::mpsc::{self, SyncSender},
     time::Duration,

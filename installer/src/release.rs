@@ -1,3 +1,4 @@
+#[cfg(target_os = "linux")]
 use crate::platform::Platform;
 use anyhow::{anyhow, bail, Context, Result};
 use base64::{engine::general_purpose::STANDARD, Engine};
@@ -37,6 +38,21 @@ pub struct ReleaseManifest {
 }
 
 impl ReleaseManifest {
+    /// Select a platform-specific artifact from the same signed release manifest.
+    #[cfg(any(windows, target_os = "macos"))]
+    pub fn artifact_target(&self, kind: &str, target: &str) -> Result<&Artifact> {
+        self.artifacts
+            .iter()
+            .find(|a| a.kind == kind && a.target == target)
+            .ok_or_else(|| {
+                anyhow!(
+                    "release {} has no {kind} artifact for {target}",
+                    self.version
+                )
+            })
+    }
+
+    #[cfg(target_os = "linux")]
     pub fn artifact<'a>(&'a self, kind: &str, platform: &Platform) -> Result<&'a Artifact> {
         self.artifacts
             .iter()
@@ -338,7 +354,7 @@ pub fn sha256_file(path: &Path) -> Result<String> {
     Ok(hex::encode(hasher.finalize()))
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::*;
     use ed25519_dalek::{Signer, SigningKey};

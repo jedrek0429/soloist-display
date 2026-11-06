@@ -12,8 +12,13 @@ mod cli;
 mod cli_arguments;
 #[path = "../../cli_output.rs"]
 mod cli_output;
+#[cfg(any(windows, target_os = "macos"))]
+mod desktop_lifecycle;
 mod device;
 mod pcm;
+#[cfg(any(windows, target_os = "macos"))]
+#[path = "../../installer/src/release.rs"]
+mod release;
 mod spectrum;
 use serde_json::Value;
 use spectrum::{HOP, RATE};
@@ -573,6 +578,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             cli::completions(shell);
             return Ok(());
         }
+        #[cfg(any(windows, target_os = "macos"))]
+        cli::Command::Install => {
+            tokio::task::spawn_blocking(desktop_lifecycle::install).await??;
+            return Ok(());
+        }
+        #[cfg(any(windows, target_os = "macos"))]
+        cli::Command::Update {
+            channel,
+            version,
+            allow_downgrade,
+        } => {
+            tokio::task::spawn_blocking(move || {
+                desktop_lifecycle::update(channel, version.as_deref(), allow_downgrade)
+            })
+            .await??;
+            return Ok(());
+        }
+        #[cfg(any(windows, target_os = "macos"))]
+        cli::Command::CheckUpdates => {
+            tokio::task::spawn_blocking(desktop_lifecycle::check_updates).await??;
+            return Ok(());
+        }
+        #[cfg(any(windows, target_os = "macos"))]
+        cli::Command::Notifications(enabled) => {
+            tokio::task::spawn_blocking(move || desktop_lifecycle::notifications(enabled))
+                .await??;
+            return Ok(());
+        }
+        #[cfg(any(windows, target_os = "macos"))]
+        cli::Command::Repair => {
+            tokio::task::spawn_blocking(desktop_lifecycle::repair).await??;
+            return Ok(());
+        }
+        #[cfg(any(windows, target_os = "macos"))]
+        cli::Command::Uninstall(remove_data) => {
+            tokio::task::spawn_blocking(move || desktop_lifecycle::uninstall(remove_data))
+                .await??;
+            return Ok(());
+        }
         cli::Command::DeviceList => {
             cli::list_devices()?;
             return Ok(());
@@ -585,6 +629,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             cli::default_device()?;
             return Ok(());
         }
+    }
+    #[cfg(any(windows, target_os = "macos"))]
+    if !cli::quiet() {
+        std::thread::spawn(desktop_lifecycle::maybe_notify);
     }
     if cli::verbose() {
         eprintln!("Configuration: {}", config_path().display());

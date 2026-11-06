@@ -1,6 +1,49 @@
-# Standalone desktop preview (External Soloist only)
+# Desktop (Windows x86_64 and macOS Apple Silicon)
 
-These Windows x86_64 and macOS Apple Silicon builds are **experimental** and do not install anything. Spotify Soloist does not support Intel Macs, so macOS x86_64 binaries are not built. They do not contain the Linux installer, start services, manage Spotify Soloist, update binaries or provide a Managed mode.
+Desktop remains **External Spotify Soloist only**: it installs and maintains Soloist Display, not Spotify Soloist. Intel macOS is not supported. The alpha builds are not OS code-signed, so Windows SmartScreen or macOS Gatekeeper may warn.
+
+## Install
+
+Use the bootstrap from the **specific alpha/beta GitHub Release** that you want to install, so its embedded SHA-256 is pinned to the exact release. Published `install.ps1` and `install.sh` validate the downloaded executable against that hash. The executable subsequently validates the Ed25519-signed release manifest and artifact SHA-256 before installing files.
+
+Windows PowerShell:
+```powershell
+Invoke-WebRequest "https://github.com/jedrek0429/soloist-display/releases/download/<TAG>/install.ps1" -OutFile install.ps1
+.\install.ps1
+```
+
+macOS Apple Silicon:
+```sh
+curl -fL "https://github.com/jedrek0429/soloist-display/releases/download/<TAG>/install.sh" -o install.sh
+sh install.sh
+```
+
+Replace `<TAG>` with a published version such as `v1.1.0-alpha.2` **only if that release includes the new installer assets**; earlier alphas will not. Download scripts only from the official release. The bootstrap `install.sh` also continues to support Linux unchanged. Stable releases without desktop artifacts cannot install desktop builds.
+
+The installed executable is versioned under `%LOCALAPPDATA%\soloist-display\releases\` (Windows) or `~/Library/Application Support/soloist-display/app/releases/` (macOS). A managed command shim points to the active version: `soloist-display.cmd` in the Windows user bin directory, or `~/.local/bin/soloist-display` on macOS. Windows install.ps1 adds the user bin directory to the user PATH; restart your terminal. On macOS ensure `~/.local/bin` is on PATH.
+
+## Lifecycle commands
+
+```sh
+soloist-display doctor
+soloist-display check-updates
+soloist-display update --channel alpha
+soloist-display update --version 1.1.0-alpha.3
+soloist-display update --allow-downgrade --version 1.1.0-alpha.2
+soloist-display notifications off
+soloist-display notifications on
+soloist-display repair
+soloist-display uninstall --data keep
+soloist-display uninstall --data remove
+```
+
+For Windows run these via `soloist-display.cmd` (or `soloist-display` after PATH is refreshed). These commands operate **only on Display**. They never install, control, update or remove an External Soloist instance. Updates verify the signed manifest, select the platform-specific binary and run a version smoke check before switching the command shim. If download or verification fails, the old version remains active. No background update timer is installed in this phase. `notifications` controls the nonblocking update check when the installed Display starts.
+
+On Windows, close Display before uninstalling. Locked EXE files cause uninstall to fail without discarding installation metadata. Configuration data is preserved unless you pass `--data remove`. The bootstrap scripts are not automatic elevation mechanisms and do not change system-wide permissions.
+
+## Portable standalone ZIPs
+
+For one-off testing without installing, the original unsigned preview archives remain available:
 
 **Versioned alpha/beta preview:** open [GitHub Releases](https://github.com/jedrek0429/soloist-display/releases), choose the desired `vX.Y.Z-alpha.N` or `vX.Y.Z-beta.N` release, and download `soloist-display-preview-windows-x86_64-<tag>.zip` or `soloist-display-preview-macos-arm64-<tag>.zip` under **Assets**. These are built from the exact tagged commit, and each ZIP contains `BUILD.txt` with its tag and commit SHA. Preview ZIPs are not produced for stable releases.
 
@@ -29,6 +72,6 @@ The spectrum uses CPAL to capture the computer's **default audio output**, not a
 
 Settings are saved in the user's native configuration directory: `%APPDATA%\\soloist-display\\config.json` on Windows, `~/Library/Application Support/soloist-display/config.json` on macOS. Set `SOLOIST_DISPLAY_CONFIG_DIR` to override the settings directory for isolated tests. The HTTP and spectrum ports can be overridden using `SOLOIST_DISPLAY_HTTP_PORT` and `SOLOIST_DISPLAY_AUDIO_PORT`.
 
-These desktop executables are **experimental and unsigned**, including when attached to GitHub Releases. They are not installers and are excluded from the signed Linux manifests. PR checks validate code without uploading duplicate branch snapshots; alpha/beta release publication requires both tagged desktop builds and their smoke tests to pass. macOS Gatekeeper and Windows SmartScreen may warn about these binaries. Do not bypass security controls on an untrusted download. A passing CI smoke test verifies that the local pages start; it does not verify real audio capture or Spotify playback on desktop hardware.
+These standalone ZIP previews remain **unsigned**. From the first Phase II release, the separate raw desktop binaries are included in the Ed25519-signed release manifest for installation and updates. PR checks validate code without uploading duplicate branch snapshots; alpha/beta release publication requires both tagged desktop builds and their smoke tests to pass. macOS Gatekeeper and Windows SmartScreen may warn about these binaries. Do not bypass security controls on an untrusted download. A passing CI smoke test verifies that the local pages start; it does not verify real audio capture or Spotify playback on desktop hardware.
 
 Linux installation, systemd services, Managed Soloist, and Linux asset signing remain unchanged.

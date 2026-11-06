@@ -8,6 +8,10 @@ on:
     branches: ['alpha/**', 'beta/**']
     paths:
       - 'audio-bridge/**'
+      - 'installer/src/release.rs'
+      - 'cli_arguments.rs'
+      - 'install.ps1'
+      - 'install.sh'
       - 'Cargo.lock'
       - 'Cargo.toml'
       - 'src/**'
@@ -34,6 +38,17 @@ jobs:
       - name: Fast compile check (PR)
         if: github.event_name == 'pull_request'
         run: cargo check --locked -p soloist-audio-bridge
+      - name: Bootstrap PowerShell syntax (PR)
+        if: github.event_name == 'pull_request'
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path install.ps1), [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
+      - name: Desktop lifecycle unit tests (PR)
+        if: github.event_name == 'pull_request'
+        run: cargo test --locked -p soloist-audio-bridge
       - name: Build and test manual desktop preview
         if: github.event_name != 'pull_request'
         run: |
@@ -104,6 +119,12 @@ jobs:
         run: |
           test "$(uname -m)" = "arm64"
           cargo check --locked -p soloist-audio-bridge
+      - name: Bootstrap shell syntax (PR)
+        if: github.event_name == 'pull_request'
+        run: sh -n install.sh
+      - name: Desktop lifecycle unit tests (PR)
+        if: github.event_name == 'pull_request'
+        run: cargo test --locked -p soloist-audio-bridge
       - name: Build and test manual desktop preview
         if: github.event_name != 'pull_request'
         run: |

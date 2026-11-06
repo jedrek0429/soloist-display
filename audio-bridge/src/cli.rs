@@ -1,5 +1,7 @@
 //! Read-only diagnostics for the standalone External Soloist preview.
 
+#[cfg(any(windows, target_os = "macos"))]
+use crate::release::ReleaseChannel;
 use crate::{
     cli_arguments::{DeviceCommand, GlobalFlags},
     cli_output, config_path, device, read_settings,
@@ -24,6 +26,22 @@ pub enum Command {
     Help,
     Version,
     Completions(Shell),
+    #[cfg(any(windows, target_os = "macos"))]
+    Install,
+    #[cfg(any(windows, target_os = "macos"))]
+    Update {
+        channel: Option<ReleaseChannel>,
+        version: Option<String>,
+        allow_downgrade: bool,
+    },
+    #[cfg(any(windows, target_os = "macos"))]
+    CheckUpdates,
+    #[cfg(any(windows, target_os = "macos"))]
+    Notifications(bool),
+    #[cfg(any(windows, target_os = "macos"))]
+    Repair,
+    #[cfg(any(windows, target_os = "macos"))]
+    Uninstall(bool),
     DeviceList,
     DeviceSet(String),
     DeviceDefault,
@@ -57,6 +75,52 @@ enum DesktopSubcommand {
     },
     /// Generate shell completions.
     Completions { shell: Shell },
+    #[cfg(any(windows, target_os = "macos"))]
+    /// Install the external-only desktop application (never manages Spotify Soloist).
+    Install,
+    #[cfg(any(windows, target_os = "macos"))]
+    /// Install a newer signed Soloist Display release.
+    Update {
+        #[arg(long, value_enum, conflicts_with = "version")]
+        channel: Option<ReleaseChannel>,
+        #[arg(long, conflicts_with = "channel")]
+        version: Option<String>,
+        #[arg(long)]
+        allow_downgrade: bool,
+    },
+    #[cfg(any(windows, target_os = "macos"))]
+    /// Check the latest signed release for the selected channel.
+    CheckUpdates,
+    #[cfg(any(windows, target_os = "macos"))]
+    /// Toggle update notifications.
+    Notifications {
+        #[arg(value_enum)]
+        setting: NotificationSetting,
+    },
+    #[cfg(any(windows, target_os = "macos"))]
+    /// Repair the installed desktop executable and command shim.
+    Repair,
+    #[cfg(any(windows, target_os = "macos"))]
+    /// Remove the installed Display without changing external Spotify Soloist.
+    Uninstall {
+        #[arg(long, value_enum, default_value_t = DataChoice::Keep)]
+        data: DataChoice,
+    },
+}
+
+#[cfg(any(windows, target_os = "macos"))]
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+enum NotificationSetting {
+    On,
+    Off,
+}
+
+#[cfg(any(windows, target_os = "macos"))]
+#[derive(Clone, Copy, Debug, Default, clap::ValueEnum)]
+enum DataChoice {
+    #[default]
+    Keep,
+    Remove,
 }
 
 pub fn parse(args: &[String]) -> Result<Command, String> {
@@ -78,6 +142,31 @@ pub fn parse(args: &[String]) -> Result<Command, String> {
         Some(DesktopSubcommand::Settings) => Command::Settings,
         Some(DesktopSubcommand::Doctor) => Command::Doctor,
         Some(DesktopSubcommand::Completions { shell }) => Command::Completions(shell),
+        #[cfg(any(windows, target_os = "macos"))]
+        Some(DesktopSubcommand::Install) => Command::Install,
+        #[cfg(any(windows, target_os = "macos"))]
+        Some(DesktopSubcommand::Update {
+            channel,
+            version,
+            allow_downgrade,
+        }) => Command::Update {
+            channel,
+            version,
+            allow_downgrade,
+        },
+        #[cfg(any(windows, target_os = "macos"))]
+        Some(DesktopSubcommand::CheckUpdates) => Command::CheckUpdates,
+        #[cfg(any(windows, target_os = "macos"))]
+        Some(DesktopSubcommand::Notifications { setting }) => {
+            Command::Notifications(matches!(setting, NotificationSetting::On))
+        }
+        #[cfg(any(windows, target_os = "macos"))]
+        Some(DesktopSubcommand::Repair) => Command::Repair,
+        #[cfg(any(windows, target_os = "macos"))]
+        Some(DesktopSubcommand::Uninstall { data }) => {
+            Command::Uninstall(matches!(data, DataChoice::Remove))
+        }
+
         Some(DesktopSubcommand::Device { command }) => match command {
             DeviceCommand::List => Command::DeviceList,
             DeviceCommand::Use { output } | DeviceCommand::Set { output } => {
@@ -102,7 +191,7 @@ pub fn help() {
         .expect("stdout available");
     println!();
     println!("Device selection only changes the visualiser source, not Spotify playback.");
-    println!("Managed Soloist and lifecycle commands are not yet supported on desktop.");
+    println!("This build manages Soloist Display only; Spotify Soloist remains External.");
 }
 
 pub fn completions(shell: Shell) {
@@ -273,9 +362,38 @@ mod tests {
             Ok(Command::Completions(_))
         ));
         assert!(parse(&["--verbose".into(), "--quiet".into()]).is_err());
-        assert!(parse(&["install".into()]).is_err());
-        assert!(parse(&["uninstall".into()]).is_err());
-        assert!(parse(&["update".into()]).is_err());
+    }
+
+    #[cfg(any(windows, target_os = "macos"))]
+    #[test]
+    fn desktop_lifecycle_commands_are_accepted() {
+        assert_eq!(parse(&["install".into()]).unwrap(), Command::Install);
+        assert_eq!(
+            parse(&["uninstall".into()]).unwrap(),
+            Command::Uninstall(false)
+        );
+        assert_eq!(
+            parse(&["uninstall".into(), "--data".into(), "remove".into()]).unwrap(),
+            Command::Uninstall(true)
+        );
+        assert!(matches!(
+            parse(&["update".into()]),
+            Ok(Command::Update {
+                channel: None,
+                version: None,
+                allow_downgrade: false
+            })
+        ));
+        assert_eq!(
+            parse(&["check-updates".into()]).unwrap(),
+            Command::CheckUpdates
+        );
+        assert_eq!(
+            parse(&["notifications".into(), "off".into()]).unwrap(),
+            Command::Notifications(false)
+        );
+        assert_eq!(parse(&["repair".into()]).unwrap(), Command::Repair);
+        assert!(parse(&["uninstall".into(), "--data".into(), "invalid".into()]).is_err());
     }
 
     #[tokio::test]

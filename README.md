@@ -2,15 +2,15 @@
 
 > **Windows & macOS preview**: Experimental builds are now available! [Try the latest alpha release](https://github.com/jedrek0429/soloist-display/releases). Report all problems [here](https://github.com/jedrek0429/soloist-display/issues).
 
-[![Stable release](https://img.shields.io/github/v/release/jedrek0429/soloist-display?style=for-the-badge&label=Stable%20release)](https://github.com/jedrek0429/soloist-display/releases/latest)
-[![Pre-release](https://img.shields.io/github/v/release/jedrek0429/soloist-display?include_prereleases&style=for-the-badge&label=Pre-release)](https://github.com/jedrek0429/soloist-display/releases)
+[![Release](https://img.shields.io/github/v/release/jedrek0429/soloist-display?include_prereleases&style=for-the-badge)](https://github.com/jedrek0429/soloist-display/releases)
 [![Checks](https://img.shields.io/github/actions/workflow/status/jedrek0429/soloist-display/build.yml?branch=main&style=for-the-badge&label=Checks)](https://github.com/jedrek0429/soloist-display/actions/workflows/build.yml)
 [![Installer integration](https://img.shields.io/github/actions/workflow/status/jedrek0429/soloist-display/installer-integration.yml?branch=main&style=for-the-badge&label=Installer)](https://github.com/jedrek0429/soloist-display/actions/workflows/installer-integration.yml)
+[![License: MIT](https://img.shields.io/github/license/jedrek0429/soloist-display?style=for-the-badge)](LICENSE)
 [![Code quality](https://img.shields.io/codefactor/grade/github/jedrek0429/soloist-display/main?style=for-the-badge&label=Code%20quality)](https://www.codefactor.io/repository/github/jedrek0429/soloist-display)
 
 Turn a Linux computer or Raspberry Pi into a Spotify Connect speaker with a full-screen display. Built on [Spotify Soloist](https://developer.spotify.com/documentation/soloist).
 
-[See the live preview here](https://jedrek0429.github.io/soloist-display/)
+[See the live Spotify display preview](https://jedrek0429.github.io/soloist-display/).
 
 <p align="center">
   <img src="docs/screenshots/triple-threat.png" alt="Soloist Display — Triple Threat album art with partial disc and track details" width="48%">
@@ -45,6 +45,10 @@ soloist-display doctor           # check what's wrong
 ```
 
 Managed Soloist checks for new builds weekly. External Soloist is left alone.
+
+## Windows and macOS (alpha)
+
+Windows x86_64 and macOS Apple Silicon preview builds support an **External-only** Display installation, with `install`, `check-updates`, `update`, `repair`, and `uninstall`. They never install or manage Spotify Soloist. Each **new** alpha/beta release includes its own authenticated bootstrap scripts (`install.ps1` for Windows and `install.sh` for macOS) and raw desktop binaries in the signed release manifest. See [desktop installation and limitations](docs/standalone-desktop.md).
 
 ## Media keys (optional)
 

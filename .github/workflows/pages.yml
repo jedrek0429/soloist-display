@@ -2,7 +2,7 @@ name: Publish landing page
 on:
   push:
     branches: [main]
-    paths: ['site/**', 'index.html', 'styles.css', 'src/motion.js', 'src/spectrum.js', 'install.sh', '.github/workflows/pages.yml']
+    paths: ['site/**', 'index.html', 'styles.css', 'src/motion.js', 'src/spectrum.js', 'install.sh', 'install.ps1', '.github/workflows/pages.yml']
   release:
     types: [published]
   workflow_call:
@@ -60,10 +60,15 @@ jobs:
             ! grep -q '@SOLOIST_DISPLAY_' "$RUNNER_TEMP/pages/install.sh"
             sh -n "$RUNNER_TEMP/pages/install.sh"
             grep -Fq "PIN_RELEASE_BASE='https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}'" "$RUNNER_TEMP/pages/install.sh"
+            curl --fail --location --retry 3 --silent --show-error \
+              "https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/install.ps1" \
+              -o "$RUNNER_TEMP/pages/install.ps1"
+            ! grep -q '@SOLOIST_DISPLAY_' "$RUNNER_TEMP/pages/install.ps1"
           else
             git fetch origin gh-pages:refs/remotes/origin/gh-pages
             git show origin/gh-pages:install.sh > "$RUNNER_TEMP/pages/install.sh"
             test -s "$RUNNER_TEMP/pages/install.sh"
+            git show origin/gh-pages:install.ps1 > "$RUNNER_TEMP/pages/install.ps1" || cp install.ps1 "$RUNNER_TEMP/pages/install.ps1"
           fi
           touch "$RUNNER_TEMP/pages/.nojekyll"
       - name: Publish gh-pages branch
@@ -86,7 +91,8 @@ jobs:
           mkdir -p src
           cp "$RUNNER_TEMP/pages/src/"*.js src/
           cp "$RUNNER_TEMP/pages/install.sh" install.sh
+          cp "$RUNNER_TEMP/pages/install.ps1" install.ps1
           cp "$RUNNER_TEMP/pages/.nojekyll" .nojekyll
-          git add index.html sitemap.xml og-image.webp preview.html kind-of-blue.jpg styles.css src/motion.js src/spectrum.js src/demo.js install.sh .nojekyll
+          git add index.html sitemap.xml og-image.webp preview.html kind-of-blue.jpg styles.css src/motion.js src/spectrum.js src/demo.js install.sh install.ps1 .nojekyll
           git commit -m "Publish Soloist Display landing page" || true
           git push origin HEAD:gh-pages

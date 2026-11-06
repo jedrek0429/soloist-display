@@ -7,6 +7,7 @@ PIN_RELEASE_BASE='@SOLOIST_DISPLAY_RELEASE_BASE@'
 PIN_X86_64='@SOLOIST_DISPLAY_SHA_X86_64@'
 PIN_AARCH64='@SOLOIST_DISPLAY_SHA_AARCH64@'
 PIN_ARMV7='@SOLOIST_DISPLAY_SHA_ARMV7@'
+PIN_MACOS_ARM64='@SOLOIST_DISPLAY_SHA_MACOS_ARM64@'
 version=${SOLOIST_DISPLAY_VERSION-latest}
 case "$version" in
   latest)
@@ -64,6 +65,35 @@ EOF
     ;;
   --version) printf 'soloist-display-bootstrap %s\n' "$BOOTSTRAP_VERSION"; exit 0 ;;
 esac
+
+if [ "$(uname -s 2>/dev/null)" = Darwin ]; then
+  [ "$(uname -m 2>/dev/null)" = arm64 ] || fail 'macOS Apple Silicon (arm64) is required; Intel Macs are not supported'
+  case "$PIN_MACOS_ARM64" in
+    *[!0-9a-f]*|'') fail 'This release does not contain an authenticated macOS installer; use an alpha/beta release' ;;
+  esac
+  [ "$(printf '%s' "$PIN_MACOS_ARM64" | wc -c | tr -d ' ')" = 64 ] || fail 'macOS SHA-256 pin is invalid'
+  [ "$RELEASE_BASE" = "$PIN_RELEASE_BASE" ] ||
+    fail 'To install another version, download the install.sh from that exact release'
+  command -v curl >/dev/null 2>&1 || fail 'curl is required on macOS'
+  command -v shasum >/dev/null 2>&1 || fail 'shasum is required to authenticate the binary'
+  tmp_dir=$(mktemp -d "/tmp/soloist-display.XXXXXX") || fail 'cannot create temporary directory'
+  installer=$tmp_dir/soloist-display
+  say 'Downloading signed-manifest-pinned macOS build'
+  curl --fail --location --silent --show-error --retry 3 --connect-timeout 10 --max-time 300 \
+    "$RELEASE_BASE/soloist-display-macos-arm64" -o "$installer" ||
+    fail 'could not download the macOS binary'
+  actual_sha=$(shasum -a 256 "$installer" | awk '{print $1}')
+  [ "$actual_sha" = "$PIN_MACOS_ARM64" ] || fail 'macOS binary SHA-256 verification failed'
+  chmod 700 "$installer"
+  export SOLOIST_DISPLAY_VERSION=${PIN_RELEASE_BASE##*/v}
+  say 'Installing Soloist Display (External-only)'
+  if [ -r /dev/tty ] && [ -w /dev/tty ] && ( : </dev/tty ) 2>/dev/null; then
+    "$installer" install "$@" </dev/tty
+  else
+    "$installer" install "$@"
+  fi
+  exit $?
+fi
 
 [ "$(uname -s 2>/dev/null)" = Linux ] || fail 'Linux is required'
 bits=$(getconf LONG_BIT 2>/dev/null || printf unknown)

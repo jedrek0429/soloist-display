@@ -2,6 +2,14 @@
 
 `install.sh` detects Linux and the CPU, verifies the signed bootstrap manifest and installer checksum, then runs the Rust manager as your user. Installing system dependencies may still require sudo. The standard `curl -fsSL https://jedrek0429.github.io/soloist-display/install.sh | sh` keeps prompts interactive when a controlling terminal exists. For headless installations pass `--yes`.
 
+## Windows/macOS desktop installation
+
+The alpha/beta desktop builds remain **External-only** for Spotify Soloist. The portable executable now implements its own Display lifecycle, using the same Ed25519-verified release manifest and SHA-256 artifact verification as the Linux manager. Windows installs are bootstrapped by the release-rendered `install.ps1`, and Apple Silicon macOS uses the Darwin branch of `install.sh`. Both bootstraps pin the raw platform binary to an immutable release digest before running `install`.
+
+The signed prerelease manifest records `soloist-display-windows-x86_64.exe` and `soloist-display-macos-arm64` as desktop artifacts. The unsigned ZIP previews remain available separately. Installed desktop releases use versioned directories and a thin command shim so updating the selected version does not overwrite a running Windows executable. The installer refuses to replace unowned command shims, verifies the downloaded executable's `--version` before switching and preserves the previous release when activation fails.
+
+This does not enable Managed Soloist, background services, unattended autostart, or automatic renewal of Spotify Soloist. Close Display before uninstalling on Windows; locked files cause uninstall to fail. See [desktop installation](standalone-desktop.md).
+
 ## Linux release ABI
 
 The manager and audio bridge ship for GNU/Linux x86_64, ARM64 and hard-float ARMv7. Both are dynamically linked against glibc, with a **glibc 2.38** compatibility ceiling enforced at build time. The audio bridge additionally requires `libasound.so.2`. CPAL reads the PulseAudio/PipeWire-Pulse output monitor through a shared Rust capture path, not a microphone. The installer checks and installs runtime dependencies.

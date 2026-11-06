@@ -15,6 +15,13 @@ const TARGETS: [&str; 3] = [
     "aarch64-unknown-linux-gnu",
     "armv7-unknown-linux-gnueabihf",
 ];
+const DESKTOP_TARGETS: [(&str, &str); 2] = [
+    (
+        "x86_64-pc-windows-msvc",
+        "soloist-display-windows-x86_64.exe",
+    ),
+    ("aarch64-apple-darwin", "soloist-display-macos-arm64"),
+];
 const LEGACY_TARGETS: [&str; 3] = [
     "x86_64-unknown-linux-musl",
     "aarch64-unknown-linux-musl",
@@ -38,122 +45,6 @@ fn valid_tag(tag: &str) -> Result<Version> {
         bail!("tag is not canonical SemVer");
     }
     Ok(parsed)
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ReleaseChannel {
-    Stable,
-    Alpha,
-    Beta,
-}
-
-fn release_channel(version: &Version) -> Option<(ReleaseChannel, u64)> {
-    if version.build.is_empty() && version.pre.is_empty() {
-        return Some((ReleaseChannel::Stable, 0));
-    }
-    if !version.build.is_empty() {
-        return None;
-    }
-    let pre = version.pre.as_str();
-    let (channel, sequence) = if let Some(number) = pre.strip_prefix("alpha.") {
-        (ReleaseChannel::Alpha, number)
-    } else {
-        let number = pre.strip_prefix("beta.")?;
-        (ReleaseChannel::Beta, number)
-    };
-    if sequence.is_empty() || sequence.starts_with('0') {
-        return None;
-    }
-    let sequence = sequence.parse::<u64>().ok().filter(|n| *n > 0)?;
-    Some((channel, sequence))
-}
-
-fn release_notes_base<'a>(
-    current_tag: &str,
-    published: impl IntoIterator<Item = &'a str>,
-) -> Result<Option<String>> {
-    let current = valid_tag(current_tag)?;
-    let (channel, sequence) = release_channel(&current)
-        .ok_or_else(|| anyhow!("unsupported release channel: {current_tag}"))?;
-    let version_key = |v: &Version| (v.major, v.minor, v.patch);
-    type ReleaseRank = (u8, u64, u64, u64, u64);
-    let mut best: Option<(ReleaseRank, String)> = None;
-
-    for tag in published {
-        let tag = tag.trim();
-        if tag == current_tag {
-            continue;
-        }
-        let Ok(other) = valid_tag(tag) else { continue };
-        let Some((other_channel, other_sequence)) = release_channel(&other) else {
-            continue;
-        };
-        let same_version = version_key(&other) == version_key(&current);
-        let older_version = version_key(&other) < version_key(&current);
-
-        // Priorities: same channel > preceding alpha for first beta >
-        // preceding stable release. Never use tags from a newer version.
-        let priority = match (channel, other_channel) {
-            (ReleaseChannel::Stable, ReleaseChannel::Stable) if older_version => 1,
-            (ReleaseChannel::Alpha, ReleaseChannel::Alpha)
-                if same_version && other_sequence < sequence =>
-            {
-                3
-            }
-            (ReleaseChannel::Beta, ReleaseChannel::Beta)
-                if same_version && other_sequence < sequence =>
-            {
-                3
-            }
-            (ReleaseChannel::Beta, ReleaseChannel::Alpha) if same_version => 2,
-            (ReleaseChannel::Alpha | ReleaseChannel::Beta, ReleaseChannel::Stable)
-                if older_version =>
-            {
-                1
-            }
-            _ => continue,
-        };
-        let rank = (
-            priority,
-            other.major,
-            other.minor,
-            other.patch,
-            other_sequence,
-        );
-        if best.as_ref().is_none_or(|(old, _)| rank > *old) {
-            best = Some((rank, tag.to_owned()));
-        }
-    }
-    Ok(best.map(|(_, tag)| tag))
-}
-
-fn validate_prerelease_floor<'a>(
-    tag: &str,
-    published: impl IntoIterator<Item = &'a str>,
-) -> Result<()> {
-    let candidate = valid_tag(tag)?;
-    let (channel, _) =
-        release_channel(&candidate).ok_or_else(|| anyhow!("unsupported prerelease tag: {tag}"))?;
-    if channel == ReleaseChannel::Stable {
-        bail!("expected alpha or beta prerelease tag, got {tag}");
-    }
-    let candidate_core = (candidate.major, candidate.minor, candidate.patch);
-    let latest_stable = published
-        .into_iter()
-        .filter_map(|tag| valid_tag(tag.trim()).ok())
-        .filter(|version| release_channel(version) == Some((ReleaseChannel::Stable, 0)))
-        .max();
-    if let Some(stable) = latest_stable {
-        if candidate_core <= (stable.major, stable.minor, stable.patch) {
-            bail!(
-                "cannot publish {tag}: base version {}.{}.{} must be greater than latest stable v{stable}",
-                candidate.major,
-                candidate.minor,
-                candidate.patch
-            );
-        }
-    }
-    Ok(())
 }
 
 fn digest(path: &Path) -> Result<String> {
@@ -215,6 +106,19 @@ fn build_manifest(dist: &Path, tag: &str, version: &str) -> Result<()> {
             }
         }
     }
+    if !parsed.pre.is_empty() {
+        for (target, name) in DESKTOP_TARGETS {
+            let file = dist.join(name);
+            let sha = digest(&file)?;
+            let size = file.metadata()?.len();
+            artifacts.push(json!({
+                "name": name, "kind": "desktop", "target": target,
+                "url": format!("{base}/{name}"), "fallback_url": null,
+                "sha256": sha, "size": size
+            }));
+            bootstrap.push_str(&format!("{target} {sha} {base}/{name}\n"));
+        }
+    }
     let manifest = json!({
         "schema": 1, "version": version, "published_at": timestamp()?,
         "artifacts": artifacts
@@ -239,16 +143,22 @@ fn render_bootstrap(template: &Path, manifest: &Path, base: &str) -> Result<()> 
             bail!("invalid bootstrap manifest record");
         }
         let (target, sha, url) = (fields[0], fields[1], fields[2]);
-        let mapped = if let Some(index) = TARGETS.iter().position(|current| *current == target) {
-            TARGETS[index]
+        let mapped_name = if let Some(index) = TARGETS.iter().position(|current| *current == target)
+        {
+            format!("soloist-display-{}", TARGETS[index])
         } else if let Some(index) = LEGACY_TARGETS.iter().position(|old| *old == target) {
-            TARGETS[index]
+            format!("soloist-display-{}", TARGETS[index])
+        } else if let Some((_, name)) = DESKTOP_TARGETS
+            .iter()
+            .find(|(selected, _)| *selected == target)
+        {
+            name.to_string()
         } else {
             bail!("unsupported bootstrap target: {target}");
         };
         if sha.len() != 64
             || !sha.bytes().all(|byte| byte.is_ascii_hexdigit())
-            || url != format!("{base}/soloist-display-{mapped}")
+            || url != format!("{base}/{mapped_name}")
         {
             bail!("invalid bootstrap record for {target}");
         }
@@ -256,20 +166,43 @@ fn render_bootstrap(template: &Path, manifest: &Path, base: &str) -> Result<()> 
             bail!("duplicate bootstrap target: {target}");
         }
     }
-    if digests.len() != TARGETS.len() + LEGACY_TARGETS.len() {
-        bail!("bootstrap manifest has missing targets");
+    let expected_count = TARGETS.len()
+        + LEGACY_TARGETS.len()
+        + if base.contains("-alpha.") || base.contains("-beta.") {
+            DESKTOP_TARGETS.len()
+        } else {
+            0
+        };
+    if digests.len() != expected_count {
+        bail!("bootstrap manifest has missing or unexpected targets");
     }
     let mut rendered = fs::read_to_string(template)?;
+    if !rendered.contains("@SOLOIST_DISPLAY_RELEASE_BASE@") {
+        bail!("bootstrap template has no release base placeholder");
+    }
     for (placeholder, value) in [
         ("@SOLOIST_DISPLAY_RELEASE_BASE@", base),
         ("@SOLOIST_DISPLAY_SHA_X86_64@", digests[TARGETS[0]]),
         ("@SOLOIST_DISPLAY_SHA_AARCH64@", digests[TARGETS[1]]),
         ("@SOLOIST_DISPLAY_SHA_ARMV7@", digests[TARGETS[2]]),
+        (
+            "@SOLOIST_DISPLAY_SHA_MACOS_ARM64@",
+            digests
+                .get("aarch64-apple-darwin")
+                .copied()
+                .unwrap_or("unavailable"),
+        ),
+        (
+            "@SOLOIST_DISPLAY_SHA_WINDOWS_X86_64@",
+            digests
+                .get("x86_64-pc-windows-msvc")
+                .copied()
+                .unwrap_or("unavailable"),
+        ),
     ] {
-        if !rendered.contains(placeholder) {
-            bail!("missing template token: {placeholder}");
+        if rendered.contains(placeholder) {
+            rendered = rendered.replace(placeholder, value);
         }
-        rendered = rendered.replace(placeholder, value);
     }
     if rendered.contains("@SOLOIST_DISPLAY_") {
         bail!("unresolved bootstrap placeholder");
@@ -404,17 +337,6 @@ fn main() -> Result<()> {
             render_bootstrap(Path::new(template), Path::new(manifest), base)?,
         [cmd, root] if cmd == "check-settings" =>
             check_settings(Path::new(root))?,
-        [cmd, tag] if cmd == "validate-prerelease-floor" => {
-            let mut input = String::new();
-            std::io::stdin().read_to_string(&mut input)?;
-            validate_prerelease_floor(tag, input.lines())?;
-        },
-        [cmd, tag] if cmd == "release-notes-base" => {
-            let mut input = String::new();
-            std::io::stdin().read_to_string(&mut input)?;
-            let previous = release_notes_base(tag, input.lines())?;
-            println!("{}", previous.unwrap_or_default());
-        },
         [cmd, tag] if cmd == "verify-workspace-version" => {
             let tag_version = valid_tag(tag)?;
             let actual = Version::parse(env!("CARGO_PKG_VERSION"))?;
@@ -422,7 +344,7 @@ fn main() -> Result<()> {
                 bail!("tag {tag} does not match workspace version {actual}");
             }
         },
-        _ => bail!("usage: release-tools validate-tag TAG | validate-bump OLD NEW | verify-workspace-version TAG | build-manifest DIST TAG VERSION | render-bootstrap TEMPLATE MANIFEST BASE | check-settings ROOT | release-notes-base TAG | validate-prerelease-floor TAG"),
+        _ => bail!("usage: release-tools validate-tag TAG | validate-bump OLD NEW | verify-workspace-version TAG | build-manifest DIST TAG VERSION | render-bootstrap TEMPLATE MANIFEST BASE | check-settings ROOT"),
     };
     Ok(())
 }
@@ -438,12 +360,19 @@ mod tests {
                 fs::write(dir.path().join(format!("{prefix}-{target}")), b"test").unwrap();
             }
         }
+        for (_, filename) in DESKTOP_TARGETS {
+            fs::write(dir.path().join(filename), b"signed desktop binary fixture").unwrap();
+        }
         build_manifest(dir.path(), "v1.0.0-alpha.4", "1.0.0-alpha.4").unwrap();
         let parsed: Value =
             serde_json::from_slice(&fs::read(dir.path().join("release-manifest.json")).unwrap())
                 .unwrap();
         let artifacts = parsed["artifacts"].as_array().unwrap();
-        assert_eq!(artifacts.len(), 12);
+        assert_eq!(artifacts.len(), 14);
+        assert_eq!(
+            artifacts.iter().filter(|a| a["kind"] == "desktop").count(),
+            2
+        );
         for (current, legacy) in TARGETS.into_iter().zip(LEGACY_TARGETS) {
             let new_asset = artifacts
                 .iter()
@@ -477,55 +406,6 @@ mod tests {
         assert!(beta < rc);
         assert!(rc < stable);
     }
-    #[test]
-    fn incremental_release_notes_bases() {
-        let tags = [
-            "v1.0.0-alpha.9",
-            "v1.0.0",
-            "v1.1.0-alpha.1",
-            "v1.1.0-alpha.2",
-            "v1.1.0-alpha.3",
-            "v1.1.0-alpha.4",
-            "v1.1.0-beta.1",
-            "v1.1.0-beta.2",
-            "v2.0.0",
-            "v1.1.0-rc.1",
-            "not-a-tag",
-        ];
-        let cases = [
-            ("v1.1.0-alpha.1", Some("v1.0.0")),
-            ("v1.1.0-alpha.4", Some("v1.1.0-alpha.3")),
-            ("v1.1.0-beta.1", Some("v1.1.0-alpha.4")),
-            ("v1.1.0-beta.2", Some("v1.1.0-beta.1")),
-            ("v1.1.0", Some("v1.0.0")),
-            ("v1.0.0-alpha.9", None),
-            ("v0.1.0-alpha.1", None),
-        ];
-        for (tag, expected) in cases {
-            assert_eq!(
-                release_notes_base(tag, tags.iter().copied())
-                    .unwrap()
-                    .as_deref(),
-                expected,
-                "{tag}"
-            );
-        }
-        assert!(release_notes_base("v1.1.0-rc.1", tags.iter().copied()).is_err());
-    }
-    #[test]
-    fn prereleases_must_exceed_latest_published_stable() {
-        let stable = ["v1.1.0", "v1.3.0", "v1.2.5", "v1.4.0-alpha.9", "invalid"];
-        for tag in ["v1.2.0-alpha.1", "v1.3.0-beta.1", "v1.1.9-alpha.1"] {
-            assert!(validate_prerelease_floor(tag, stable).is_err(), "{tag}");
-        }
-        for tag in ["v1.3.1-alpha.1", "v1.4.0-beta.1", "v2.0.0-alpha.1"] {
-            assert!(validate_prerelease_floor(tag, stable).is_ok(), "{tag}");
-        }
-        assert!(validate_prerelease_floor("v1.3.0", stable).is_err());
-        assert!(validate_prerelease_floor("v0.1.0-alpha.1", []).is_ok());
-        assert!(validate_prerelease_floor("v1.0.0-beta.1", ["v0.9.9", "v0.9.9-alpha.2"]).is_ok());
-    }
-
     #[test]
     fn rejects_invalid_tags() {
         for tag in [

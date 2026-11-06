@@ -2,6 +2,14 @@
 
 The [README](../README.md) covers normal use.
 
+## Linux audio requirements
+
+The GNU/Linux releases require **glibc 2.38+** and `libasound.so.2`. The installer installs ALSA's runtime library when missing (`alsa-lib` on Arch/Fedora, `libasound2t64` on Ubuntu 24.04 and Debian 13). No ALSA configuration or microphone permission is required for capture.
+
+CPAL records the **output monitor** exposed by PulseAudio or `pipewire-pulse`. It does not record a microphone or require `parec`. The default output monitor is selected automatically; `SOLOIST_DISPLAY_MONITOR` can select another source. The `pactl` command is still used to diagnose the output monitor.
+
+The three release targets are `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu` and `armv7-unknown-linux-gnueabihf` (hard-float). They use the host's ALSA runtime instead of shipping statically linked `musl` executables.
+
 ## Pick a release
 
 The bootstrap selects the latest stable release, or the latest prerelease if there is no stable release yet.
@@ -30,6 +38,38 @@ The channel is remembered. `alpha` and `beta` track only their respective prerel
 The installer sets up completions for Bash, Zsh and Fish. Bash needs the `bash-completion` package enabled. Zsh is configured through an installer-owned `~/.zshrc` block; Bash and Fish discover their completion files without editing their startup files.
 
 After installing a new shell, `soloist-display update` refreshes completions even if Display is already up to date. You can also generate scripts manually with `soloist-display completions bash|zsh|fish`.
+
+## Portable CLI (Windows and macOS previews)
+
+The Windows x86_64 and macOS Apple Silicon releases currently run in **External-only** mode.
+They share the CLI flag and audio-device argument definitions with the Linux manager,
+but do not yet include the Linux installer or managed service lifecycle.
+
+```sh
+soloist-display --help
+soloist-display doctor
+soloist-display launch       # open the now-playing display
+soloist-display settings     # open the settings page
+soloist-display device list
+soloist-display device use 2 # choose output for the visualiser, not Spotify
+soloist-display device default
+soloist-display completions powershell # use bash/zsh/fish on other shells
+```
+
+Run the executable with no arguments to serve the local display as before.
+`launch` and `settings` open the relevant URL in the operating system's
+default browser, reusing a running local server when available. If the
+standalone server is not running, they start it in the current process,
+which must remain running to keep the display available.
+
+Global flags `--no-color`, `--quiet`, `--verbose`, and `--yes`
+use the shared parser. Installation and renewal commands still work only
+on Linux; `--yes` is reserved for the upcoming desktop installer lifecycle.
+Shell completion scripts are generated to stdout and are not automatically installed.
+
+On Linux, `soloist-display device list/use/set/default` delegates to the
+installed audio bridge. The device selector affects only the visualiser
+capture output and never changes Soloist's playback device.
 
 ## Managed or External?
 

@@ -1,3 +1,12 @@
+# Known issues
+## Windows audio output switching
+
+Currently, Soloist on Windows does not automatically follow changes to the system's default audio output while the original device remains available. [This has been reported](https://github.com/spotify/soloist/issues/30).
+
+Soloist Display's audio visualiser should switch to the new default device independently, causing the visualiser to stop responding to playback.
+
+Until the Soloist issue is fixed (which is unlikely any time soon), **restart Soloist to make it use the new default audio output**. 
+
 # Troubleshooting
 
 Start here:
@@ -49,7 +58,7 @@ An unreachable CDN leaves the existing build installed. A healthy WebSocket alon
 
 ## Visualiser is flat
 
-Play audio through the computer running Display. Increase sensitivity in settings. Check the default PipeWire/PulseAudio output sink; `SOLOIST_DISPLAY_MONITOR` selects another monitor if needed.
+Play audio through the computer running Display. Increase sensitivity in settings. Check the default PipeWire/PulseAudio output sink; `SOLOIST_DISPLAY_MONITOR` selects another monitor if needed. CPAL records the output monitor, not a microphone. Use `pactl list short sources` to check that a `.monitor` source exists. If `libasound.so.2` is missing, install `alsa-lib` (Arch/Fedora) or `libasound2t64` (Ubuntu 24.04/Debian 13), then restart the Display service.
 
 ## Install, update or uninstall failed
 

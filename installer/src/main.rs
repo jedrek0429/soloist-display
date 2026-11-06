@@ -1,3 +1,7 @@
+#[path = "../../cli_arguments.rs"]
+mod cli_arguments;
+#[path = "../../cli_output.rs"]
+mod cli_output;
 mod dependencies;
 mod legacy;
 mod lock;
@@ -15,9 +19,10 @@ mod state;
 mod terminal;
 mod uninstall_tx;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell};
+use cli_arguments::{DeviceCommand, GlobalFlags};
 use lock::InstallLock;
 use manager::{DisplayDataRemoval, SoloistRemoval, UninstallOptions};
 use paths::Paths;
@@ -40,18 +45,8 @@ use std::{
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
-    /// Accept safe defaults and run without confirmation.
-    #[arg(long, global = true)]
-    yes: bool,
-    /// Disable ANSI styling.
-    #[arg(long, global = true)]
-    no_color: bool,
-    /// Show only essential output.
-    #[arg(long, global = true)]
-    quiet: bool,
-    /// Show additional diagnostics.
-    #[arg(long, global = true)]
-    verbose: bool,
+    #[command(flatten)]
+    flags: GlobalFlags,
     /// Compatibility alias for `settings`.
     #[arg(long, hide = true)]
     settings: bool,
@@ -132,6 +127,11 @@ enum Command {
     Repair,
     /// Check installation, services, ports, and audio.
     Doctor,
+    /// Select the audio output captured by the visualiser.
+    Device {
+        #[command(subcommand)]
+        command: DeviceCommand,
+    },
     /// Safely remove installer-owned components.
     Uninstall {
         #[arg(long, value_enum)]
@@ -153,10 +153,8 @@ fn locked<T>(paths: &Paths, operation: impl FnOnce() -> Result<T>) -> Result<T> 
 
 fn run() -> Result<i32> {
     let cli = Cli::parse();
-    terminal::configure(cli.quiet, cli.verbose);
-    if cli.no_color {
-        std::env::set_var("NO_COLOR", "1");
-    }
+    terminal::configure(cli.flags.quiet, cli.flags.verbose);
+    cli.flags.configure_color();
     if let Some(Command::Completions { shell }) = &cli.command {
         generate(
             *shell,
@@ -200,8 +198,8 @@ fn run() -> Result<i32> {
                 manager::install(
                     &paths,
                     &platform,
-                    cli.yes,
-                    cli.quiet,
+                    cli.flags.yes,
+                    cli.flags.quiet,
                     manager::InstallOptions {
                         name: device_name,
                         api_key,
@@ -234,7 +232,7 @@ fn run() -> Result<i32> {
                 manager::update(
                     &paths,
                     &platform,
-                    cli.quiet,
+                    cli.flags.quiet,
                     channel,
                     version.as_deref(),
                     allow_downgrade,
@@ -256,11 +254,39 @@ fn run() -> Result<i32> {
         }
         Command::Repair => {
             let platform = Platform::detect()?;
-            locked(&paths, || manager::repair(&paths, &platform, cli.quiet))?;
+            locked(&paths, || {
+                manager::repair(&paths, &platform, cli.flags.quiet)
+            })?;
         }
         Command::Doctor => {
             if !manager::doctor(&paths)? {
                 return Ok(1);
+            }
+        }
+        Command::Device { command } => {
+            let executable = paths.current.join("bin/soloist-audio-bridge");
+            if !executable.is_file() {
+                bail!("Display audio bridge is missing; run 'soloist-display repair'");
+            }
+            let mut process = std::process::Command::new(&executable);
+            process.arg("device");
+            match command {
+                DeviceCommand::List => {
+                    process.arg("list");
+                }
+                DeviceCommand::Use { output } => {
+                    process.arg("use").arg(output);
+                }
+                DeviceCommand::Set { output } => {
+                    process.arg("set").arg(output);
+                }
+                DeviceCommand::Default => {
+                    process.arg("default");
+                }
+            }
+            let status = process.status()?;
+            if !status.success() {
+                return Ok(status.code().unwrap_or(1));
             }
         }
         Command::Uninstall { soloist, data } => locked(&paths, || {
@@ -269,9 +295,9 @@ fn run() -> Result<i32> {
                 UninstallOptions {
                     soloist,
                     data,
-                    yes: cli.yes,
+                    yes: cli.flags.yes,
                 },
-                cli.quiet,
+                cli.flags.quiet,
             )
         })?,
     }

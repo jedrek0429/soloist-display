@@ -3,7 +3,7 @@ set -eu
 
 dist=$(CDPATH= cd -- "$1" && pwd)
 key=$2
-manager="$dist/soloist-display-x86_64-unknown-linux-musl"
+manager="$dist/soloist-display-x86_64-unknown-linux-gnu"
 temp=$(mktemp -d)
 server=
 cleanup() {

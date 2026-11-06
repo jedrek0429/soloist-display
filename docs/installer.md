@@ -2,6 +2,12 @@
 
 `install.sh` detects Linux and the CPU, verifies the signed bootstrap manifest and installer checksum, then runs the Rust manager as your user. Installing system dependencies may still require sudo. The standard `curl -fsSL https://jedrek0429.github.io/soloist-display/install.sh | sh` keeps prompts interactive when a controlling terminal exists. For headless installations pass `--yes`.
 
+## Linux release ABI
+
+The manager and audio bridge ship for GNU/Linux x86_64, ARM64 and hard-float ARMv7. Both are dynamically linked against glibc, with a **glibc 2.38** compatibility ceiling enforced at build time. The audio bridge additionally requires `libasound.so.2`. CPAL reads the PulseAudio/PipeWire-Pulse output monitor through a shared Rust capture path, not a microphone. The installer checks and installs runtime dependencies.
+
+For backwards compatibility, newly signed release manifests also contain the previous `*-linux-musl*` target identifiers as aliases pointing to the **same GNU binaries**. They are migration identifiers, not separate `musl` downloads. New bootstraps request only GNU targets; previously installed managers can still update using their older identifiers. The old signed release formats remain readable for explicit downgrades.
+
 Display releases live under `$XDG_DATA_HOME/soloist-display/releases`. The active release uses an atomic `current` symlink. Config, cache, logs and transaction journals live in their XDG directories; `~/.local/bin/soloist-display` points to the active manager.
 
 Mutating CLI operations share a lock. Installation, renewal and uninstall use recovery journals. Recovery runs on the next relevant CLI invocation. If the previous build is also broken, manual recovery may be needed. Package-manager changes are not atomically reversible.

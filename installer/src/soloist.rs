@@ -6,6 +6,7 @@ use crate::{
 };
 use anyhow::{anyhow, bail, Context, Result};
 use flate2::read::GzDecoder;
+use soloist_engine::{classify, EngineMode};
 use std::{
     fs,
     io::{self, IsTerminal, Write},
@@ -222,20 +223,22 @@ pub fn discover(paths: &Paths, installed: Option<&SoloistState>) -> SoloistState
         .into_iter()
         .flatten()
         .find(|candidate| candidate == Path::new("soloist") || candidate.is_file());
-    let owned = installed.is_some_and(|state| state.ownership == SoloistOwnership::Installer)
-        && executable
-            .as_ref()
-            .is_some_and(|path| path.starts_with(&paths.managed_soloist));
     let running = websocket_url.as_deref().is_some_and(websocket_healthy);
     let independent_service_exists =
         paths.soloist_service.exists() && !installed.is_some_and(|state| state.service_owned);
+    let mode = classify(
+        installed.is_some_and(|state| state.ownership == SoloistOwnership::Installer),
+        executable.as_deref(),
+        &paths.managed_soloist,
+        running,
+        independent_service_exists,
+    );
+    let owned = mode == EngineMode::Managed;
     SoloistState {
-        ownership: if executable.is_none() && !running && !independent_service_exists {
-            SoloistOwnership::None
-        } else if owned {
-            SoloistOwnership::Installer
-        } else {
-            SoloistOwnership::Independent
+        ownership: match mode {
+            EngineMode::Missing => SoloistOwnership::None,
+            EngineMode::External => SoloistOwnership::Independent,
+            EngineMode::Managed => SoloistOwnership::Installer,
         },
         executable,
         service_owned: owned && paths.soloist_service.exists(),

@@ -1,0 +1,151 @@
+name: Desktop prerelease builds
+
+# PRs get lightweight native compile checks. Full desktop preview builds
+# run only on demand; tagged alpha/beta releases build their own immutable
+# Windows/macOS assets in release.yml.
+on:
+  pull_request:
+    branches: ['alpha/**', 'beta/**']
+    paths:
+      - 'audio-bridge/**'
+      - 'Cargo.lock'
+      - 'Cargo.toml'
+      - 'src/**'
+      - 'index.html'
+      - 'settings.html'
+      - 'styles.css'
+      - 'config.json'
+      - '.github/workflows/standalone-desktop.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-preview-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: standalone-windows
+      - name: Fast compile check (PR)
+        if: github.event_name == 'pull_request'
+        run: cargo check --locked -p soloist-audio-bridge
+      - name: Build and test manual desktop preview
+        if: github.event_name != 'pull_request'
+        run: |
+          cargo test --locked -p soloist-audio-bridge
+          cargo build --release --locked -p soloist-audio-bridge
+      - name: Portable CLI smoke test
+        if: github.event_name != 'pull_request'
+        shell: pwsh
+        run: |
+          target/release/soloist-audio-bridge.exe --help
+          target/release/soloist-audio-bridge.exe --version
+          target/release/soloist-audio-bridge.exe device list
+          target/release/soloist-audio-bridge.exe device default
+      - name: Package standalone executable
+        if: github.event_name != 'pull_request'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory dist -Force | Out-Null
+          Copy-Item target/release/soloist-audio-bridge.exe dist/soloist-display.exe
+          Copy-Item docs/standalone-desktop.md dist/README.md
+          Set-Content -Path dist/BUILD.txt -Value "commit=$env:GITHUB_SHA", "mode=external-only"
+      - name: Smoke test HTTP server without running Soloist
+        if: github.event_name != 'pull_request'
+        shell: pwsh
+        run: |
+          $env:SOLOIST_DISPLAY_CONFIG_DIR = Join-Path $env:RUNNER_TEMP 'soloist-standalone'
+          $env:SOLOIST_DISPLAY_HTTP_PORT = '18080'
+          $env:SOLOIST_DISPLAY_AUDIO_PORT = '19191'
+          $proc = Start-Process -FilePath (Resolve-Path dist/soloist-display.exe) -PassThru -RedirectStandardOutput (Join-Path $env:RUNNER_TEMP 'display.stdout') -RedirectStandardError (Join-Path $env:RUNNER_TEMP 'display.stderr')
+          try {
+            $ready = $false
+            for ($i = 0; $i -lt 30; $i++) {
+              try {
+                $response = Invoke-WebRequest -Uri 'http://127.0.0.1:18080/' -TimeoutSec 2
+                if ($response.StatusCode -eq 200) { $ready = $true; break }
+              } catch { Start-Sleep -Milliseconds 500 }
+            }
+            if (-not $ready) { throw 'Standalone HTTP server did not start' }
+            $config = Invoke-RestMethod -Uri 'http://127.0.0.1:18080/config.json'
+            if ($config.soloistWebSocket -ne 'ws://127.0.0.1:9090') { throw 'External Soloist default is wrong' }
+            $settings = Invoke-WebRequest -Uri 'http://127.0.0.1:18080/settings'
+            if ($settings.StatusCode -ne 200) { throw 'Settings page unavailable' }
+          } finally {
+            if ($proc -and -not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
+            if (Test-Path (Join-Path $env:RUNNER_TEMP 'display.stderr')) {
+              Get-Content (Join-Path $env:RUNNER_TEMP 'display.stderr')
+            }
+          }
+      - name: Upload manual Windows preview
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: soloist-display-preview-windows-x86_64
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: standalone-macos-arm64
+      - name: Fast compile check (PR)
+        if: github.event_name == 'pull_request'
+        run: |
+          test "$(uname -m)" = "arm64"
+          cargo check --locked -p soloist-audio-bridge
+      - name: Build and test manual desktop preview
+        if: github.event_name != 'pull_request'
+        run: |
+          test "$(uname -m)" = "arm64"
+          cargo test --locked -p soloist-audio-bridge
+          cargo build --release --locked -p soloist-audio-bridge
+      - name: Portable CLI smoke test
+        if: github.event_name != 'pull_request'
+        run: |
+          target/release/soloist-audio-bridge --help
+          target/release/soloist-audio-bridge --version
+          target/release/soloist-audio-bridge device list
+          target/release/soloist-audio-bridge device default
+      - name: Package standalone executable
+        if: github.event_name != 'pull_request'
+        run: |
+          mkdir -p dist
+          install -m755 target/release/soloist-audio-bridge dist/soloist-display
+          cp docs/standalone-desktop.md dist/README.md
+          printf 'commit=%s\nmode=external-only\n' "$GITHUB_SHA" > dist/BUILD.txt
+      - name: Smoke test HTTP server without running Soloist
+        if: github.event_name != 'pull_request'
+        env:
+          SOLOIST_DISPLAY_CONFIG_DIR: ${{ runner.temp }}/soloist-standalone
+          SOLOIST_DISPLAY_HTTP_PORT: '18080'
+          SOLOIST_DISPLAY_AUDIO_PORT: '19191'
+        run: |
+          ./dist/soloist-display > /tmp/soloist-display.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; cat /tmp/soloist-display.log' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18080/ -o /tmp/soloist-page.html; then break; fi
+            sleep 0.5
+          done
+          test -s /tmp/soloist-page.html
+          curl -fsS http://127.0.0.1:18080/config.json | grep -q 'soloistWebSocket'
+          curl -fsS http://127.0.0.1:18080/settings | grep -q 'html'
+      - name: Upload manual macOS preview
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: soloist-display-preview-macos-arm64
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14

@@ -44,6 +44,12 @@ jobs:
           else
             echo 'code_changed=true' >> "$GITHUB_OUTPUT"
           fi
+      - name: Install system dependencies
+        if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
+        run: |
+          sudo sed -i 's|azure.archive.ubuntu.com|archive.ubuntu.com|g' /etc/apt/apt-mirrors.txt
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libasound2-dev libpulse-dev shellcheck
       - uses: dtolnay/rust-toolchain@stable
         if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
         with:
@@ -53,14 +59,26 @@ jobs:
       - if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
         run: cargo fmt --all -- --check
       - if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
-        run: cargo test --workspace --all-targets
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo test --locked --workspace --all-targets
+      - name: CPAL PulseAudio output monitor smoke test
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          sudo apt-get install -y pulseaudio pulseaudio-utils
+          pulseaudio --start --exit-idle-time=-1
+          pactl load-module module-null-sink sink_name=soloist_ci
+          pactl set-default-sink soloist_ci
+          pactl list short sources | grep -F 'soloist_ci.monitor'
+          SOLOIST_DISPLAY_MONITOR=soloist_ci.monitor \
+          SOLOIST_DISPLAY_CPAL_MONITOR_SMOKE=1 \
+            cargo test --locked -p soloist-audio-bridge pulseaudio_null_sink_monitor_captures_audio -- --nocapture
+          cargo build --locked -p soloist-audio-bridge
+          ldd target/debug/soloist-audio-bridge | tee /tmp/cpal-runtime-libraries.txt
+          ! grep -q 'not found' /tmp/cpal-runtime-libraries.txt
       - name: Shell checks
         if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y shellcheck
           sh -n install.sh
           shellcheck install.sh
           sh -n scripts/test-bootstrap-e2e.sh
@@ -71,15 +89,23 @@ jobs:
           for file in src/*.js; do node --check --input-type=module < "$file"; done
           node --experimental-default-type=module --test scripts/test-standby.mjs
           node --experimental-default-type=module --test scripts/test-landing-preview.mjs
-          cargo run --quiet -p soloist-display-installer --bin release-tools -- check-settings .
+          cargo run --locked --quiet -p soloist-display-installer --bin release-tools -- check-settings .
       - name: Release bootstrap pin smoke test
         if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
         run: |
           mkdir -p /tmp/bootstrap-test
-          for target in x86_64-unknown-linux-musl aarch64-unknown-linux-musl armv7-unknown-linux-musleabihf; do
-            printf '%s %s https://github.com/jedrek0429/soloist-display/releases/download/v0.0.0/soloist-display-%s\n' "$target" "$(printf '%s' "$target" | sha256sum | cut -d' ' -f1)" "$target"
+          for target in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu armv7-unknown-linux-gnueabihf; do
+            case "$target" in
+              x86_64-*) legacy=x86_64-unknown-linux-musl ;;
+              aarch64-*) legacy=aarch64-unknown-linux-musl ;;
+              armv7-*) legacy=armv7-unknown-linux-musleabihf ;;
+            esac
+            digest=$(printf '%s' "$target" | sha256sum | cut -d' ' -f1)
+            for alias in "$target" "$legacy"; do
+              printf '%s %s https://github.com/jedrek0429/soloist-display/releases/download/v0.0.0/soloist-display-%s\n' "$alias" "$digest" "$target"
+            done
           done > /tmp/bootstrap-test/bootstrap-manifest.txt
-          cargo run --quiet -p soloist-display-installer --bin release-tools -- render-bootstrap install.sh /tmp/bootstrap-test/bootstrap-manifest.txt https://github.com/jedrek0429/soloist-display/releases/download/v0.0.0 > /tmp/bootstrap-test/install.sh
+          cargo run --locked --quiet -p soloist-display-installer --bin release-tools -- render-bootstrap install.sh /tmp/bootstrap-test/bootstrap-manifest.txt https://github.com/jedrek0429/soloist-display/releases/download/v0.0.0 > /tmp/bootstrap-test/install.sh
           sh -n /tmp/bootstrap-test/install.sh
           shellcheck /tmp/bootstrap-test/install.sh
           grep -Fq "PIN_RELEASE_BASE='https://github.com/jedrek0429/soloist-display/releases/download/v0.0.0'" /tmp/bootstrap-test/install.sh
@@ -88,7 +114,7 @@ jobs:
       - name: CLI smoke test
         if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
         run: |
-          cargo build --workspace
+          cargo build --locked --workspace
           target/debug/soloist-display --help
           target/debug/soloist-display --version
           if HOME=/tmp SOLOIST_DISPLAY_TEST_ROOT=/tmp/soloist-display-no-tty \
@@ -111,31 +137,26 @@ jobs:
           grep -Fq 'non-interactive installation requires --yes' /tmp/soloist-display-probe/output
           ! grep -Fq 'SECRET_TEST_VALUE' /tmp/soloist-display-probe/output
   cross-build:
-    if: github.event_name == 'push'
-    runs-on: ubuntu-24.04
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     strategy:
       fail-fast: false
       matrix:
-        target: [aarch64-unknown-linux-musl, armv7-unknown-linux-musleabihf]
+        include:
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - runner: ubuntu-24.04
+            target: armv7-unknown-linux-gnueabihf
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: glibc-${{ matrix.target }}
       - uses: mlugg/setup-zig@v2
         with:
           version: 0.13.0
       - uses: taiki-e/install-action@cargo-zigbuild
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.target }}
-      - run: cargo zigbuild --workspace --release --target ${{ matrix.target }}
-      - run: file target/${{ matrix.target }}/release/soloist-display target/${{ matrix.target }}/release/soloist-audio-bridge
-      - name: Runtime smoke test (native or QEMU)
-        run: |
-          binary="target/${{ matrix.target }}/release/soloist-display"
-          case '${{ matrix.target }}' in
-            x86_64-*) "$binary" --version ;;
-            aarch64-*) sudo apt-get update && sudo apt-get install -y qemu-user-static; qemu-aarch64-static "$binary" --version ;;
-            armv7-*) sudo apt-get update && sudo apt-get install -y qemu-user-static; qemu-arm-static "$binary" --version ;;
-          esac
+      - run: bash scripts/ci-build-glibc.sh ${{ matrix.target }}

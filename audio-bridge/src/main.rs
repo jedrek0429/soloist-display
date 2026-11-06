@@ -6,19 +6,24 @@ use axum::{
     Json, Router,
 };
 use futures_util::SinkExt;
-use rustfft::{num_complex::Complex32, FftPlanner};
+mod capture;
+mod cli;
+#[path = "../../cli_arguments.rs"]
+mod cli_arguments;
+#[path = "../../cli_output.rs"]
+mod cli_output;
+mod device;
+mod pcm;
+mod spectrum;
 use serde_json::Value;
-use std::{env, path::PathBuf, process::Stdio, sync::Arc, time::Instant};
+use spectrum::{HOP, RATE};
+use std::{env, path::PathBuf, sync::Arc};
 use tokio::{
-    io::AsyncReadExt,
     net::TcpListener,
-    process::Command,
     sync::{broadcast, Mutex},
-    time::Duration,
 };
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
-const RATE: usize = 22050;
 const DEFAULT_CONFIG: &str = include_str!("../../config.json");
 const INDEX: &str = include_str!("../../index.html");
 const CSS: &str = include_str!("../../styles.css");
@@ -36,9 +41,27 @@ struct WebState {
 }
 
 fn config_path() -> PathBuf {
+    if let Some(directory) = env::var_os("SOLOIST_DISPLAY_CONFIG_DIR") {
+        return PathBuf::from(directory).join("config.json");
+    }
+
+    #[cfg(target_os = "windows")]
+    let base = env::var_os("APPDATA")
+        .map(PathBuf::from)
+        .or_else(|| {
+            env::var_os("USERPROFILE").map(|home| PathBuf::from(home).join("AppData/Roaming"))
+        })
+        .unwrap_or_else(|| PathBuf::from("."));
+
+    #[cfg(target_os = "macos")]
+    let base =
+        PathBuf::from(env::var_os("HOME").unwrap_or_default()).join("Library/Application Support");
+
+    #[cfg(target_os = "linux")]
     let base = env::var_os("XDG_CONFIG_HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(env::var_os("HOME").unwrap_or_default()).join(".config"));
+
     base.join("soloist-display/config.json")
 }
 
@@ -435,7 +458,54 @@ async fn static_file(axum::extract::Path(path): axum::extract::Path<String>) -> 
         .into_response()
 }
 
-async fn web_server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+fn display_running(port: &str) -> std::io::Result<bool> {
+    use std::io::{Read, Write};
+    use std::time::Duration;
+    let mut stream = match std::net::TcpStream::connect(format!("127.0.0.1:{port}")) {
+        Ok(stream) => stream,
+        Err(error) if error.kind() == std::io::ErrorKind::ConnectionRefused => return Ok(false),
+        Err(error) => return Err(error),
+    };
+    stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+    stream.set_write_timeout(Some(Duration::from_secs(2)))?;
+    stream.write_all(b"GET /.well-known/soloist-display HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")?;
+    let mut response = Vec::new();
+    stream.take(4096).read_to_end(&mut response)?;
+    let response = String::from_utf8_lossy(&response);
+    Ok(response.starts_with("HTTP/1.1 200 ")
+        && response.split("\r\n\r\n").nth(1) == Some("soloist-display"))
+}
+
+fn open_browser(url: &str) -> std::io::Result<()> {
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        let mut c = std::process::Command::new("rundll32.exe");
+        c.arg("url.dll,FileProtocolHandler").arg(url);
+        c
+    };
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut c = std::process::Command::new("open");
+        c.arg(url);
+        c
+    };
+    #[cfg(target_os = "linux")]
+    let mut command = {
+        let mut c = std::process::Command::new("xdg-open");
+        c.arg(url);
+        c
+    };
+    command
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()?;
+    Ok(())
+}
+
+async fn web_server(
+    open_page: Option<String>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let port = env::var("SOLOIST_DISPLAY_HTTP_PORT").unwrap_or_else(|_| "8080".into());
     let state = WebState {
         path: Arc::new(config_path()),
@@ -444,6 +514,10 @@ async fn web_server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let app = Router::new()
         .route("/config.json", get(get_config).put(put_config))
         .route("/defaults.json", get(get_defaults))
+        .route(
+            "/.well-known/soloist-display",
+            get(|| async { "soloist-display" }),
+        )
         .route("/", get(|| static_file(axum::extract::Path(String::new()))))
         .route(
             "/settings",
@@ -452,37 +526,94 @@ async fn web_server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .route("/*path", get(static_file))
         .with_state(state);
     let listener = TcpListener::bind(format!("127.0.0.1:{port}")).await?;
-    eprintln!("Display and settings: http://127.0.0.1:{port}");
+    if !cli::quiet() {
+        eprintln!("Display and settings: http://127.0.0.1:{port}");
+    }
+    if let Some(page) = open_page {
+        if let Err(error) = open_browser(&page) {
+            eprintln!("Could not open browser: {error}. Open {page} manually.");
+        }
+    }
     axum::serve(listener, app).await?;
     Ok(())
 }
 
-const WINDOW: usize = 2048;
-const HOP: usize = 512;
-const BANDS: [f32; 7] = [55., 150., 350., 800., 1800., 4000., 9000.];
-// Typical music loses energy at higher frequencies; use progressively
-// lower reference levels so sensitivity can meaningfully affect all bars.
-const REFERENCE_DB: [f32; 6] = [-19., -23., -29., -34., -39., -44.];
-
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut web_task = tokio::spawn(async { web_server().await });
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let args: Vec<String> = env::args().skip(1).collect();
+    let command = match cli::parse(&args) {
+        Ok(command) => command,
+        Err(message) => {
+            eprintln!("{message}");
+            std::process::exit(2);
+        }
+    };
+    let open_page = match &command {
+        cli::Command::Launch => Some("/"),
+        cli::Command::Settings => Some("/settings"),
+        _ => None,
+    };
+    match command {
+        cli::Command::Serve | cli::Command::Launch | cli::Command::Settings => {}
+        cli::Command::Doctor => {
+            if cli::doctor().await {
+                return Ok(());
+            }
+            std::process::exit(1);
+        }
+        cli::Command::Help => {
+            cli::help();
+            return Ok(());
+        }
+        cli::Command::Version => {
+            println!("Soloist Display {}", env!("CARGO_PKG_VERSION"));
+            return Ok(());
+        }
+        cli::Command::Completions(shell) => {
+            cli::completions(shell);
+            return Ok(());
+        }
+        cli::Command::DeviceList => {
+            cli::list_devices()?;
+            return Ok(());
+        }
+        cli::Command::DeviceSet(id) => {
+            cli::set_device(&id)?;
+            return Ok(());
+        }
+        cli::Command::DeviceDefault => {
+            cli::default_device()?;
+            return Ok(());
+        }
+    }
+    if cli::verbose() {
+        eprintln!("Configuration: {}", config_path().display());
+    }
+    let port = env::var("SOLOIST_DISPLAY_HTTP_PORT").unwrap_or_else(|_| "8080".into());
+    let open_url = open_page.map(|page| format!("http://127.0.0.1:{port}{page}"));
+    if let Some(ref url) = open_url {
+        if display_running(&port)? {
+            open_browser(url)?;
+            return Ok(());
+        }
+    }
+    let mut web_task = tokio::spawn(async move { web_server(open_url).await });
     let port = env::var("SOLOIST_DISPLAY_AUDIO_PORT").unwrap_or_else(|_| "9091".into());
     let listener = TcpListener::bind(format!("127.0.0.1:{port}")).await?;
     let (sender, _) = broadcast::channel::<String>(64);
     let capture_tx = sender.clone();
-    tokio::spawn(async move {
-        loop {
-            if let Err(error) = capture(capture_tx.clone()).await {
-                eprintln!("Audio capture stopped: {error}; retrying");
-            }
-            tokio::time::sleep(Duration::from_secs(2)).await;
+    tokio::task::spawn_blocking(move || loop {
+        if let Err(error) = capture::run(capture_tx.clone()) {
+            eprintln!("Audio capture stopped: {error}; retrying");
         }
+        std::thread::sleep(std::time::Duration::from_secs(2));
     });
-    eprintln!(
-        "Spectrum WebSocket listening on ws://127.0.0.1:{port} (6 bands, {:.1} Hz)",
-        RATE as f32 / HOP as f32
-    );
+    if !cli::quiet() {
+        eprintln!(
+            "Spectrum WebSocket listening on ws://127.0.0.1:{port} (6 bands, {:.1} Hz)",
+            RATE as f32 / HOP as f32
+        );
+    }
     loop {
         let (socket, _) = tokio::select! {
             result = listener.accept() => result?,
@@ -505,129 +636,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         });
-    }
-}
-
-async fn capture(
-    sender: broadcast::Sender<String>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let mut cmd = Command::new("parec");
-    cmd.args([
-        "--raw",
-        "--format=s16le",
-        "--rate",
-        "22050",
-        "--channels=1",
-        "--latency-msec=25",
-        "--process-time-msec=10",
-    ]);
-    let source = env::var("SOLOIST_DISPLAY_MONITOR")
-        .ok()
-        .filter(|s| !s.is_empty())
-        .or_else(|| {
-            let output = std::process::Command::new("pactl")
-                .arg("get-default-sink")
-                .output()
-                .ok()?;
-            if !output.status.success() {
-                return None;
-            }
-            Some(format!(
-                "{}.monitor",
-                String::from_utf8(output.stdout).ok()?.trim()
-            ))
-        });
-    if let Some(source) = &source {
-        cmd.arg("--device").arg(source);
-        eprintln!("Capturing monitor source: {source}");
-    } else {
-        eprintln!("Warning: no output monitor found; set SOLOIST_DISPLAY_MONITOR explicitly");
-    }
-    cmd.stdout(Stdio::piped()).stderr(Stdio::inherit());
-    let mut child = cmd.spawn()?;
-    let mut stdout = child.stdout.take().ok_or("No audio stream")?;
-    let mut planner = FftPlanner::<f32>::new();
-    let fft = planner.plan_fft_forward(WINDOW);
-    let hann: Vec<f32> = (0..WINDOW)
-        .map(|i| 0.5 - 0.5 * (2.0 * std::f32::consts::PI * i as f32 / (WINDOW - 1) as f32).cos())
-        .collect();
-    let mut ring = [0f32; WINDOW];
-    let mut cursor = 0usize;
-    let mut filled = 0usize;
-    let mut frame = vec![Complex32::new(0., 0.); WINDOW];
-    let mut raw = [0u8; HOP * 2];
-    let mut smoothed = [0f32; 6];
-    let mut peak = 0f32;
-    let mut frames = 0u64;
-    let mut report = Instant::now();
-    let mut previous_frame = Instant::now();
-    let mut max_gap = Duration::ZERO;
-    loop {
-        stdout.read_exact(&mut raw).await?;
-        for offset in (0..raw.len()).step_by(2) {
-            let sample = i16::from_le_bytes([raw[offset], raw[offset + 1]]) as f32 / 32768.;
-            peak = peak.max(sample.abs());
-            ring[cursor] = sample;
-            cursor = (cursor + 1) % WINDOW;
-            filled = (filled + 1).min(WINDOW);
-        }
-        if filled < WINDOW {
-            continue;
-        }
-        let now = Instant::now();
-        max_gap = max_gap.max(now.duration_since(previous_frame));
-        previous_frame = now;
-        for i in 0..WINDOW {
-            frame[i] = Complex32::new(ring[(cursor + i) % WINDOW] * hann[i], 0.);
-        }
-        fft.process(&mut frame);
-        let mut bands = [0f32; 6];
-        for band in 0..6 {
-            let lo = ((BANDS[band] * WINDOW as f32 / RATE as f32).floor() as usize).max(1);
-            let hi =
-                ((BANDS[band + 1] * WINDOW as f32 / RATE as f32).ceil() as usize).min(WINDOW / 2);
-            let mut power = 0f32;
-            let mut count = 0usize;
-            for value in frame.iter().take(hi).skip(lo) {
-                power += value.norm_sqr();
-                count += 1;
-            }
-            let rms = if count > 0 {
-                (power / count as f32).sqrt() / (WINDOW as f32 * 0.25)
-            } else {
-                0.
-            };
-            // Per-band reference levels compensate for the natural spectral
-            // roll-off of music: a shared dB threshold hides the upper bands.
-            let db = 20. * rms.max(1e-8).log10();
-            let level = ((db - REFERENCE_DB[band] + 49.) / 49.)
-                .clamp(0., 1.)
-                .powf(1.25);
-            // ~12 ms attack / ~180 ms release at 43 Hz.
-            let coefficient = if level > smoothed[band] { 0.85 } else { 0.12 };
-            smoothed[band] += (level - smoothed[band]) * coefficient;
-            bands[band] = smoothed[band];
-        }
-        frames += 1;
-        if sender.receiver_count() > 0 {
-            let payload = format!(
-                "{{\"bands\":[{:.4},{:.4},{:.4},{:.4},{:.4},{:.4}]}}",
-                bands[0], bands[1], bands[2], bands[3], bands[4], bands[5]
-            );
-            let _ = sender.send(payload);
-        }
-        if report.elapsed() >= Duration::from_secs(5) {
-            eprintln!(
-                "Audio: {:.1} frames/s | max gap: {:.0}ms | peak: {:.3} | bands: {:.2} {:.2} {:.2} {:.2} {:.2} {:.2} | clients: {}",
-                frames as f32 / report.elapsed().as_secs_f32(), max_gap.as_secs_f64() * 1000., peak,
-                bands[0], bands[1], bands[2], bands[3], bands[4], bands[5],
-                sender.receiver_count()
-            );
-            report = Instant::now();
-            frames = 0;
-            peak = 0.;
-            max_gap = Duration::ZERO;
-        }
     }
 }
 
@@ -867,6 +875,25 @@ mod tests {
         assert_eq!(migrated["transitionDuration"], 3400);
         assert_eq!(migrated["visualizerSensitivity"], 2.5);
         assert!(migrated.get("centerHoleDot").is_none());
+    }
+
+    #[test]
+    fn display_probe_rejects_unrelated_http_server() {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port().to_string();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0; 256];
+            let _ = stream.read(&mut request);
+            stream
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello",
+                )
+                .unwrap();
+        });
+        assert!(!display_running(&port).unwrap());
+        server.join().unwrap();
     }
 
     #[test]

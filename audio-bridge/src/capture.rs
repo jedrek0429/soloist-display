@@ -1,0 +1,225 @@
+use crate::{device, pcm::PcmInput, spectrum::Spectrum};
+use cpal::{
+    traits::{DeviceTrait, HostTrait, StreamTrait},
+    SampleFormat,
+};
+use std::{
+    env,
+    error::Error,
+    sync::mpsc::{self, SyncSender},
+    time::Duration,
+};
+use tokio::sync::broadcast;
+
+type CaptureResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
+
+#[cfg(target_os = "linux")]
+fn output_device() -> CaptureResult<(cpal::Device, bool)> {
+    let host = cpal::host_from_id(cpal::HostId::PulseAudio)?;
+    let selected = device::selected_id()?;
+    let preferred = if selected.is_none() {
+        env::var("SOLOIST_DISPLAY_MONITOR")
+            .ok()
+            .filter(|name| !name.is_empty())
+    } else {
+        None
+    };
+    let target_sink = if preferred.is_some() {
+        None
+    } else {
+        Some(device::output()?.id()?.id().to_owned())
+    };
+    let target_monitor = target_sink.map(|id| format!("{id}.monitor"));
+
+    let mut fallback = None;
+    for device in host.input_devices()? {
+        let id = device.id()?;
+        let source = id.id();
+        if let Some(name) = &preferred {
+            if source == name || device.to_string() == *name || id.to_string() == *name {
+                return Ok((device, false));
+            }
+        } else if source.ends_with(".monitor") {
+            if target_monitor.as_deref() == Some(source) {
+                return Ok((device, false));
+            }
+            if fallback.is_none() {
+                fallback = Some(device);
+            }
+        }
+    }
+    if preferred.is_some() {
+        return Err("requested PulseAudio monitor source does not exist".into());
+    }
+    if selected.is_some() {
+        return Err("selected audio output has no PulseAudio monitor source".into());
+    }
+    fallback.map(|device| (device, false)).ok_or_else(|| {
+        "no PulseAudio/PipeWire output monitor found (microphone capture is not a fallback)".into()
+    })
+}
+
+#[cfg(any(windows, target_os = "macos"))]
+fn output_device() -> CaptureResult<(cpal::Device, bool)> {
+    Ok((device::output()?, true))
+}
+
+// CPAL reports WASAPI buffer discontinuities as errors even though capture
+// continues. Restarting for each xrun drops the next audio buffers.
+fn report_stream_error(error: cpal::Error, failures: &mpsc::Sender<String>) {
+    if matches!(
+        error.kind(),
+        cpal::ErrorKind::Xrun | cpal::ErrorKind::RealtimeDenied | cpal::ErrorKind::DeviceChanged
+    ) {
+        return;
+    }
+    let _ = failures.send(error.to_string());
+}
+
+macro_rules! capture_stream {
+    ($device:expr, $config:expr, $tx:expr, $errors:expr, $type:ty, $convert:expr) => {{
+        let samples: SyncSender<Vec<f32>> = $tx.clone();
+        let failures = $errors.clone();
+        $device.build_input_stream::<$type, _, _>(
+            $config,
+            move |chunk: &[$type], _| {
+                let converted = chunk.iter().map(|value| ($convert)(*value)).collect();
+                let _ = samples.try_send(converted);
+            },
+            move |error| report_stream_error(error, &failures),
+            None,
+        )?
+    }};
+}
+
+pub fn run(sender: broadcast::Sender<String>) -> CaptureResult<()> {
+    let selection = device::selected_id()?;
+    let (device, loopback) = output_device()?;
+    let format = if loopback {
+        device.default_output_config()?
+    } else {
+        device.default_input_config()?
+    };
+    let rate = format.sample_rate();
+    let channels = format.channels();
+    let config = format.config();
+    let (tx, rx) = mpsc::sync_channel::<Vec<f32>>(8);
+    let (error_tx, error_rx) = mpsc::channel::<String>();
+
+    let stream = match format.sample_format() {
+        SampleFormat::F32 => capture_stream!(device, config, tx, error_tx, f32, |value: f32| value),
+        SampleFormat::F64 => {
+            capture_stream!(device, config, tx, error_tx, f64, |value: f64| value as f32)
+        }
+        SampleFormat::I16 => capture_stream!(device, config, tx, error_tx, i16, |value: i16| value
+            as f32
+            / 32_768.),
+        SampleFormat::I32 => capture_stream!(device, config, tx, error_tx, i32, |value: i32| value
+            as f32
+            / 2_147_483_648.),
+        SampleFormat::U16 => {
+            capture_stream!(device, config, tx, error_tx, u16, |value: u16| (value
+                as f32
+                - 32_768.)
+                / 32_768.)
+        }
+        other => return Err(format!("unsupported system audio sample format: {other:?}").into()),
+    };
+    stream.play()?;
+    eprintln!("Capturing system audio with CPAL: {device} ({rate} Hz, {channels} channels)");
+
+    let mut pcm = PcmInput::new();
+    let mut spectrum = Spectrum::new();
+    loop {
+        if device::selected_id()? != selection {
+            return Err("audio visualiser output selection changed; reconnecting".into());
+        }
+        if let Ok(error) = error_rx.try_recv() {
+            return Err(format!("CPAL stream stopped: {error}").into());
+        }
+        let samples = match rx.recv_timeout(Duration::from_millis(250)) {
+            Ok(samples) => samples,
+            Err(mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                return Err("CPAL audio callback disconnected".into());
+            }
+        };
+        let mono = pcm.push(&samples, rate, channels)?;
+        for bands in spectrum.push_mono(mono.as_ref()) {
+            if sender.receiver_count() == 0 {
+                continue;
+            }
+            let payload = format!(
+                "{{\"bands\":[{:.4},{:.4},{:.4},{:.4},{:.4},{:.4}]}}",
+                bands[0], bands[1], bands[2], bands[3], bands[4], bands[5]
+            );
+            let _ = sender.send(payload);
+        }
+    }
+}
+
+#[cfg(test)]
+mod stream_error_tests {
+    use super::*;
+
+    #[test]
+    fn transient_cpal_errors_do_not_restart_capture() {
+        let (tx, rx) = mpsc::channel();
+        for kind in [
+            cpal::ErrorKind::Xrun,
+            cpal::ErrorKind::RealtimeDenied,
+            cpal::ErrorKind::DeviceChanged,
+        ] {
+            report_stream_error(cpal::Error::new(kind), &tx);
+        }
+        assert!(matches!(rx.try_recv(), Err(mpsc::TryRecvError::Empty)));
+    }
+
+    #[test]
+    fn lost_or_invalid_audio_stream_still_triggers_recovery() {
+        let (tx, rx) = mpsc::channel();
+        for kind in [
+            cpal::ErrorKind::DeviceNotAvailable,
+            cpal::ErrorKind::StreamInvalidated,
+            cpal::ErrorKind::BackendError,
+        ] {
+            let error = cpal::Error::new(kind);
+            let expected = error.to_string();
+            report_stream_error(error, &tx);
+            assert_eq!(rx.try_recv().unwrap(), expected);
+        }
+    }
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pulseaudio_null_sink_monitor_captures_audio() {
+        if env::var_os("SOLOIST_DISPLAY_CPAL_MONITOR_SMOKE").is_none() {
+            return;
+        }
+        let (device, loopback) = output_device().expect("find requested monitor source");
+        assert!(!loopback);
+        assert_eq!(device.id().expect("device id").id(), "soloist_ci.monitor");
+        let supported = device
+            .default_input_config()
+            .expect("monitor stream format");
+        let (tx, rx) = mpsc::sync_channel(1);
+        let stream = device
+            .build_input_stream_raw(
+                supported.config(),
+                supported.sample_format(),
+                move |_, _| {
+                    let _ = tx.try_send(());
+                },
+                |error| panic!("PulseAudio monitor stream error: {error}"),
+                Some(Duration::from_secs(5)),
+            )
+            .expect("open PulseAudio monitor stream");
+        stream.play().expect("start PulseAudio monitor");
+        rx.recv_timeout(Duration::from_secs(5))
+            .expect("monitor should yield captured audio, even silence");
+    }
+}

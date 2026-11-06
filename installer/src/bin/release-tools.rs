@@ -47,6 +47,122 @@ fn valid_tag(tag: &str) -> Result<Version> {
     Ok(parsed)
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ReleaseChannel {
+    Stable,
+    Alpha,
+    Beta,
+}
+
+fn release_channel(version: &Version) -> Option<(ReleaseChannel, u64)> {
+    if version.build.is_empty() && version.pre.is_empty() {
+        return Some((ReleaseChannel::Stable, 0));
+    }
+    if !version.build.is_empty() {
+        return None;
+    }
+    let pre = version.pre.as_str();
+    let (channel, sequence) = if let Some(number) = pre.strip_prefix("alpha.") {
+        (ReleaseChannel::Alpha, number)
+    } else {
+        let number = pre.strip_prefix("beta.")?;
+        (ReleaseChannel::Beta, number)
+    };
+    if sequence.is_empty() || sequence.starts_with('0') {
+        return None;
+    }
+    let sequence = sequence.parse::<u64>().ok().filter(|n| *n > 0)?;
+    Some((channel, sequence))
+}
+
+fn release_notes_base<'a>(
+    current_tag: &str,
+    published: impl IntoIterator<Item = &'a str>,
+) -> Result<Option<String>> {
+    let current = valid_tag(current_tag)?;
+    let (channel, sequence) = release_channel(&current)
+        .ok_or_else(|| anyhow!("unsupported release channel: {current_tag}"))?;
+    let version_key = |v: &Version| (v.major, v.minor, v.patch);
+    type ReleaseRank = (u8, u64, u64, u64, u64);
+    let mut best: Option<(ReleaseRank, String)> = None;
+
+    for tag in published {
+        let tag = tag.trim();
+        if tag == current_tag {
+            continue;
+        }
+        let Ok(other) = valid_tag(tag) else { continue };
+        let Some((other_channel, other_sequence)) = release_channel(&other) else {
+            continue;
+        };
+        let same_version = version_key(&other) == version_key(&current);
+        let older_version = version_key(&other) < version_key(&current);
+
+        // Priorities: same channel > preceding alpha for first beta >
+        // preceding stable release. Never use tags from a newer version.
+        let priority = match (channel, other_channel) {
+            (ReleaseChannel::Stable, ReleaseChannel::Stable) if older_version => 1,
+            (ReleaseChannel::Alpha, ReleaseChannel::Alpha)
+                if same_version && other_sequence < sequence =>
+            {
+                3
+            }
+            (ReleaseChannel::Beta, ReleaseChannel::Beta)
+                if same_version && other_sequence < sequence =>
+            {
+                3
+            }
+            (ReleaseChannel::Beta, ReleaseChannel::Alpha) if same_version => 2,
+            (ReleaseChannel::Alpha | ReleaseChannel::Beta, ReleaseChannel::Stable)
+                if older_version =>
+            {
+                1
+            }
+            _ => continue,
+        };
+        let rank = (
+            priority,
+            other.major,
+            other.minor,
+            other.patch,
+            other_sequence,
+        );
+        if best.as_ref().is_none_or(|(old, _)| rank > *old) {
+            best = Some((rank, tag.to_owned()));
+        }
+    }
+    Ok(best.map(|(_, tag)| tag))
+}
+
+fn validate_prerelease_floor<'a>(
+    tag: &str,
+    published: impl IntoIterator<Item = &'a str>,
+) -> Result<()> {
+    let candidate = valid_tag(tag)?;
+    let (channel, _) =
+        release_channel(&candidate).ok_or_else(|| anyhow!("unsupported prerelease tag: {tag}"))?;
+    if channel == ReleaseChannel::Stable {
+        bail!("expected alpha or beta prerelease tag, got {tag}");
+    }
+    let candidate_core = (candidate.major, candidate.minor, candidate.patch);
+    let latest_stable = published
+        .into_iter()
+        .filter_map(|tag| valid_tag(tag.trim()).ok())
+        .filter(|version| release_channel(version) == Some((ReleaseChannel::Stable, 0)))
+        .max();
+    if let Some(stable) = latest_stable {
+        if candidate_core <= (stable.major, stable.minor, stable.patch) {
+            bail!(
+                "cannot publish {tag}: base version {}.{}.{} must be greater than latest stable v{stable}",
+                candidate.major,
+                candidate.minor,
+                candidate.patch
+            );
+        }
+    }
+    Ok(())
+}
+
 fn digest(path: &Path) -> Result<String> {
     let mut file = fs::File::open(path).with_context(|| format!("read {}", path.display()))?;
     let mut hasher = Sha256::new();
@@ -337,6 +453,17 @@ fn main() -> Result<()> {
             render_bootstrap(Path::new(template), Path::new(manifest), base)?,
         [cmd, root] if cmd == "check-settings" =>
             check_settings(Path::new(root))?,
+        [cmd, tag] if cmd == "validate-prerelease-floor" => {
+            let mut input = String::new();
+            std::io::stdin().read_to_string(&mut input)?;
+            validate_prerelease_floor(tag, input.lines())?;
+        },
+        [cmd, tag] if cmd == "release-notes-base" => {
+            let mut input = String::new();
+            std::io::stdin().read_to_string(&mut input)?;
+            let previous = release_notes_base(tag, input.lines())?;
+            println!("{}", previous.unwrap_or_default());
+        },
         [cmd, tag] if cmd == "verify-workspace-version" => {
             let tag_version = valid_tag(tag)?;
             let actual = Version::parse(env!("CARGO_PKG_VERSION"))?;
@@ -344,7 +471,7 @@ fn main() -> Result<()> {
                 bail!("tag {tag} does not match workspace version {actual}");
             }
         },
-        _ => bail!("usage: release-tools validate-tag TAG | validate-bump OLD NEW | verify-workspace-version TAG | build-manifest DIST TAG VERSION | render-bootstrap TEMPLATE MANIFEST BASE | check-settings ROOT"),
+        _ => bail!("usage: release-tools validate-tag TAG | validate-bump OLD NEW | verify-workspace-version TAG | build-manifest DIST TAG VERSION | render-bootstrap TEMPLATE MANIFEST BASE | check-settings ROOT | release-notes-base TAG | validate-prerelease-floor TAG"),
     };
     Ok(())
 }
@@ -406,6 +533,55 @@ mod tests {
         assert!(beta < rc);
         assert!(rc < stable);
     }
+    #[test]
+    fn incremental_release_notes_bases() {
+        let tags = [
+            "v1.0.0-alpha.9",
+            "v1.0.0",
+            "v1.1.0-alpha.1",
+            "v1.1.0-alpha.2",
+            "v1.1.0-alpha.3",
+            "v1.1.0-alpha.4",
+            "v1.1.0-beta.1",
+            "v1.1.0-beta.2",
+            "v2.0.0",
+            "v1.1.0-rc.1",
+            "not-a-tag",
+        ];
+        let cases = [
+            ("v1.1.0-alpha.1", Some("v1.0.0")),
+            ("v1.1.0-alpha.4", Some("v1.1.0-alpha.3")),
+            ("v1.1.0-beta.1", Some("v1.1.0-alpha.4")),
+            ("v1.1.0-beta.2", Some("v1.1.0-beta.1")),
+            ("v1.1.0", Some("v1.0.0")),
+            ("v1.0.0-alpha.9", None),
+            ("v0.1.0-alpha.1", None),
+        ];
+        for (tag, expected) in cases {
+            assert_eq!(
+                release_notes_base(tag, tags.iter().copied())
+                    .unwrap()
+                    .as_deref(),
+                expected,
+                "{tag}"
+            );
+        }
+        assert!(release_notes_base("v1.1.0-rc.1", tags.iter().copied()).is_err());
+    }
+    #[test]
+    fn prereleases_must_exceed_latest_published_stable() {
+        let stable = ["v1.1.0", "v1.3.0", "v1.2.5", "v1.4.0-alpha.9", "invalid"];
+        for tag in ["v1.2.0-alpha.1", "v1.3.0-beta.1", "v1.1.9-alpha.1"] {
+            assert!(validate_prerelease_floor(tag, stable).is_err(), "{tag}");
+        }
+        for tag in ["v1.3.1-alpha.1", "v1.4.0-beta.1", "v2.0.0-alpha.1"] {
+            assert!(validate_prerelease_floor(tag, stable).is_ok(), "{tag}");
+        }
+        assert!(validate_prerelease_floor("v1.3.0", stable).is_err());
+        assert!(validate_prerelease_floor("v0.1.0-alpha.1", []).is_ok());
+        assert!(validate_prerelease_floor("v1.0.0-beta.1", ["v0.9.9", "v0.9.9-alpha.2"]).is_ok());
+    }
+
     #[test]
     fn rejects_invalid_tags() {
         for tag in [

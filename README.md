@@ -1,5 +1,7 @@
 # Soloist Display
 
+> **Windows & macOS preview**: Experimental builds are now available! [Try the latest alpha release](https://github.com/jedrek0429/soloist-display/releases). Report all problems [here](https://github.com/jedrek0429/soloist-display/issues).
+
 [![Release](https://img.shields.io/github/v/release/jedrek0429/soloist-display?include_prereleases&style=for-the-badge)](https://github.com/jedrek0429/soloist-display/releases)
 [![Checks](https://img.shields.io/github/actions/workflow/status/jedrek0429/soloist-display/build.yml?branch=main&style=for-the-badge&label=Checks)](https://github.com/jedrek0429/soloist-display/actions/workflows/build.yml)
 [![Installer integration](https://img.shields.io/github/actions/workflow/status/jedrek0429/soloist-display/installer-integration.yml?branch=main&style=for-the-badge&label=Installer)](https://github.com/jedrek0429/soloist-display/actions/workflows/installer-integration.yml)

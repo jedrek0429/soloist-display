@@ -1,9 +1,8 @@
 use crate::{paths::Paths, release::ReleaseChannel};
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
-    io::Write,
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -58,6 +57,12 @@ pub struct InstallState {
     pub dependency_packages: Vec<String>,
 }
 
+impl soloist_display_core::lifecycle::VersionedState for InstallState {
+    fn schema(&self) -> u32 {
+        self.schema
+    }
+}
+
 impl InstallState {
     pub fn effective_channel(&self) -> ReleaseChannel {
         self.channel.unwrap_or_else(|| {
@@ -68,19 +73,7 @@ impl InstallState {
     }
 
     pub fn load(paths: &Paths) -> Result<Option<Self>> {
-        if !paths.install_state.exists() {
-            return Ok(None);
-        }
-        let data = fs::read(&paths.install_state).context("read installation metadata")?;
-        let state: Self = serde_json::from_slice(&data).context("parse installation metadata")?;
-        if state.schema > STATE_SCHEMA {
-            anyhow::bail!(
-                "installation metadata schema {} is newer than supported schema {}; update the manager before continuing",
-                state.schema,
-                STATE_SCHEMA
-            );
-        }
-        Ok(Some(state))
+        soloist_display_core::lifecycle::load_state(&paths.install_state, STATE_SCHEMA)
     }
 
     pub fn save(&self, paths: &Paths) -> Result<()> {
@@ -194,37 +187,7 @@ pub fn now() -> u64 {
 }
 
 pub fn atomic_json<T: Serialize>(path: &Path, value: &T, mode: Option<u32>) -> Result<()> {
-    let parent = path.parent().context("metadata path has no parent")?;
-    fs::create_dir_all(parent)?;
-    let nonce = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-    let temporary = parent.join(format!(
-        ".{}.{}.{}.tmp",
-        path.file_name().unwrap_or_default().to_string_lossy(),
-        std::process::id(),
-        nonce
-    ));
-    let bytes = serde_json::to_vec_pretty(value)?;
-    let mut options = fs::OpenOptions::new();
-    options.create_new(true).write(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        if let Some(mode) = mode {
-            options.mode(mode);
-        }
-    }
-    let mut file = options
-        .open(&temporary)
-        .with_context(|| format!("create {}", temporary.display()))?;
-    file.write_all(&bytes)?;
-    file.write_all(b"\n")?;
-    file.sync_all()?;
-    fs::rename(&temporary, path).with_context(|| format!("activate {}", path.display()))?;
-    fs::File::open(parent)?.sync_all()?;
-    Ok(())
+    soloist_display_core::lifecycle::atomic_json(path, value, mode)
 }
 
 #[cfg(test)]

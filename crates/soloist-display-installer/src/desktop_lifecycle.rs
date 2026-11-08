@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 use soloist_display_core::release::{sha256_file, ReleaseChannel, ReleaseClient};
 use std::{
     env, fs,
-    io::Write,
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
@@ -33,6 +32,12 @@ struct Installed {
     suppress_updates: bool,
     #[serde(default)]
     previous_version: Option<String>,
+}
+
+impl soloist_display_core::lifecycle::VersionedState for Installed {
+    fn schema(&self) -> u32 {
+        self.schema
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -71,51 +76,16 @@ impl Paths {
     }
 
     fn load(&self) -> Result<Option<Installed>> {
-        if !self.state.exists() {
-            return Ok(None);
+        let state: Option<Installed> =
+            soloist_display_core::lifecycle::load_state(&self.state, STATE_SCHEMA)?;
+        if let Some(ref state) = state {
+            Version::parse(&state.version)?;
         }
-        let state: Installed = serde_json::from_slice(&fs::read(&self.state)?)?;
-        if state.schema != STATE_SCHEMA {
-            return Err("unsupported desktop installation metadata version".into());
-        }
-        Version::parse(&state.version)?;
-        Ok(Some(state))
+        Ok(state)
     }
 
     fn write_atomic(&self, path: &Path, data: &[u8]) -> Result<()> {
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        let temp = path.with_extension(format!("pending-{}", std::process::id()));
-        let result = (|| -> Result<()> {
-            let mut file = fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&temp)?;
-            file.write_all(data)?;
-            file.sync_all()?;
-            // Windows rename cannot overwrite an existing file. Keep a backup until
-            // the replacement succeeds, restoring the previous state on failure.
-            let backup = path.with_extension(format!("backup-{}", std::process::id()));
-            let had_old = path.exists();
-            if had_old {
-                fs::rename(path, &backup)?;
-            }
-            if let Err(error) = fs::rename(&temp, path) {
-                if had_old {
-                    let _ = fs::rename(&backup, path);
-                }
-                return Err(error.into());
-            }
-            if had_old {
-                let _ = fs::remove_file(&backup);
-            }
-            Ok(())
-        })();
-        if result.is_err() {
-            let _ = fs::remove_file(&temp);
-        }
-        result
+        soloist_display_core::lifecycle::atomic_write(path, data, Some(0o600))
     }
 
     fn shim_content(&self, version: &str) -> Vec<u8> {
@@ -157,7 +127,8 @@ impl Paths {
     }
 
     fn save(&self, state: &Installed) -> Result<()> {
-        self.write_atomic(&self.state, &serde_json::to_vec_pretty(state)?)
+        soloist_display_core::lifecycle::atomic_json(&self.state, state, Some(0o600))?;
+        Ok(())
     }
 }
 

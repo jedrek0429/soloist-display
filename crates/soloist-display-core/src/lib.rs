@@ -190,3 +190,4 @@ mod tests {
 }
 
 pub mod release;
+pub mod lifecycle;

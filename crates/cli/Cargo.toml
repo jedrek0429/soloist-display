@@ -1,0 +1,10 @@
+[package]
+name = "soloist-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Shared Soloist Display CLI arguments and output formatting"
+
+[dependencies]
+clap = { version = "4", features = ["derive", "env"] }

@@ -8,10 +8,7 @@ use axum::{
 use futures_util::SinkExt;
 mod capture;
 mod cli;
-#[path = "../../cli_arguments.rs"]
-mod cli_arguments;
-#[path = "../../cli_output.rs"]
-mod cli_output;
+use soloist_cli::{arguments as cli_arguments, output as cli_output};
 #[cfg(any(windows, target_os = "macos"))]
 mod desktop_lifecycle;
 mod device;
@@ -29,15 +26,15 @@ use tokio::{
 };
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
-const DEFAULT_CONFIG: &str = include_str!("../../config.json");
-const INDEX: &str = include_str!("../../index.html");
-const CSS: &str = include_str!("../../styles.css");
-const SETTINGS_HTML: &str = include_str!("../../settings.html");
-const SETTINGS_JS: &str = include_str!("../../src/settings.js");
-const MAIN_JS: &str = include_str!("../../src/main.js");
-const MOTION_JS: &str = include_str!("../../src/motion.js");
-const SPECTRUM_JS: &str = include_str!("../../src/spectrum.js");
-const SOLOIST_JS: &str = include_str!("../../src/soloist.js");
+const DEFAULT_CONFIG: &str = include_str!("../../../config.json");
+const INDEX: &str = include_str!("../../../index.html");
+const CSS: &str = include_str!("../../../styles.css");
+const SETTINGS_HTML: &str = include_str!("../../../settings.html");
+const SETTINGS_JS: &str = include_str!("../../../src/settings.js");
+const MAIN_JS: &str = include_str!("../../../src/main.js");
+const MOTION_JS: &str = include_str!("../../../src/motion.js");
+const SPECTRUM_JS: &str = include_str!("../../../src/spectrum.js");
+const SOLOIST_JS: &str = include_str!("../../../src/soloist.js");
 
 #[derive(Clone)]
 struct WebState {
@@ -46,28 +43,7 @@ struct WebState {
 }
 
 fn config_path() -> PathBuf {
-    if let Some(directory) = env::var_os("SOLOIST_DISPLAY_CONFIG_DIR") {
-        return PathBuf::from(directory).join("config.json");
-    }
-
-    #[cfg(target_os = "windows")]
-    let base = env::var_os("APPDATA")
-        .map(PathBuf::from)
-        .or_else(|| {
-            env::var_os("USERPROFILE").map(|home| PathBuf::from(home).join("AppData/Roaming"))
-        })
-        .unwrap_or_else(|| PathBuf::from("."));
-
-    #[cfg(target_os = "macos")]
-    let base =
-        PathBuf::from(env::var_os("HOME").unwrap_or_default()).join("Library/Application Support");
-
-    #[cfg(target_os = "linux")]
-    let base = env::var_os("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(env::var_os("HOME").unwrap_or_default()).join(".config"));
-
-    base.join("soloist-display/config.json")
+    soloist_platform::config_path()
 }
 
 fn read_settings(path: &PathBuf) -> Value {

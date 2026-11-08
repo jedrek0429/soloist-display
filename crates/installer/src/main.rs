@@ -1,7 +1,4 @@
-#[path = "../../cli_arguments.rs"]
-mod cli_arguments;
-#[path = "../../cli_output.rs"]
-mod cli_output;
+use soloist_cli::{arguments as cli_arguments, output as cli_output};
 mod dependencies;
 mod legacy;
 mod lock;

@@ -43,63 +43,20 @@ struct Paths {
 }
 
 fn settings_root() -> PathBuf {
-    if let Some(custom) = env::var_os("SOLOIST_DISPLAY_CONFIG_DIR") {
-        return PathBuf::from(custom);
-    }
-    #[cfg(target_os = "windows")]
-    {
-        return env::var_os("APPDATA")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("soloist-display");
-    }
-    #[cfg(target_os = "macos")]
-    {
-        PathBuf::from(env::var_os("HOME").unwrap_or_default())
-            .join("Library/Application Support/soloist-display")
-    }
+    soloist_platform::settings_root()
 }
 
 impl Paths {
     fn discover() -> Result<Self> {
-        let root = if let Some(custom) = env::var_os("SOLOIST_DISPLAY_INSTALL_ROOT") {
-            PathBuf::from(custom)
-        } else {
-            #[cfg(target_os = "windows")]
-            {
-                env::var_os("LOCALAPPDATA")
-                    .map(PathBuf::from)
-                    .ok_or("LOCALAPPDATA is not set")?
-                    .join("soloist-display")
-            }
-            #[cfg(target_os = "macos")]
-            {
-                PathBuf::from(env::var_os("HOME").ok_or("HOME is not set")?)
-                    .join("Library/Application Support/soloist-display/app")
-            }
-        };
+        let root = soloist_platform::desktop_install_root()?;
         if !root.is_absolute() {
             return Err("installation root must be an absolute path".into());
         }
-        let bin = if let Some(custom) = env::var_os("SOLOIST_DISPLAY_BIN_DIR") {
-            PathBuf::from(custom)
-        } else {
-            #[cfg(target_os = "windows")]
-            {
-                root.join("bin")
-            }
-            #[cfg(target_os = "macos")]
-            {
-                PathBuf::from(env::var_os("HOME").ok_or("HOME is not set")?).join(".local/bin")
-            }
-        };
+        let bin = soloist_platform::desktop_bin_dir(&root)?;
         if !bin.is_absolute() {
             return Err("CLI bin directory must be an absolute path".into());
         }
-        #[cfg(target_os = "windows")]
-        let shim = bin.join("soloist-display.cmd");
-        #[cfg(target_os = "macos")]
-        let shim = bin.join("soloist-display");
+        let shim = bin.join(soloist_platform::desktop_shim_name());
         let paths = Self {
             releases: root.join("releases"),
             state: root.join("desktop-install.json"),

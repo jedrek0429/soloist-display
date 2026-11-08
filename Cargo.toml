@@ -1,5 +1,5 @@
 [workspace]
-members = ["audio-bridge", "installer", "soloist-engine"]
+members = ["crates/audio", "crates/installer", "crates/core", "crates/cli", "crates/platform"]
 resolver = "2"
 
 [workspace.package]

@@ -71,8 +71,8 @@ jobs:
           pactl list short sources | grep -F 'soloist_ci.monitor'
           SOLOIST_DISPLAY_MONITOR=soloist_ci.monitor \
           SOLOIST_DISPLAY_CPAL_MONITOR_SMOKE=1 \
-            cargo test --locked -p soloist-audio-bridge pulseaudio_null_sink_monitor_captures_audio -- --nocapture
-          cargo build --locked -p soloist-audio-bridge
+            cargo test --locked -p soloist-display-audio pulseaudio_null_sink_monitor_captures_audio -- --nocapture
+          cargo build --locked -p soloist-display-audio
           ldd target/debug/soloist-audio-bridge | tee /tmp/cpal-runtime-libraries.txt
           ! grep -q 'not found' /tmp/cpal-runtime-libraries.txt
       - name: Shell checks

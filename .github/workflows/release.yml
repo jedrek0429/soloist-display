@@ -97,8 +97,8 @@ jobs:
           key: desktop-release-windows
       - name: Build and test Windows preview
         run: |
-          cargo test --locked -p soloist-audio-bridge
-          cargo build --release --locked -p soloist-audio-bridge
+          cargo test --locked -p soloist-display-audio
+          cargo build --release --locked -p soloist-display-audio
       - name: Portable CLI smoke test
         shell: pwsh
         run: |
@@ -164,8 +164,8 @@ jobs:
       - name: Build and test Apple Silicon preview
         run: |
           test "$(uname -m)" = arm64
-          cargo test --locked -p soloist-audio-bridge
-          cargo build --release --locked -p soloist-audio-bridge
+          cargo test --locked -p soloist-display-audio
+          cargo build --release --locked -p soloist-display-audio
       - name: Portable CLI smoke test
         run: |
           target/release/soloist-audio-bridge --help

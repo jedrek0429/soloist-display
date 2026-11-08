@@ -67,3 +67,5 @@ Choose what happens to Soloist and whether to keep Display settings. The options
 See [advanced installation](docs/advanced-installation.md) for automation and exact uninstall options, [troubleshooting](docs/troubleshooting.md) for faults, and [installer details](docs/installer.md) for what gets changed.
 
 MIT
+
+Development architecture: [shared crates and lifecycle boundaries](docs/architecture.md).

@@ -1,14 +1,18 @@
 [package]
-name = "soloist-audio-bridge"
+name = "soloist-display-audio"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "Cross-platform CPAL system-output capture and six-band FFT bridge"
 
+[[bin]]
+name = "soloist-audio-bridge"
+path = "src/main.rs"
+
 [dependencies]
-soloist-cli = { path = "../cli" }
-soloist-engine = { path = "../core" }
-soloist-platform = { path = "../platform" }
+soloist-display-cli = { path = "../soloist-display-cli" }
+soloist-display-core = { path = "../soloist-display-core" }
+soloist-display-platform = { path = "../soloist-display-platform" }
 clap = { version = "4", features = ["derive", "env"] }
 clap_complete = "=4.6.11"
 tokio = { version = "1", features = ["full"] }
@@ -23,7 +27,7 @@ url = "2"
 cpal = { version = "=0.18.2", features = ["pulseaudio"] }
 
 [target.'cfg(any(windows, target_os = "macos"))'.dependencies]
-soloist-display-installer = { path = "../installer" }
+soloist-display-installer = { path = "../soloist-display-installer" }
 cpal = "=0.18.2"
 anyhow = "1"
 base64 = "0.22"

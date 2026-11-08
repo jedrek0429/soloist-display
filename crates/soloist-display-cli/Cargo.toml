@@ -1,5 +1,5 @@
 [package]
-name = "soloist-cli"
+name = "soloist-display-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,4 +9,4 @@ description = "Shared Soloist Display CLI arguments and output formatting"
 [dependencies]
 clap = { version = "4", features = ["derive", "env"] }
 clap_complete = "=4.6.11"
-soloist-engine = { path = "../core" }
+soloist-display-core = { path = "../soloist-display-core" }

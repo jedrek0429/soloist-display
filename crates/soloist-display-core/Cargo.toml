@@ -1,5 +1,5 @@
 [package]
-name = "soloist-engine"
+name = "soloist-display-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

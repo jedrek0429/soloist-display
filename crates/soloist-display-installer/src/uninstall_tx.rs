@@ -1,7 +1,7 @@
 use crate::{mpris, paths::Paths, service, state::atomic_json};
-use soloist_display_core::lifecycle::{self, StagedPath as MovedPath, TransactionPhase as Phase};
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
+use soloist_display_core::lifecycle::{self, StagedPath as MovedPath, TransactionPhase as Phase};
 use std::{
     fs, io,
     os::unix::fs::OpenOptionsExt,

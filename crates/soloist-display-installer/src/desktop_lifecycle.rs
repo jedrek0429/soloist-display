@@ -88,7 +88,7 @@ impl Paths {
     }
 
     fn write_atomic(&self, path: &Path, data: &[u8]) -> Result<()> {
-        soloist_display_core::lifecycle::atomic_write(path, data, Some(0o600))
+        Ok(soloist_display_core::lifecycle::atomic_write(path, data, Some(0o600))?)
     }
 
     fn shim_content(&self, version: &str) -> Vec<u8> {
@@ -445,8 +445,14 @@ fn recover_uninstall(paths: &Paths) -> Result<()> {
     }
     let intent: UninstallIntent = serde_json::from_slice(&fs::read(&journal)?)?;
     let moves = [
-        StagedPath { original: paths.releases.clone(), staged: releases.clone() },
-        StagedPath { original: paths.shim.clone(), staged: shim.clone() },
+        StagedPath {
+            original: paths.releases.clone(),
+            staged: releases.clone(),
+        },
+        StagedPath {
+            original: paths.shim.clone(),
+            staged: shim.clone(),
+        },
     ];
     if paths.state.exists() {
         let staged: Vec<_> = moves

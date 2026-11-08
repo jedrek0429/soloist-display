@@ -50,7 +50,9 @@ pub fn atomic_write(path: &Path, bytes: &[u8], mode: Option<u32>) -> Result<()> 
     let nonce = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
     let temporary = parent.join(format!(
         ".{}.{}.{}.pending",
-        path.file_name().context("metadata path has no filename")?.to_string_lossy(),
+        path.file_name()
+            .context("metadata path has no filename")?
+            .to_string_lossy(),
         std::process::id(),
         nonce
     ));
@@ -79,7 +81,8 @@ pub fn atomic_write(path: &Path, bytes: &[u8], mode: Option<u32>) -> Result<()> 
             }
             if let Err(error) = fs::rename(&temporary, path) {
                 if existed {
-                    fs::rename(&backup, path).context("restore previous state after failed activation")?;
+                    fs::rename(&backup, path)
+                        .context("restore previous state after failed activation")?;
                 }
                 return Err(error.into());
             }
@@ -155,13 +158,24 @@ pub fn restore_staged(paths: &[StagedPath]) -> Result<()> {
         let staged = fs::symlink_metadata(&entry.staged).is_ok();
         let original = fs::symlink_metadata(&entry.original).is_ok();
         if staged && original {
-            bail!("staging conflicts with original path: {}", entry.original.display());
+            bail!(
+                "staging conflicts with original path: {}",
+                entry.original.display()
+            );
         }
         if staged {
             fs::rename(&entry.staged, &entry.original)?;
-            sync_parent(entry.original.parent().context("restored path has no parent")?)?;
+            sync_parent(
+                entry
+                    .original
+                    .parent()
+                    .context("restored path has no parent")?,
+            )?;
         } else if !original {
-            bail!("both original and staged path are missing: {}", entry.original.display());
+            bail!(
+                "both original and staged path are missing: {}",
+                entry.original.display()
+            );
         }
     }
     Ok(())
@@ -187,15 +201,28 @@ pub fn cleanup_staged(paths: &[StagedPath]) -> Result<()> {
 mod tests {
     use super::*;
     #[derive(Debug, Serialize, Deserialize)]
-    struct TestState { schema: u32, version: String }
+    struct TestState {
+        schema: u32,
+        version: String,
+    }
     impl VersionedState for TestState {
-        fn schema(&self) -> u32 { self.schema }
+        fn schema(&self) -> u32 {
+            self.schema
+        }
     }
     #[test]
     fn state_roundtrip_and_schema_guard() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("state.json");
-        atomic_json(&path, &TestState { schema: 1, version: "1.1.0".into() }, Some(0o600)).unwrap();
+        atomic_json(
+            &path,
+            &TestState {
+                schema: 1,
+                version: "1.1.0".into(),
+            },
+            Some(0o600),
+        )
+        .unwrap();
         let state: TestState = load_state(&path, 1).unwrap().unwrap();
         assert_eq!(state.version, "1.1.0");
         assert!(load_state::<TestState>(&path, 0).is_err());
@@ -207,7 +234,11 @@ mod tests {
         let staged = dir.path().join(".staged");
         fs::write(&path, b"old").unwrap();
         rename_staged(&path, &staged).unwrap();
-        restore_staged(&[StagedPath { original: path.clone(), staged: staged.clone() }]).unwrap();
+        restore_staged(&[StagedPath {
+            original: path.clone(),
+            staged: staged.clone(),
+        }])
+        .unwrap();
         assert_eq!(fs::read(path).unwrap(), b"old");
         assert!(!staged.exists());
     }
@@ -219,7 +250,11 @@ mod tests {
         fs::write(&path, b"old").unwrap();
         rename_staged(&path, &staged).unwrap();
         fs::write(&path, b"new").unwrap();
-        assert!(restore_staged(&[StagedPath { original: path, staged }]).is_err());
+        assert!(restore_staged(&[StagedPath {
+            original: path,
+            staged
+        }])
+        .is_err());
     }
     #[test]
     fn committed_cleanup_only_deletes_staging() {
@@ -228,7 +263,11 @@ mod tests {
         let staged = dir.path().join(".staged");
         fs::write(&staged, b"old").unwrap();
         fs::write(&path, b"new").unwrap();
-        cleanup_staged(&[StagedPath { original: path.clone(), staged: staged.clone() }]).unwrap();
+        cleanup_staged(&[StagedPath {
+            original: path.clone(),
+            staged: staged.clone(),
+        }])
+        .unwrap();
         assert!(!staged.exists());
         assert_eq!(fs::read(path).unwrap(), b"new");
     }

@@ -34,7 +34,7 @@ else
 fi
 
 # Link both binaries against the declared glibc baseline.
-for package in soloist-audio-bridge soloist-display-installer; do
+for package in soloist-display-audio soloist-display-installer; do
   env -u CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER \
     cargo zigbuild --release --locked -p "$package" --target "$target.2.38"
 done

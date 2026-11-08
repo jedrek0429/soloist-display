@@ -12,6 +12,8 @@ mod windows;
 
 #[cfg(target_os = "linux")]
 use linux as platform;
+#[cfg(target_os = "linux")]
+pub use linux::{resolve_linux_paths, Architecture, Distro, LinuxBasePaths, Platform};
 #[cfg(target_os = "macos")]
 use macos as platform;
 #[cfg(target_os = "windows")]

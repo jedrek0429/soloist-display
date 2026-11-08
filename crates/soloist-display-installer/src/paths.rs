@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use std::{
     env,
     path::{Path, PathBuf},
@@ -33,58 +33,15 @@ pub struct Paths {
     pub soloist_cache: PathBuf,
 }
 
-fn env_path(name: &str, fallback: PathBuf) -> PathBuf {
-    env::var_os(name)
-        .filter(|value| !value.is_empty())
-        .map(PathBuf::from)
-        .unwrap_or(fallback)
-}
-
 impl Paths {
     pub fn discover() -> Result<Self> {
-        let home = env::var_os("HOME")
-            .filter(|value| !value.is_empty())
-            .map(PathBuf::from)
-            .ok_or_else(|| anyhow!("HOME is not set"))?;
-        if !home.is_absolute() {
-            return Err(anyhow!("HOME must be an absolute path"));
-        }
-        let data_home = env_path("XDG_DATA_HOME", home.join(".local/share"));
-        let config_home = env_path("XDG_CONFIG_HOME", home.join(".config"));
-        let state_home = env_path("XDG_STATE_HOME", home.join(".local/state"));
-        let cache_home = env_path("XDG_CACHE_HOME", home.join(".cache"));
-        let bin_dir = env_path("SOLOIST_DISPLAY_BIN_DIR", home.join(".local/bin"));
-
-        let test_root = env::var_os("SOLOIST_DISPLAY_TEST_ROOT")
-            .filter(|value| !value.is_empty())
-            .map(PathBuf::from);
-        let (data_home, config_home, state_home, cache_home, bin_dir) =
-            if let Some(base) = test_root {
-                (
-                    base.join("data"),
-                    base.join("config"),
-                    base.join("state"),
-                    base.join("cache"),
-                    base.join("bin"),
-                )
-            } else {
-                (data_home, config_home, state_home, cache_home, bin_dir)
-            };
-
-        for (name, path) in [
-            ("XDG data", &data_home),
-            ("XDG config", &config_home),
-            ("XDG state", &state_home),
-            ("XDG cache", &cache_home),
-            ("binary", &bin_dir),
-        ] {
-            if !path.is_absolute() {
-                return Err(anyhow!(
-                    "{name} directory must be absolute: {}",
-                    path.display()
-                ));
-            }
-        }
+        let dirs = soloist_display_platform::resolve_linux_paths()?;
+        let home = dirs.home;
+        let data_home = dirs.data_home;
+        let config_home = dirs.config_home;
+        let state_home = dirs.state_home;
+        let cache_home = dirs.cache_home;
+        let bin_dir = dirs.bin_dir;
 
         let root = data_home.join("soloist-display");
         let config = config_home.join("soloist-display");

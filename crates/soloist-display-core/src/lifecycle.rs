@@ -197,8 +197,76 @@ pub fn cleanup_staged(paths: &[StagedPath]) -> Result<()> {
     Ok(())
 }
 
+/// Journal snapshot used to recover an interrupted executable activation.
+/// Captured bytes are restricted to installer-owned metadata and launchers.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActivationSnapshot {
+    pub schema: u32,
+    pub metadata: Option<Vec<u8>>,
+    pub launcher: Option<Vec<u8>>,
+}
+
+fn read_optional(path: &Path) -> Result<Option<Vec<u8>>> {
+    match fs::read(path) {
+        Ok(value) => Ok(Some(value)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error.into()),
+    }
+}
+
+pub fn snapshot_activation(metadata: &Path, launcher: &Path) -> Result<ActivationSnapshot> {
+    Ok(ActivationSnapshot {
+        schema: 1,
+        metadata: read_optional(metadata)?,
+        launcher: read_optional(launcher)?,
+    })
+}
+
+fn restore_optional(path: &Path, previous: Option<&[u8]>, mode: Option<u32>) -> Result<()> {
+    if let Some(bytes) = previous {
+        atomic_write(path, bytes, mode)
+    } else {
+        match fs::remove_file(path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error.into()),
+        }
+    }
+}
+
+/// Callers must verify ownership of an existing launcher before restoration.
+/// Restoring is idempotent so crashes during rollback can be recovered again.
+pub fn restore_activation(
+    snapshot: &ActivationSnapshot,
+    metadata: &Path,
+    launcher: &Path,
+    launcher_mode: Option<u32>,
+) -> Result<()> {
+    if snapshot.schema != 1 {
+        bail!("unsupported activation journal schema {}", snapshot.schema);
+    }
+    restore_optional(launcher, snapshot.launcher.as_deref(), launcher_mode)?;
+    restore_optional(metadata, snapshot.metadata.as_deref(), Some(0o600))
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn activation_snapshot_rolls_back_both_state_and_launcher() {
+        let dir = tempfile::tempdir().unwrap();
+        let metadata = dir.path().join("install.json");
+        let launcher = dir.path().join("display.cmd");
+        fs::write(&metadata, b"previous metadata").unwrap();
+        fs::write(&launcher, b"previous launcher").unwrap();
+        let snapshot = snapshot_activation(&metadata, &launcher).unwrap();
+        atomic_write(&metadata, b"new metadata", Some(0o600)).unwrap();
+        atomic_write(&launcher, b"new launcher", Some(0o700)).unwrap();
+        restore_activation(&snapshot, &metadata, &launcher, Some(0o700)).unwrap();
+        assert_eq!(fs::read(&metadata).unwrap(), b"previous metadata");
+        assert_eq!(fs::read(&launcher).unwrap(), b"previous launcher");
+        restore_activation(&snapshot, &metadata, &launcher, Some(0o700)).unwrap();
+    }
+
     use super::*;
     #[derive(Debug, Serialize, Deserialize)]
     struct TestState {

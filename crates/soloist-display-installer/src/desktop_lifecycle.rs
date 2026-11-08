@@ -50,6 +50,25 @@ struct Paths {
     state: PathBuf,
 }
 
+fn activation_journal(paths: &Paths) -> PathBuf {
+    paths.state.with_file_name("desktop-activation.json")
+}
+
+/// An unfinished activation is conservatively rolled back on the next CLI run.
+/// The signed, versioned release files themselves are never modified.
+fn recover_activation(paths: &Paths) -> Result<()> {
+    let journal = activation_journal(paths);
+    if !journal.exists() {
+        return Ok(());
+    }
+    let snapshot: lifecycle::ActivationSnapshot =
+        serde_json::from_slice(&fs::read(&journal)?)?;
+    paths.check_shim_ownership()?;
+    lifecycle::restore_activation(&snapshot, &paths.state, &paths.shim, Some(0o700))?;
+    fs::remove_file(journal)?;
+    Ok(())
+}
+
 fn settings_root() -> PathBuf {
     soloist_display_platform::settings_root()
 }
@@ -71,6 +90,7 @@ impl Paths {
             shim,
         };
         recover_uninstall(&paths)?;
+        recover_activation(&paths)?;
         Ok(paths)
     }
 
@@ -234,16 +254,26 @@ fn activate(
             .map(|s| s.version.clone())
             .filter(|old| old != &version_string),
     };
-    // Repoint only after the new signed binary has passed --version.
-    paths.point_to(&version_string)?;
-    if let Err(error) = paths.save(&state) {
-        if let Some(old) = current {
-            let _ = paths.point_to(&old.version);
-        } else {
-            let _ = fs::remove_file(&paths.shim);
-        }
+    // Write the recovery snapshot BEFORE switching the launcher.
+    paths.check_shim_ownership()?;
+    let journal = activation_journal(paths);
+    if journal.exists() {
+        return Err("interrupted activation must be recovered before retrying".into());
+    }
+    let snapshot = lifecycle::snapshot_activation(&paths.state, &paths.shim)?;
+    paths.write_atomic(&journal, &serde_json::to_vec(&snapshot)?)?;
+    let switched = (|| -> Result<()> {
+        paths.point_to(&version_string)?;
+        paths.save(&state)?;
+        Ok(())
+    })();
+    if let Err(error) = switched {
+        recover_activation(paths).map_err(|recovery| {
+            format!("activation failed: {error}; rollback incomplete: {recovery}")
+        })?;
         return Err(error);
     }
+    fs::remove_file(journal)?;
     println!("Soloist Display {version_string} installed (External Soloist)");
     println!("Command: {}", paths.shim.display());
     println!("Soloist itself was not modified.");
@@ -585,6 +615,41 @@ mod tests {
         assert!(!staged_shim.exists());
         assert!(!paths.state.exists());
         assert!(!exe.exists());
+    }
+
+    #[test]
+    fn interrupted_activation_restores_old_release_and_metadata() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = Paths {
+            releases: dir.path().join("releases"),
+            shim: dir.path().join("bin").join(if cfg!(windows) {
+                "soloist-display.cmd"
+            } else {
+                "soloist-display"
+            }),
+            state: dir.path().join("desktop-install.json"),
+        };
+        paths.point_to("1.2.3").unwrap();
+        let old = Installed {
+            schema: STATE_SCHEMA,
+            version: "1.2.3".into(),
+            channel: ReleaseChannel::Prerelease,
+            suppress_updates: false,
+            previous_version: None,
+        };
+        paths.save(&old).unwrap();
+        let previous = lifecycle::snapshot_activation(&paths.state, &paths.shim).unwrap();
+        paths
+            .write_atomic(&activation_journal(&paths), &serde_json::to_vec(&previous).unwrap())
+            .unwrap();
+        paths.point_to("1.2.4").unwrap();
+        let mut next = old;
+        next.version = "1.2.4".into();
+        paths.save(&next).unwrap();
+        recover_activation(&paths).unwrap();
+        assert_eq!(paths.load().unwrap().unwrap().version, "1.2.3");
+        assert!(String::from_utf8_lossy(&fs::read(&paths.shim).unwrap()).contains("1.2.3"));
+        assert!(!activation_journal(&paths).exists());
     }
 
     #[test]

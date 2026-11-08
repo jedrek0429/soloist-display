@@ -924,7 +924,8 @@ pub fn install(
             "port 9090 belongs to a process outside soloist.service; stop it before switching to managed Soloist"
         );
     }
-    let (mut transaction, journal_path) = TransactionJournal::begin(&paths.transactions, "install")?;
+    let (mut transaction, journal_path) =
+        TransactionJournal::begin(&paths.transactions, "install")?;
     if let Some(unit) = &existing_unit {
         unit.persist(paths)?;
     }
@@ -1962,7 +1963,8 @@ mod tests {
         fs::create_dir_all(&previous).unwrap();
         fs::create_dir_all(&incomplete).unwrap();
         atomic_link(&incomplete, &paths.current).unwrap();
-        let (mut transaction, journal_path) = TransactionJournal::begin(&paths.transactions, "update").unwrap();
+        let (mut transaction, journal_path) =
+            TransactionJournal::begin(&paths.transactions, "update").unwrap();
         transaction.previous_current = Some(previous.clone());
         transaction.created.push(incomplete.clone());
         transaction.status = TransactionStatus::Activating;
@@ -2080,7 +2082,8 @@ mod tests {
         let snapshot = service::SoloistUnitSnapshot::capture(&paths).unwrap();
         snapshot.persist(&paths).unwrap();
 
-        let (mut transaction, journal) = TransactionJournal::begin(&paths.transactions, "install").unwrap();
+        let (mut transaction, journal) =
+            TransactionJournal::begin(&paths.transactions, "install").unwrap();
         transaction.install_recovery = Some(InstallRecovery {
             previous_settings: None,
             previous_config_schema: None,
@@ -2159,7 +2162,8 @@ mod tests {
         let previous = paths.releases.join("previous");
         fs::create_dir_all(&previous).unwrap();
         fs::write(previous.join("still-here"), b"safe").unwrap();
-        let (mut transaction, journal_path) = TransactionJournal::begin(&paths.transactions, "repair").unwrap();
+        let (mut transaction, journal_path) =
+            TransactionJournal::begin(&paths.transactions, "repair").unwrap();
         transaction.previous_current = Some(previous.clone());
         transaction.backups.push(crate::state::Backup {
             original: previous.clone(),

@@ -1,12 +1,12 @@
 //! Desktop runtime command mapping onto the shared CLI grammar.
+#[cfg(any(windows, target_os = "macos"))]
+use crate::commands::{DisplayDataRemoval, NotificationSetting};
 use crate::{
     arguments::DeviceCommand,
     commands::{Cli, Command as SharedCommand},
 };
 use clap::{error::ErrorKind, CommandFactory, Parser};
 use clap_complete::{generate, Shell};
-#[cfg(any(windows, target_os = "macos"))]
-use crate::commands::{DisplayDataRemoval, NotificationSetting};
 #[cfg(any(windows, target_os = "macos"))]
 use soloist_display_core::release::ReleaseChannel;
 use std::sync::atomic::{AtomicBool, Ordering};

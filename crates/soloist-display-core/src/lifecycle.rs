@@ -151,6 +151,7 @@ pub struct Backup {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(bound(deserialize = "S: Deserialize<'de>"))]
 pub struct TransactionJournal<S> {
     pub id: String,
     pub operation: String,

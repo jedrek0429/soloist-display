@@ -157,7 +157,9 @@ mod tests {
     #[test]
     fn linux_only_managed_commands_use_common_parser() {
         assert!(matches!(
-            Cli::try_parse_from(["soloist-display", "renew-soloist", "--force"]).unwrap().command,
+            Cli::try_parse_from(["soloist-display", "renew-soloist", "--force"])
+                .unwrap()
+                .command,
             Some(Command::RenewSoloist { force: true })
         ));
         assert!(Cli::try_parse_from(["soloist-display", "mpris", "status"]).is_ok());

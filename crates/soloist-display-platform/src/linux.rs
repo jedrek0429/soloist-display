@@ -219,7 +219,6 @@ mod tests {
     }
 }
 
-
 // The manager's XDG directory resolution is an OS adapter, not business logic.
 #[derive(Clone, Debug)]
 pub struct LinuxBasePaths {
@@ -254,18 +253,17 @@ pub fn resolve_linux_paths() -> Result<LinuxBasePaths> {
     let test_root = std::env::var_os("SOLOIST_DISPLAY_TEST_ROOT")
         .filter(|value| !value.is_empty())
         .map(PathBuf::from);
-    let (data_home, config_home, state_home, cache_home, bin_dir) =
-        if let Some(base) = test_root {
-            (
-                base.join("data"),
-                base.join("config"),
-                base.join("state"),
-                base.join("cache"),
-                base.join("bin"),
-            )
-        } else {
-            (data_home, config_home, state_home, cache_home, bin_dir)
-        };
+    let (data_home, config_home, state_home, cache_home, bin_dir) = if let Some(base) = test_root {
+        (
+            base.join("data"),
+            base.join("config"),
+            base.join("state"),
+            base.join("cache"),
+            base.join("bin"),
+        )
+    } else {
+        (data_home, config_home, state_home, cache_home, bin_dir)
+    };
     for (name, path) in [
         ("XDG data", &data_home),
         ("XDG config", &config_home),
@@ -274,7 +272,10 @@ pub fn resolve_linux_paths() -> Result<LinuxBasePaths> {
         ("binary", &bin_dir),
     ] {
         if !path.is_absolute() {
-            return Err(anyhow!("{name} directory must be absolute: {}", path.display()));
+            return Err(anyhow!(
+                "{name} directory must be absolute: {}",
+                path.display()
+            ));
         }
     }
     Ok(LinuxBasePaths {

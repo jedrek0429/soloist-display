@@ -365,7 +365,10 @@ mod tests {
         let restored: TransactionJournal<ActivationSnapshot> =
             serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
         assert!(matches!(restored.status, TransactionStatus::Committed));
-        assert_eq!(restored.install_recovery.unwrap().metadata.unwrap(), b"before");
+        assert_eq!(
+            restored.install_recovery.unwrap().metadata.unwrap(),
+            b"before"
+        );
     }
 
     #[test]

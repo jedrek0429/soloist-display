@@ -3,7 +3,10 @@
 //! Never installs, starts, kills, renews or alters Spotify Soloist.
 use semver::Version;
 use serde::{Deserialize, Serialize};
-use soloist_display_core::release::{sha256_file, ReleaseChannel, ReleaseClient};
+use soloist_display_core::{
+    lifecycle::{self, StagedPath},
+    release::{sha256_file, ReleaseChannel, ReleaseClient},
+};
 use std::{
     env, fs,
     path::{Path, PathBuf},
@@ -441,26 +444,19 @@ fn recover_uninstall(paths: &Paths) -> Result<()> {
         return Ok(());
     }
     let intent: UninstallIntent = serde_json::from_slice(&fs::read(&journal)?)?;
+    let moves = [
+        StagedPath { original: paths.releases.clone(), staged: releases.clone() },
+        StagedPath { original: paths.shim.clone(), staged: shim.clone() },
+    ];
     if paths.state.exists() {
-        if releases.exists() {
-            if paths.releases.exists() {
-                return Err("uninstall recovery conflict: releases already exist".into());
-            }
-            fs::rename(&releases, &paths.releases)?;
-        }
-        if shim.exists() {
-            if paths.shim.exists() {
-                return Err("uninstall recovery conflict: launcher already exists".into());
-            }
-            fs::rename(&shim, &paths.shim)?;
-        }
+        let staged: Vec<_> = moves
+            .iter()
+            .filter(|entry| entry.staged.exists())
+            .cloned()
+            .collect();
+        lifecycle::restore_staged(&staged)?;
     } else {
-        if releases.exists() {
-            fs::remove_dir_all(&releases)?;
-        }
-        if shim.exists() {
-            fs::remove_file(&shim)?;
-        }
+        lifecycle::cleanup_staged(&moves)?;
         if intent.remove_data {
             remove_user_data()?;
         }
@@ -486,10 +482,10 @@ fn remove_installation(
     )?;
     let result = (|| -> Result<()> {
         if paths.releases.exists() {
-            fs::rename(&paths.releases, &releases)?;
+            lifecycle::rename_staged(&paths.releases, &releases)?;
         }
         if paths.shim.exists() {
-            fs::rename(&paths.shim, &shim)?;
+            lifecycle::rename_staged(&paths.shim, &shim)?;
         }
         staged_check()?;
         fs::remove_file(&paths.state)?;

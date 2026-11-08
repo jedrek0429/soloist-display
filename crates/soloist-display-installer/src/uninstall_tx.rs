@@ -1,4 +1,5 @@
 use crate::{mpris, paths::Paths, service, state::atomic_json};
+use soloist_display_core::lifecycle::{self, StagedPath as MovedPath, TransactionPhase as Phase};
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -6,18 +7,6 @@ use std::{
     os::unix::fs::OpenOptionsExt,
     path::{Path, PathBuf},
 };
-
-#[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-enum Phase {
-    Preparing,
-    Committed,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-struct MovedPath {
-    original: PathBuf,
-    staged: PathBuf,
-}
 
 #[derive(Serialize, Deserialize)]
 pub struct UninstallTransaction {
@@ -194,8 +183,7 @@ impl UninstallTransaction {
             staged: staged.clone(),
         });
         self.persist(paths)?;
-        fs::rename(original, &staged)?;
-        fs::File::open(original.parent().context("missing parent")?)?.sync_all()?;
+        lifecycle::rename_staged(original, &staged)?;
         Ok(())
     }
 
@@ -207,26 +195,7 @@ impl UninstallTransaction {
 }
 
 fn restore_moved(tx: &UninstallTransaction) -> Result<()> {
-    for moved in tx.moved.iter().rev() {
-        let staged = fs::symlink_metadata(&moved.staged).is_ok();
-        let original = fs::symlink_metadata(&moved.original).is_ok();
-        if staged && original {
-            bail!(
-                "uninstall recovery found conflicting paths: {}",
-                moved.original.display()
-            );
-        }
-        if staged {
-            fs::rename(&moved.staged, &moved.original)?;
-            fs::File::open(moved.original.parent().context("missing parent")?)?.sync_all()?;
-        } else if !original {
-            bail!(
-                "both original and staged path are missing: {}",
-                moved.original.display()
-            );
-        }
-    }
-    Ok(())
+    lifecycle::restore_staged(&tx.moved)
 }
 
 fn restore_services(paths: &Paths, tx: &UninstallTransaction) -> Result<()> {
@@ -300,17 +269,7 @@ fn restore_services(paths: &Paths, tx: &UninstallTransaction) -> Result<()> {
 }
 
 fn finish_cleanup(paths: &Paths, tx: &UninstallTransaction) -> Result<()> {
-    for moved in &tx.moved {
-        let staged = &moved.staged;
-        if fs::symlink_metadata(staged).is_err() {
-            continue;
-        }
-        if staged.is_symlink() || staged.is_file() {
-            fs::remove_file(staged)?;
-        } else if staged.is_dir() {
-            fs::remove_dir_all(staged)?;
-        }
-    }
+    lifecycle::cleanup_staged(&tx.moved)?;
     if paths.state.exists() {
         fs::remove_dir_all(&paths.state)?;
     }

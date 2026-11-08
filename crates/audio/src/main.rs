@@ -607,7 +607,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
     #[cfg(any(windows, target_os = "macos"))]
     if !cli::quiet() {
-        std::thread::spawn(desktop_lifecycle::maybe_notify);
+        let verbose = cli::verbose();
+        std::thread::spawn(move || desktop_lifecycle::maybe_notify(verbose));
     }
     if cli::verbose() {
         eprintln!("Configuration: {}", config_path().display());

@@ -1,9 +1,9 @@
 //! External-only desktop installation lifecycle.
 //! Uses the same signed release manifest and verifier as the Linux manager.
 //! Never installs, starts, kills, renews or alters Spotify Soloist.
-use soloist_engine::release::{sha256_file, ReleaseChannel, ReleaseClient};
 use semver::Version;
 use serde::{Deserialize, Serialize};
+use soloist_engine::release::{sha256_file, ReleaseChannel, ReleaseClient};
 use std::{
     env, fs,
     io::Write,
@@ -370,7 +370,7 @@ pub fn check_updates() -> Result<()> {
 }
 
 /// Checks for updates without blocking the display startup.
-pub fn maybe_notify() {
+pub fn maybe_notify(verbose: bool) {
     let result = (|| -> Result<()> {
         let paths = Paths::discover()?;
         let Some(current) = paths.load()? else {
@@ -387,7 +387,7 @@ pub fn maybe_notify() {
         Ok(())
     })();
     if let Err(error) = result {
-        if crate::cli::verbose() {
+        if verbose {
             eprintln!("Update check unavailable: {error}");
         }
     }

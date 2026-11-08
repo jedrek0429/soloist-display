@@ -129,6 +129,105 @@ fn sync_parent(parent: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Common journal representation for Linux-managed and desktop lifecycle operations.
+/// The platform-specific snapshot is supplied as the generic recovery payload.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TransactionStatus {
+    Started,
+    Activating,
+    Services,
+    HealthCheck,
+    Committed,
+    RollingBack,
+    RolledBack,
+    Failed,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Backup {
+    pub original: PathBuf,
+    pub backup: PathBuf,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TransactionJournal<S> {
+    pub id: String,
+    pub operation: String,
+    pub status: TransactionStatus,
+    pub started_at: u64,
+    pub previous_current: Option<PathBuf>,
+    pub created: Vec<PathBuf>,
+    pub backups: Vec<Backup>,
+    pub package_changes: Vec<String>,
+    #[serde(default)]
+    pub install_recovery: Option<S>,
+    pub error: Option<String>,
+}
+
+impl<S: Serialize> TransactionJournal<S> {
+    fn fresh(operation: &str, install_recovery: Option<S>) -> Self {
+        let started_at = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        Self {
+            id: format!("{started_at}-{}", std::process::id()),
+            operation: operation.to_owned(),
+            status: TransactionStatus::Started,
+            started_at,
+            previous_current: None,
+            created: Vec::new(),
+            backups: Vec::new(),
+            package_changes: Vec::new(),
+            install_recovery,
+            error: None,
+        }
+    }
+
+    pub fn begin(directory: &Path, operation: &str) -> Result<(Self, PathBuf)> {
+        fs::create_dir_all(directory)?;
+        let tx = Self::fresh(operation, None);
+        let path = directory.join(format!("{}.json", tx.id));
+        if path.exists() {
+            bail!("transaction journal already exists: {}", path.display());
+        }
+        tx.persist(&path)?;
+        Ok((tx, path))
+    }
+
+    pub fn begin_at(path: &Path, operation: &str, recovery: Option<S>) -> Result<Self> {
+        if path.exists() {
+            bail!("incomplete transaction must be recovered before retrying");
+        }
+        let tx = Self::fresh(operation, recovery);
+        tx.persist(path)?;
+        Ok(tx)
+    }
+
+    pub fn persist(&self, path: &Path) -> Result<()> {
+        atomic_json(path, self, Some(0o600))
+    }
+
+    pub fn set_status(&mut self, path: &Path, status: TransactionStatus) -> Result<()> {
+        self.status = status;
+        self.persist(path)
+    }
+
+    pub fn record_created(&mut self, path: &Path, created: PathBuf) -> Result<()> {
+        if !self.created.contains(&created) {
+            self.created.push(created);
+        }
+        self.persist(path)
+    }
+
+    pub fn fail(&mut self, path: &Path, error: impl Into<String>) -> Result<()> {
+        self.status = TransactionStatus::Failed;
+        self.error = Some(error.into());
+        self.persist(path)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum TransactionPhase {
     #[default]

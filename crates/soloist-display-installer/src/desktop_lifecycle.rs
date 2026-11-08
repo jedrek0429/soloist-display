@@ -50,6 +50,8 @@ struct Paths {
     state: PathBuf,
 }
 
+type ActivationJournal = lifecycle::TransactionJournal<lifecycle::ActivationSnapshot>;
+
 fn activation_journal(paths: &Paths) -> PathBuf {
     paths.state.with_file_name("desktop-activation.json")
 }
@@ -264,7 +266,7 @@ fn activate(
         return Err("interrupted activation must be recovered before retrying".into());
     }
     let snapshot = lifecycle::snapshot_activation(&paths.state, &paths.shim)?;
-    paths.write_atomic(&journal, &serde_json::to_vec(&snapshot)?)?;
+    let mut tx = ActivationJournal::begin_at(&journal, "activate", Some(snapshot))?;
     let switched = (|| -> Result<()> {
         paths.point_to(&version_string)?;
         paths.save(&state)?;
@@ -276,6 +278,7 @@ fn activate(
         })?;
         return Err(error);
     }
+    tx.set_status(&journal, lifecycle::TransactionStatus::Committed)?;
     fs::remove_file(journal)?;
     println!("Soloist Display {version_string} installed (External Soloist)");
     println!("Command: {}", paths.shim.display());

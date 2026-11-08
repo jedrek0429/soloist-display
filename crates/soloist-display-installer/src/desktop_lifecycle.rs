@@ -61,8 +61,7 @@ fn recover_activation(paths: &Paths) -> Result<()> {
     if !journal.exists() {
         return Ok(());
     }
-    let snapshot: lifecycle::ActivationSnapshot =
-        serde_json::from_slice(&fs::read(&journal)?)?;
+    let snapshot: lifecycle::ActivationSnapshot = serde_json::from_slice(&fs::read(&journal)?)?;
     paths.check_shim_ownership()?;
     lifecycle::restore_activation(&snapshot, &paths.state, &paths.shim, Some(0o700))?;
     fs::remove_file(journal)?;
@@ -108,7 +107,11 @@ impl Paths {
     }
 
     fn write_atomic(&self, path: &Path, data: &[u8]) -> Result<()> {
-        Ok(soloist_display_core::lifecycle::atomic_write(path, data, Some(0o600))?)
+        Ok(soloist_display_core::lifecycle::atomic_write(
+            path,
+            data,
+            Some(0o600),
+        )?)
     }
 
     fn shim_content(&self, version: &str) -> Vec<u8> {
@@ -640,7 +643,10 @@ mod tests {
         paths.save(&old).unwrap();
         let previous = lifecycle::snapshot_activation(&paths.state, &paths.shim).unwrap();
         paths
-            .write_atomic(&activation_journal(&paths), &serde_json::to_vec(&previous).unwrap())
+            .write_atomic(
+                &activation_journal(&paths),
+                &serde_json::to_vec(&previous).unwrap(),
+            )
             .unwrap();
         paths.point_to("1.2.4").unwrap();
         let mut next = old;

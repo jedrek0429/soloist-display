@@ -1,10 +1,13 @@
 //! Desktop runtime command mapping onto the shared CLI grammar.
 use crate::{
     arguments::DeviceCommand,
-    commands::{Cli, Command as SharedCommand, DisplayDataRemoval, NotificationSetting},
+    commands::{Cli, Command as SharedCommand},
 };
 use clap::{error::ErrorKind, CommandFactory, Parser};
 use clap_complete::{generate, Shell};
+#[cfg(any(windows, target_os = "macos"))]
+use crate::commands::{DisplayDataRemoval, NotificationSetting};
+#[cfg(any(windows, target_os = "macos"))]
 use soloist_display_core::release::ReleaseChannel;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -71,7 +74,8 @@ pub fn parse(args: &[String]) -> Result<Command, String> {
             soloist_ws,
             start_external,
         }) => {
-            if device_name.is_some() || api_key.is_some() || soloist_ws.is_some() || start_external {
+            if device_name.is_some() || api_key.is_some() || soloist_ws.is_some() || start_external
+            {
                 return Err("Managed Soloist and external process control are unavailable in this desktop preview".into());
             }
             Command::Install
@@ -81,35 +85,46 @@ pub fn parse(args: &[String]) -> Result<Command, String> {
             return Err("install must be invoked through the installed Linux manager".into());
         }
         #[cfg(any(windows, target_os = "macos"))]
-        Some(SharedCommand::Update { channel, version, allow_downgrade }) => Command::Update {
-            channel, version, allow_downgrade,
+        Some(SharedCommand::Update {
+            channel,
+            version,
+            allow_downgrade,
+        }) => Command::Update {
+            channel,
+            version,
+            allow_downgrade,
         },
         #[cfg(any(windows, target_os = "macos"))]
         Some(SharedCommand::CheckUpdates) => Command::CheckUpdates,
         #[cfg(any(windows, target_os = "macos"))]
-        Some(SharedCommand::Notifications { setting }) => Command::Notifications(
-            matches!(setting, NotificationSetting::On)
-        ),
+        Some(SharedCommand::Notifications { setting }) => {
+            Command::Notifications(matches!(setting, NotificationSetting::On))
+        }
         #[cfg(any(windows, target_os = "macos"))]
         Some(SharedCommand::Repair) => Command::Repair,
         #[cfg(any(windows, target_os = "macos"))]
-        Some(SharedCommand::Uninstall { data, .. }) => Command::Uninstall(
-            matches!(data, Some(DisplayDataRemoval::Remove))
-        ),
+        Some(SharedCommand::Uninstall { data, .. }) => {
+            Command::Uninstall(matches!(data, Some(DisplayDataRemoval::Remove)))
+        }
         #[cfg(target_os = "linux")]
-        Some(SharedCommand::Update { .. }
+        Some(
+            SharedCommand::Update { .. }
             | SharedCommand::CheckUpdates
             | SharedCommand::Notifications { .. }
             | SharedCommand::Repair
             | SharedCommand::Uninstall { .. }
             | SharedCommand::Mpris { .. }
-            | SharedCommand::RenewSoloist { .. }) => {
-            return Err("lifecycle management must be invoked through the installed Linux manager".into());
+            | SharedCommand::RenewSoloist { .. },
+        ) => {
+            return Err(
+                "lifecycle management must be invoked through the installed Linux manager".into(),
+            );
         }
         Some(SharedCommand::Device { command }) => match command {
             DeviceCommand::List => Command::DeviceList,
-            DeviceCommand::Use { output } | DeviceCommand::Set { output } =>
-                Command::DeviceSet(output),
+            DeviceCommand::Use { output } | DeviceCommand::Set { output } => {
+                Command::DeviceSet(output)
+            }
             DeviceCommand::Default => Command::DeviceDefault,
         },
     })

@@ -21,7 +21,7 @@ use clap::{CommandFactory, Parser};
 use clap_complete::generate;
 use cli_arguments::DeviceCommand;
 use lock::InstallLock;
-use manager::{DisplayDataRemoval, SoloistRemoval, UninstallOptions};
+use manager::UninstallOptions;
 use paths::Paths;
 use platform::Platform;
 use soloist_cli::linux::{Cli, Command, MprisCommand, NotificationSetting};

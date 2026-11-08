@@ -8,7 +8,7 @@ use axum::{
 use futures_util::SinkExt;
 mod capture;
 mod cli;
-use soloist_cli::{arguments as cli_arguments, output as cli_output};
+use soloist_cli::output as cli_output;
 #[cfg(any(windows, target_os = "macos"))]
 use soloist_display_installer::desktop_lifecycle;
 mod device;

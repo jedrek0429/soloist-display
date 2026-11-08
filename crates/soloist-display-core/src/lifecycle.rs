@@ -352,6 +352,23 @@ pub fn restore_activation(
 #[cfg(test)]
 mod tests {
     #[test]
+    fn journal_round_trip_preserves_status_and_recovery_payload() {
+        let dir = tempfile::tempdir().unwrap();
+        let snapshot = ActivationSnapshot {
+            schema: 1,
+            metadata: Some(b"before".to_vec()),
+            launcher: None,
+        };
+        let path = dir.path().join("activate.json");
+        let mut tx = TransactionJournal::begin_at(&path, "activate", Some(snapshot)).unwrap();
+        tx.set_status(&path, TransactionStatus::Committed).unwrap();
+        let restored: TransactionJournal<ActivationSnapshot> =
+            serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+        assert!(matches!(restored.status, TransactionStatus::Committed));
+        assert_eq!(restored.install_recovery.unwrap().metadata.unwrap(), b"before");
+    }
+
+    #[test]
     fn activation_snapshot_rolls_back_both_state_and_launcher() {
         let dir = tempfile::tempdir().unwrap();
         let metadata = dir.path().join("install.json");

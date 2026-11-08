@@ -128,3 +128,38 @@ pub enum Command {
         data: Option<DisplayDataRemoval>,
     },
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::{CommandFactory, Parser};
+
+    #[test]
+    fn common_commands_have_one_valid_grammar() {
+        Cli::command().debug_assert();
+        let cli = Cli::try_parse_from(["soloist-display", "device", "use", "2"]).unwrap();
+        assert!(matches!(cli.command, Some(Command::Device { .. })));
+        let cli = Cli::try_parse_from(["soloist-display", "update", "--channel", "alpha"]).unwrap();
+        assert!(matches!(cli.command, Some(Command::Update { .. })));
+        let cli = Cli::try_parse_from(["soloist-display", "uninstall", "--data", "keep"]).unwrap();
+        assert!(matches!(cli.command, Some(Command::Uninstall { .. })));
+        assert!(Cli::try_parse_from(["soloist-display", "--verbose", "--quiet"]).is_err());
+    }
+
+    #[test]
+    fn shared_global_flags_retain_settings_alias() {
+        let cli = Cli::try_parse_from(["soloist-display", "--settings"]).unwrap();
+        assert!(cli.settings);
+        assert!(cli.command.is_none());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_only_managed_commands_use_common_parser() {
+        assert!(matches!(
+            Cli::try_parse_from(["soloist-display", "renew-soloist", "--force"]).unwrap().command,
+            Some(Command::RenewSoloist { force: true })
+        ));
+        assert!(Cli::try_parse_from(["soloist-display", "mpris", "status"]).is_ok());
+    }
+}

@@ -1,21 +1,21 @@
 //! Thin platform boundary. Installation decisions and ownership belong in the shared core.
-use std::{env, path::PathBuf};
 #[cfg(any(target_os = "windows", target_os = "macos"))]
 use std::path::Path;
+use std::{env, path::PathBuf};
 
 #[cfg(target_os = "linux")]
 mod linux;
-#[cfg(target_os = "windows")]
-mod windows;
 #[cfg(target_os = "macos")]
 mod macos;
+#[cfg(target_os = "windows")]
+mod windows;
 
 #[cfg(target_os = "linux")]
 use linux as platform;
-#[cfg(target_os = "windows")]
-use windows as platform;
 #[cfg(target_os = "macos")]
 use macos as platform;
+#[cfg(target_os = "windows")]
+use windows as platform;
 
 pub fn settings_root() -> PathBuf {
     env::var_os("SOLOIST_DISPLAY_CONFIG_DIR")

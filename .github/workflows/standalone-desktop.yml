@@ -47,6 +47,8 @@ jobs:
       - name: Desktop lifecycle unit tests (PR)
         if: github.event_name == 'pull_request'
         run: cargo test --locked -p soloist-audio-bridge
+      - name: Test desktop lifecycle library
+        run: cargo test --locked -p soloist-display-installer --lib
       - name: Build and test manual desktop preview
         if: github.event_name != 'pull_request'
         run: |
@@ -123,6 +125,8 @@ jobs:
       - name: Desktop lifecycle unit tests (PR)
         if: github.event_name == 'pull_request'
         run: cargo test --locked -p soloist-audio-bridge
+      - name: Test desktop lifecycle library
+        run: cargo test --locked -p soloist-display-installer --lib
       - name: Build and test manual desktop preview
         if: github.event_name != 'pull_request'
         run: |

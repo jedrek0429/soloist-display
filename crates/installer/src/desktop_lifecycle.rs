@@ -1,7 +1,7 @@
 //! External-only desktop installation lifecycle.
 //! Uses the same signed release manifest and verifier as the Linux manager.
 //! Never installs, starts, kills, renews or alters Spotify Soloist.
-use crate::release::{sha256_file, ReleaseChannel, ReleaseClient};
+use soloist_engine::release::{sha256_file, ReleaseChannel, ReleaseClient};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -188,7 +188,7 @@ fn download_version(
     paths: &Paths,
     client: &ReleaseClient,
     version: &Version,
-    artifact: &crate::release::Artifact,
+    artifact: &soloist_engine::release::Artifact,
 ) -> Result<()> {
     let directory = paths.releases.join(version.to_string());
     fs::create_dir_all(&directory)?;
@@ -234,7 +234,7 @@ fn select(
     client: &ReleaseClient,
     channel: ReleaseChannel,
     version: Option<&str>,
-) -> Result<(Version, crate::release::Artifact)> {
+) -> Result<(Version, soloist_engine::release::Artifact)> {
     let (manifest, _) = client.select(Some(channel), version)?;
     let artifact = manifest.artifact_target("desktop", TARGET)?.clone();
     if manifest.version.to_string() != parse_version(&manifest.version.to_string())?.to_string() {

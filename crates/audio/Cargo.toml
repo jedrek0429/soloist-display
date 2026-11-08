@@ -23,6 +23,7 @@ url = "2"
 cpal = { version = "=0.18.2", features = ["pulseaudio"] }
 
 [target.'cfg(any(windows, target_os = "macos"))'.dependencies]
+soloist-display-installer = { path = "../installer" }
 cpal = "=0.18.2"
 anyhow = "1"
 base64 = "0.22"

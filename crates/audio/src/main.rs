@@ -10,7 +10,7 @@ mod capture;
 mod cli;
 use soloist_cli::{arguments as cli_arguments, output as cli_output};
 #[cfg(any(windows, target_os = "macos"))]
-mod desktop_lifecycle;
+use soloist_display_installer::desktop_lifecycle;
 mod device;
 mod pcm;
 #[cfg(any(windows, target_os = "macos"))]

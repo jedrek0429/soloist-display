@@ -1,5 +1,8 @@
 //! macOS per-user filesystem locations.
-use std::{env, io, path::{Path, PathBuf}};
+use std::{
+    env, io,
+    path::{Path, PathBuf},
+};
 
 pub fn settings_root() -> PathBuf {
     PathBuf::from(env::var_os("HOME").unwrap_or_default())
@@ -20,4 +23,6 @@ pub fn desktop_bin_dir(_root: &Path) -> io::Result<PathBuf> {
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "HOME is not set"))
 }
 
-pub fn desktop_shim_name() -> &'static str { "soloist-display" }
+pub fn desktop_shim_name() -> &'static str {
+    "soloist-display"
+}

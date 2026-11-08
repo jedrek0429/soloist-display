@@ -2074,6 +2074,7 @@ dependencies = [
  "serde_json",
  "sha2 0.11.1",
  "soloist-cli",
+ "soloist-display-installer",
  "soloist-engine",
  "soloist-platform",
  "tempfile",

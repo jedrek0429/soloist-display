@@ -1,11 +1,13 @@
-//! Read-only diagnostics for the standalone External Soloist preview.
-
-use crate::arguments::{DeviceCommand, GlobalFlags};
-use clap::{error::ErrorKind, CommandFactory, Parser, Subcommand};
+//! Desktop runtime command mapping onto the shared CLI grammar.
+use crate::{
+    arguments::DeviceCommand,
+    commands::{Cli, Command as SharedCommand, DisplayDataRemoval, NotificationSetting},
+};
+use clap::{error::ErrorKind, CommandFactory, Parser};
 use clap_complete::{generate, Shell};
-#[cfg(any(windows, target_os = "macos"))]
 use soloist_display_core::release::ReleaseChannel;
 use std::sync::atomic::{AtomicBool, Ordering};
+
 static QUIET: AtomicBool = AtomicBool::new(false);
 static VERBOSE: AtomicBool = AtomicBool::new(false);
 
@@ -39,84 +41,8 @@ pub enum Command {
     DeviceDefault,
 }
 
-#[derive(Parser, Debug)]
-#[command(
-    name = "soloist-display",
-    version,
-    about = "Run and configure Soloist Display"
-)]
-struct DesktopCli {
-    #[command(flatten)]
-    flags: GlobalFlags,
-    #[command(subcommand)]
-    command: Option<DesktopSubcommand>,
-}
-
-#[derive(Subcommand, Debug)]
-enum DesktopSubcommand {
-    /// Open the now-playing display (starts the server if necessary).
-    Launch,
-    /// Open display settings (starts the server if necessary).
-    Settings,
-    /// Check local Soloist connectivity and audio output.
-    Doctor,
-    /// Choose the audio output captured by the visualiser.
-    Device {
-        #[command(subcommand)]
-        command: DeviceCommand,
-    },
-    /// Generate shell completions.
-    Completions { shell: Shell },
-    #[cfg(any(windows, target_os = "macos"))]
-    /// Install the external-only desktop application (never manages Spotify Soloist).
-    Install,
-    #[cfg(any(windows, target_os = "macos"))]
-    /// Install a newer signed Soloist Display release.
-    Update {
-        #[arg(long, value_enum, conflicts_with = "version")]
-        channel: Option<ReleaseChannel>,
-        #[arg(long, conflicts_with = "channel")]
-        version: Option<String>,
-        #[arg(long)]
-        allow_downgrade: bool,
-    },
-    #[cfg(any(windows, target_os = "macos"))]
-    /// Check the latest signed release for the selected channel.
-    CheckUpdates,
-    #[cfg(any(windows, target_os = "macos"))]
-    /// Toggle update notifications.
-    Notifications {
-        #[arg(value_enum)]
-        setting: NotificationSetting,
-    },
-    #[cfg(any(windows, target_os = "macos"))]
-    /// Repair the installed desktop executable and command shim.
-    Repair,
-    #[cfg(any(windows, target_os = "macos"))]
-    /// Remove the installed Display without changing external Spotify Soloist.
-    Uninstall {
-        #[arg(long, value_enum, default_value_t = DataChoice::Keep)]
-        data: DataChoice,
-    },
-}
-
-#[cfg(any(windows, target_os = "macos"))]
-#[derive(Clone, Copy, Debug, clap::ValueEnum)]
-enum NotificationSetting {
-    On,
-    Off,
-}
-
-#[cfg(any(windows, target_os = "macos"))]
-#[derive(Clone, Copy, Debug, Default, clap::ValueEnum)]
-enum DataChoice {
-    #[default]
-    Keep,
-    Remove,
-}
-
 pub fn parse(args: &[String]) -> Result<Command, String> {
-    let parsed = DesktopCli::try_parse_from(
+    let parsed = Cli::try_parse_from(
         std::iter::once("soloist-display").chain(args.iter().map(String::as_str)),
     );
     let cli = match parsed {
@@ -128,42 +54,62 @@ pub fn parse(args: &[String]) -> Result<Command, String> {
     cli.flags.configure_color();
     QUIET.store(cli.flags.quiet, Ordering::Relaxed);
     VERBOSE.store(cli.flags.verbose, Ordering::Relaxed);
+    if cli.settings {
+        return Ok(Command::Settings);
+    }
     Ok(match cli.command {
         None => Command::Serve,
-        Some(DesktopSubcommand::Launch) => Command::Launch,
-        Some(DesktopSubcommand::Settings) => Command::Settings,
-        Some(DesktopSubcommand::Doctor) => Command::Doctor,
-        Some(DesktopSubcommand::Completions { shell }) => Command::Completions(shell),
+        Some(SharedCommand::Launch) => Command::Launch,
+        Some(SharedCommand::Settings) => Command::Settings,
+        Some(SharedCommand::Doctor) => Command::Doctor,
+        Some(SharedCommand::Completions { shell }) => Command::Completions(shell),
         #[cfg(any(windows, target_os = "macos"))]
-        Some(DesktopSubcommand::Install) => Command::Install,
+        Some(SharedCommand::Install {
+            device_name,
+            api_key,
+            external_soloist: _,
+            soloist_ws,
+            start_external,
+        }) => {
+            if device_name.is_some() || api_key.is_some() || soloist_ws.is_some() || start_external {
+                return Err("Managed Soloist and external process control are unavailable in this desktop preview".into());
+            }
+            Command::Install
+        }
+        #[cfg(target_os = "linux")]
+        Some(SharedCommand::Install { .. }) => {
+            return Err("install must be invoked through the installed Linux manager".into());
+        }
         #[cfg(any(windows, target_os = "macos"))]
-        Some(DesktopSubcommand::Update {
-            channel,
-            version,
-            allow_downgrade,
-        }) => Command::Update {
-            channel,
-            version,
-            allow_downgrade,
+        Some(SharedCommand::Update { channel, version, allow_downgrade }) => Command::Update {
+            channel, version, allow_downgrade,
         },
         #[cfg(any(windows, target_os = "macos"))]
-        Some(DesktopSubcommand::CheckUpdates) => Command::CheckUpdates,
+        Some(SharedCommand::CheckUpdates) => Command::CheckUpdates,
         #[cfg(any(windows, target_os = "macos"))]
-        Some(DesktopSubcommand::Notifications { setting }) => {
-            Command::Notifications(matches!(setting, NotificationSetting::On))
+        Some(SharedCommand::Notifications { setting }) => Command::Notifications(
+            matches!(setting, NotificationSetting::On)
+        ),
+        #[cfg(any(windows, target_os = "macos"))]
+        Some(SharedCommand::Repair) => Command::Repair,
+        #[cfg(any(windows, target_os = "macos"))]
+        Some(SharedCommand::Uninstall { data, .. }) => Command::Uninstall(
+            matches!(data, Some(DisplayDataRemoval::Remove))
+        ),
+        #[cfg(target_os = "linux")]
+        Some(SharedCommand::Update { .. }
+            | SharedCommand::CheckUpdates
+            | SharedCommand::Notifications { .. }
+            | SharedCommand::Repair
+            | SharedCommand::Uninstall { .. }
+            | SharedCommand::Mpris { .. }
+            | SharedCommand::RenewSoloist { .. }) => {
+            return Err("lifecycle management must be invoked through the installed Linux manager".into());
         }
-        #[cfg(any(windows, target_os = "macos"))]
-        Some(DesktopSubcommand::Repair) => Command::Repair,
-        #[cfg(any(windows, target_os = "macos"))]
-        Some(DesktopSubcommand::Uninstall { data }) => {
-            Command::Uninstall(matches!(data, DataChoice::Remove))
-        }
-
-        Some(DesktopSubcommand::Device { command }) => match command {
+        Some(SharedCommand::Device { command }) => match command {
             DeviceCommand::List => Command::DeviceList,
-            DeviceCommand::Use { output } | DeviceCommand::Set { output } => {
-                Command::DeviceSet(output)
-            }
+            DeviceCommand::Use { output } | DeviceCommand::Set { output } =>
+                Command::DeviceSet(output),
             DeviceCommand::Default => Command::DeviceDefault,
         },
     })
@@ -178,15 +124,13 @@ pub fn verbose() -> bool {
 }
 
 pub fn help() {
-    DesktopCli::command()
-        .print_help()
-        .expect("stdout available");
+    Cli::command().print_help().expect("stdout available");
     println!();
     println!("Device selection only changes the visualiser source, not Spotify playback.");
     println!("This build manages Soloist Display only; Spotify Soloist remains External.");
 }
 
 pub fn completions(shell: Shell) {
-    let mut app = DesktopCli::command();
+    let mut app = Cli::command();
     generate(shell, &mut app, "soloist-display", &mut std::io::stdout());
 }

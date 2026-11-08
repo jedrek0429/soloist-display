@@ -1,7 +1,7 @@
 //! Runtime diagnostics and audio output selection.
 use crate::{cli_output, config_path, device, read_settings};
-pub use soloist_cli::desktop::{completions, help, parse, quiet, verbose, Command};
 use futures_util::{SinkExt, StreamExt};
+pub use soloist_cli::desktop::{completions, help, parse, quiet, verbose, Command};
 use std::time::Duration;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 const DEFAULT_SOLOIST: &str = "ws://127.0.0.1:9090";

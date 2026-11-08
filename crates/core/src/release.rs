@@ -344,8 +344,6 @@ mod tests {
         }
     }
 
-
-
     #[test]
     fn rejects_invalid_signature() {
         let client = ReleaseClient::new().unwrap();

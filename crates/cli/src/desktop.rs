@@ -1,10 +1,10 @@
 //! Read-only diagnostics for the standalone External Soloist preview.
 
-#[cfg(any(windows, target_os = "macos"))]
-use soloist_engine::release::ReleaseChannel;
 use crate::arguments::{DeviceCommand, GlobalFlags};
 use clap::{error::ErrorKind, CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell};
+#[cfg(any(windows, target_os = "macos"))]
+use soloist_engine::release::ReleaseChannel;
 use std::sync::atomic::{AtomicBool, Ordering};
 static QUIET: AtomicBool = AtomicBool::new(false);
 static VERBOSE: AtomicBool = AtomicBool::new(false);

@@ -20,18 +20,17 @@ use anyhow::{bail, Result};
 use clap::{CommandFactory, Parser};
 use clap_complete::generate;
 use cli_arguments::DeviceCommand;
-use soloist_cli::linux::{Cli, Command, MprisCommand, NotificationSetting};
 use lock::InstallLock;
 use manager::{DisplayDataRemoval, SoloistRemoval, UninstallOptions};
 use paths::Paths;
 use platform::Platform;
+use soloist_cli::linux::{Cli, Command, MprisCommand, NotificationSetting};
 use std::{
     fs,
     io::{IsTerminal, Write},
     os::unix::fs::OpenOptionsExt,
     time::Duration,
 };
-
 
 fn locked<T>(paths: &Paths, operation: impl FnOnce() -> Result<T>) -> Result<T> {
     paths.ensure_management_dirs()?;

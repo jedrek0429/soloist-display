@@ -17,15 +17,14 @@ mod terminal;
 mod uninstall_tx;
 
 use anyhow::{bail, Result};
-use clap::{CommandFactory, Parser, Subcommand};
-use clap_complete::{generate, Shell};
-use cli_arguments::{DeviceCommand, GlobalFlags};
+use clap::{CommandFactory, Parser};
+use clap_complete::generate;
+use cli_arguments::DeviceCommand;
+use soloist_cli::linux::{Cli, Command, MprisCommand, NotificationSetting};
 use lock::InstallLock;
 use manager::{DisplayDataRemoval, SoloistRemoval, UninstallOptions};
 use paths::Paths;
 use platform::Platform;
-use release::ReleaseChannel;
-use std::path::PathBuf;
 use std::{
     fs,
     io::{IsTerminal, Write},
@@ -33,110 +32,6 @@ use std::{
     time::Duration,
 };
 
-#[derive(Parser, Debug)]
-#[command(
-    name = "soloist-display",
-    version,
-    about = "Install, run, and maintain Soloist Display"
-)]
-struct Cli {
-    #[command(subcommand)]
-    command: Option<Command>,
-    #[command(flatten)]
-    flags: GlobalFlags,
-    /// Compatibility alias for `settings`.
-    #[arg(long, hide = true)]
-    settings: bool,
-}
-
-#[derive(Clone, Copy, Debug, clap::ValueEnum)]
-enum NotificationSetting {
-    On,
-    Off,
-}
-
-#[derive(Subcommand, Debug)]
-enum MprisCommand {
-    /// Install or start the optional MPRIS bridge.
-    Enable {
-        /// Soloist data directory, needed for non-default External installations.
-        #[arg(long)]
-        data_dir: Option<PathBuf>,
-    },
-    /// Stop the bridge and disable it at login without removing its files.
-    Disable,
-    /// Report the bridge version and service state.
-    Status,
-    /// Remove only the Soloist Display-owned bridge.
-    Remove,
-}
-
-#[derive(Subcommand, Debug)]
-enum Command {
-    /// Generate shell completion script (e.g. `soloist-display completions zsh`).
-    Completions { shell: Shell },
-    /// Install Soloist Display with managed or independently maintained Spotify Soloist.
-    Install {
-        #[arg(long, hide = true, env = "SOLOIST_NAME")]
-        device_name: Option<String>,
-        #[arg(long, hide = true, env = "SOLOIST_API_KEY")]
-        api_key: Option<String>,
-        /// Use an existing Soloist instance without managing its service or binary.
-        #[arg(long)]
-        external_soloist: bool,
-        /// WebSocket endpoint for an external Soloist instance.
-        #[arg(long, requires = "external_soloist")]
-        soloist_ws: Option<String>,
-        #[arg(long, requires = "external_soloist")]
-        start_external: bool,
-    },
-    /// Manage the optional Linux MPRIS bridge (media keys and playerctl).
-    Mpris {
-        #[command(subcommand)]
-        command: MprisCommand,
-    },
-    /// Open the now-playing display.
-    Launch,
-    /// Open display settings.
-    Settings,
-    /// Update to the latest release on the selected channel or a specific version.
-    Update {
-        #[arg(long, value_enum, conflicts_with = "version")]
-        channel: Option<ReleaseChannel>,
-        #[arg(long, conflicts_with = "channel")]
-        version: Option<String>,
-        #[arg(long)]
-        allow_downgrade: bool,
-    },
-    /// Renew the installer-owned Spotify Soloist binary from Spotify's CDN.
-    RenewSoloist {
-        #[arg(long)]
-        force: bool,
-    },
-    /// Show installed version and latest available release on each channel.
-    CheckUpdates,
-    /// Enable or suppress update notifications without disabling manual updates.
-    Notifications {
-        #[arg(value_enum)]
-        setting: NotificationSetting,
-    },
-    /// Restore installer-owned files and services.
-    Repair,
-    /// Check installation, services, ports, and audio.
-    Doctor,
-    /// Select the audio output captured by the visualiser.
-    Device {
-        #[command(subcommand)]
-        command: DeviceCommand,
-    },
-    /// Safely remove installer-owned components.
-    Uninstall {
-        #[arg(long, value_enum)]
-        soloist: Option<SoloistRemoval>,
-        #[arg(long, value_enum)]
-        data: Option<DisplayDataRemoval>,
-    },
-}
 
 fn locked<T>(paths: &Paths, operation: impl FnOnce() -> Result<T>) -> Result<T> {
     paths.ensure_management_dirs()?;

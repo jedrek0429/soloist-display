@@ -23,18 +23,7 @@ use std::{
     time::Duration,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
-pub enum SoloistRemoval {
-    Restore,
-    Keep,
-    Remove,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
-pub enum DisplayDataRemoval {
-    Keep,
-    Remove,
-}
+pub use soloist_cli::linux::{DisplayDataRemoval, SoloistRemoval};
 
 pub struct UninstallOptions {
     pub soloist: Option<SoloistRemoval>,

@@ -4,7 +4,7 @@ use crate::{
     paths::{path_string, Paths},
     platform::{Architecture, Platform},
     process,
-    release::{Artifact, ReleaseChannel, ReleaseClient, ReleaseManifest},
+    release::{Artifact, LinuxReleaseArtifact, ReleaseChannel, ReleaseClient, ReleaseManifest},
     service, soloist,
     state::{
         now, InstallRecovery, InstallState, SoloistOwnership, TransactionJournal, TransactionStatus,

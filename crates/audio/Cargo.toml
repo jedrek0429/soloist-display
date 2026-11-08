@@ -7,6 +7,7 @@ description = "Cross-platform CPAL system-output capture and six-band FFT bridge
 
 [dependencies]
 soloist-cli = { path = "../cli" }
+soloist-engine = { path = "../core" }
 soloist-platform = { path = "../platform" }
 clap = { version = "4", features = ["derive", "env"] }
 clap_complete = "=4.6.11"

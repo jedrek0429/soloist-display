@@ -2074,6 +2074,7 @@ dependencies = [
  "serde_json",
  "sha2 0.11.1",
  "soloist-cli",
+ "soloist-engine",
  "soloist-platform",
  "tempfile",
  "tokio",
@@ -2121,7 +2122,18 @@ dependencies = [
 name = "soloist-engine"
 version = "1.1.0"
 dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "clap",
+ "ed25519-dalek",
+ "hex",
+ "reqwest",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
  "tempfile",
+ "tiny_http",
 ]
 
 [[package]]

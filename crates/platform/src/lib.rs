@@ -1,5 +1,7 @@
 //! Thin platform boundary. Installation decisions and ownership belong in the shared core.
-use std::{env, path::{Path, PathBuf}};
+use std::{env, path::PathBuf};
+#[cfg(any(target_os = "windows", target_os = "macos"))]
+use std::path::Path;
 
 #[cfg(target_os = "linux")]
 mod linux;

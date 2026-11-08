@@ -14,8 +14,7 @@ mod desktop_lifecycle;
 mod device;
 mod pcm;
 #[cfg(any(windows, target_os = "macos"))]
-#[path = "../../installer/src/release.rs"]
-mod release;
+use soloist_engine::release;
 mod spectrum;
 use serde_json::Value;
 use spectrum::{HOP, RATE};

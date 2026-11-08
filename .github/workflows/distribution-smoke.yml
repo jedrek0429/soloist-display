@@ -3,8 +3,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'installer/**'
-      - 'audio-bridge/**'
+      - 'crates/**'
       - 'src/**'
       - 'Cargo.toml'
       - 'Cargo.lock'

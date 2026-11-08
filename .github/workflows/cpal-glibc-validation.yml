@@ -4,10 +4,10 @@ on:
   pull_request:
     branches: ['alpha/**', 'beta/**']
     paths:
-      - 'audio-bridge/**'
+      - 'crates/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
-      - 'installer/**'
+      - 'crates/**'
       - 'scripts/ci-build-glibc.sh'
       - '.github/workflows/cpal-glibc-validation.yml'
   workflow_dispatch:

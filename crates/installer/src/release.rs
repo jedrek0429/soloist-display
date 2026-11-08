@@ -34,7 +34,6 @@ impl LinuxReleaseArtifact for ReleaseManifest {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::platform::{Architecture, Distro};
     use semver::Version;
 
     #[test]

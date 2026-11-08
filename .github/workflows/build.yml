@@ -6,8 +6,7 @@ on:
     paths:
       - 'Cargo.toml'
       - 'Cargo.lock'
-      - 'audio-bridge/**'
-      - 'installer/**'
+      - 'crates/**'
       - 'src/**'
       - 'config.json'
       - 'index.html'

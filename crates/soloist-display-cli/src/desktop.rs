@@ -4,7 +4,7 @@ use crate::arguments::{DeviceCommand, GlobalFlags};
 use clap::{error::ErrorKind, CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell};
 #[cfg(any(windows, target_os = "macos"))]
-use soloist_engine::release::ReleaseChannel;
+use soloist_display_core::release::ReleaseChannel;
 use std::sync::atomic::{AtomicBool, Ordering};
 static QUIET: AtomicBool = AtomicBool::new(false);
 static VERBOSE: AtomicBool = AtomicBool::new(false);

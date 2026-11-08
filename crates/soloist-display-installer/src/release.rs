@@ -1,7 +1,7 @@
 //! Linux-only target selection around the common signed-release verifier.
 use crate::platform::Platform;
 use anyhow::{anyhow, Result};
-pub use soloist_engine::release::*;
+pub use soloist_display_core::release::*;
 
 /// Linux supports legacy musl manifest aliases while migrating to glibc.
 /// Selection remains a thin adapter; signatures and downloads are shared.

@@ -2,7 +2,7 @@
 use crate::arguments::{DeviceCommand, GlobalFlags};
 use clap::{Parser, Subcommand};
 use clap_complete::Shell;
-use soloist_engine::release::ReleaseChannel;
+use soloist_display_core::release::ReleaseChannel;
 use std::path::PathBuf;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]

@@ -23,7 +23,7 @@ use std::{
     time::Duration,
 };
 
-pub use soloist_cli::linux::{DisplayDataRemoval, SoloistRemoval};
+pub use soloist_display_cli::linux::{DisplayDataRemoval, SoloistRemoval};
 
 pub struct UninstallOptions {
     pub soloist: Option<SoloistRemoval>,

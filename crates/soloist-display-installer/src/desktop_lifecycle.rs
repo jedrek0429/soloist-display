@@ -3,7 +3,7 @@
 //! Never installs, starts, kills, renews or alters Spotify Soloist.
 use semver::Version;
 use serde::{Deserialize, Serialize};
-use soloist_engine::release::{sha256_file, ReleaseChannel, ReleaseClient};
+use soloist_display_core::release::{sha256_file, ReleaseChannel, ReleaseClient};
 use std::{
     env, fs,
     io::Write,
@@ -43,20 +43,20 @@ struct Paths {
 }
 
 fn settings_root() -> PathBuf {
-    soloist_platform::settings_root()
+    soloist_display_platform::settings_root()
 }
 
 impl Paths {
     fn discover() -> Result<Self> {
-        let root = soloist_platform::desktop_install_root()?;
+        let root = soloist_display_platform::desktop_install_root()?;
         if !root.is_absolute() {
             return Err("installation root must be an absolute path".into());
         }
-        let bin = soloist_platform::desktop_bin_dir(&root)?;
+        let bin = soloist_display_platform::desktop_bin_dir(&root)?;
         if !bin.is_absolute() {
             return Err("CLI bin directory must be an absolute path".into());
         }
-        let shim = bin.join(soloist_platform::desktop_shim_name());
+        let shim = bin.join(soloist_display_platform::desktop_shim_name());
         let paths = Self {
             releases: root.join("releases"),
             state: root.join("desktop-install.json"),
@@ -188,7 +188,7 @@ fn download_version(
     paths: &Paths,
     client: &ReleaseClient,
     version: &Version,
-    artifact: &soloist_engine::release::Artifact,
+    artifact: &soloist_display_core::release::Artifact,
 ) -> Result<()> {
     let directory = paths.releases.join(version.to_string());
     fs::create_dir_all(&directory)?;
@@ -234,7 +234,7 @@ fn select(
     client: &ReleaseClient,
     channel: ReleaseChannel,
     version: Option<&str>,
-) -> Result<(Version, soloist_engine::release::Artifact)> {
+) -> Result<(Version, soloist_display_core::release::Artifact)> {
     let (manifest, _) = client.select(Some(channel), version)?;
     let artifact = manifest.artifact_target("desktop", TARGET)?.clone();
     if manifest.version.to_string() != parse_version(&manifest.version.to_string())?.to_string() {

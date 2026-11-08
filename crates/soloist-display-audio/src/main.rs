@@ -8,13 +8,13 @@ use axum::{
 use futures_util::SinkExt;
 mod capture;
 mod cli;
-use soloist_cli::output as cli_output;
+use soloist_display_cli::output as cli_output;
 #[cfg(any(windows, target_os = "macos"))]
 use soloist_display_installer::desktop_lifecycle;
 mod device;
 mod pcm;
 #[cfg(any(windows, target_os = "macos"))]
-use soloist_engine::release;
+use soloist_display_core::release;
 mod spectrum;
 use serde_json::Value;
 use spectrum::{HOP, RATE};
@@ -42,7 +42,7 @@ struct WebState {
 }
 
 fn config_path() -> PathBuf {
-    soloist_platform::config_path()
+    soloist_display_platform::config_path()
 }
 
 fn read_settings(path: &PathBuf) -> Value {

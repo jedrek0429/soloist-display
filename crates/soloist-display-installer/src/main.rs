@@ -1,4 +1,4 @@
-use soloist_cli::{arguments as cli_arguments, output as cli_output};
+use soloist_display_cli::{arguments as cli_arguments, output as cli_output};
 mod dependencies;
 mod legacy;
 mod lock;
@@ -24,7 +24,7 @@ use lock::InstallLock;
 use manager::UninstallOptions;
 use paths::Paths;
 use platform::Platform;
-use soloist_cli::linux::{Cli, Command, MprisCommand, NotificationSetting};
+use soloist_display_cli::linux::{Cli, Command, MprisCommand, NotificationSetting};
 use std::{
     fs,
     io::{IsTerminal, Write},

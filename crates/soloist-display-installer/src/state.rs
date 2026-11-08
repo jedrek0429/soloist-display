@@ -2,10 +2,11 @@ use crate::{paths::Paths, release::ReleaseChannel};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::{
-    fs,
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
+#[cfg(test)]
+use std::fs;
 
 pub const STATE_SCHEMA: u32 = 1;
 

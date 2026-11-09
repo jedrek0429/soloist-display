@@ -6,13 +6,13 @@ Soloist Display is one Rust workspace shared across Linux, Windows and macOS. Pr
 
 | Crate directory and package | Responsibility |
 | --- | --- |
-| `crates/soloist-display-cli` | One clap command grammar, flags, shell completions and CLI output |
-| `crates/soloist-display-core` | Signed releases, ownership, state persistence, transaction journals, rollback and cleanup |
-| `crates/soloist-display-installer` | Lifecycle orchestration; Linux Managed service integration and desktop External-only installer |
-| `crates/soloist-display-audio` | CPAL system-output capture, PCM/FFT, HTTP/WebSocket Display runtime |
-| `crates/soloist-display-platform` | Linux distro/ABI and XDG, Windows AppData and macOS filesystem paths |
+| `crates/cli` | One clap command grammar, flags, shell completions and CLI output |
+| `crates/core` | Signed releases, ownership, state persistence, transaction journals, rollback and cleanup |
+| `crates/installer` | Lifecycle orchestration; Linux Managed service integration and desktop External-only installer |
+| `crates/audio` | CPAL system-output capture, PCM/FFT, HTTP/WebSocket Display runtime |
+| `crates/platform` | Linux distro/ABI and XDG, Windows AppData and macOS filesystem paths |
 
-The crate directory and Cargo package names are identical. The existing executable names (`soloist-display` and `soloist-audio-bridge`) remain unchanged to preserve signed artifact and service compatibility.
+Crate directories use short, workspace-local names, while their Cargo package names retain the `soloist-display-` prefix to avoid collisions. The existing executable names (`soloist-display` and `soloist-audio-bridge`) remain unchanged to preserve signed artifact and service compatibility.
 
 ## Shared lifecycle invariants
 

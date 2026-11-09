@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/soloist-display-audio", "crates/soloist-display-installer", "crates/soloist-display-core", "crates/soloist-display-cli", "crates/soloist-display-platform"]
+members = ["crates/audio", "crates/installer", "crates/core", "crates/cli", "crates/platform"]
 resolver = "2"
 
 [workspace.package]

@@ -10,9 +10,9 @@ name = "soloist-audio-bridge"
 path = "src/main.rs"
 
 [dependencies]
-soloist-display-cli = { path = "../soloist-display-cli" }
-soloist-display-core = { path = "../soloist-display-core" }
-soloist-display-platform = { path = "../soloist-display-platform" }
+soloist-display-cli = { path = "../cli" }
+soloist-display-core = { path = "../core" }
+soloist-display-platform = { path = "../platform" }
 clap = { version = "4", features = ["derive", "env"] }
 clap_complete = "=4.6.11"
 tokio = { version = "1", features = ["full"] }
@@ -27,7 +27,7 @@ url = "2"
 cpal = { version = "=0.18.2", features = ["pulseaudio"] }
 
 [target.'cfg(any(windows, target_os = "macos"))'.dependencies]
-soloist-display-installer = { path = "../soloist-display-installer" }
+soloist-display-installer = { path = "../installer" }
 cpal = "=0.18.2"
 anyhow = "1"
 base64 = "0.22"

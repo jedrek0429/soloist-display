@@ -9,4 +9,4 @@ description = "Shared Soloist Display CLI arguments and output formatting"
 [dependencies]
 clap = { version = "4", features = ["derive", "env"] }
 clap_complete = "=4.6.11"
-soloist-display-core = { path = "../soloist-display-core" }
+soloist-display-core = { path = "../core" }

@@ -10,7 +10,7 @@ tokio = { version = "1", features = ["full"] }
 tokio-tungstenite = "0.30"
 futures-util = "0.3"
 rustfft = "6"
-axum = "0.7"
+axum = "0.8"
 serde_json = "1"
 
 

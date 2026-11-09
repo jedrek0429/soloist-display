@@ -68,4 +68,3 @@ See [advanced installation](docs/advanced-installation.md) for automation and ex
 
 MIT
 
-Development architecture: [shared crates and lifecycle boundaries](docs/architecture.md).

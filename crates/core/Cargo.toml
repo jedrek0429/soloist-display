@@ -1,36 +1,23 @@
 [package]
-name = "soloist-display-installer"
+name = "soloist-display-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Installer and lifecycle manager for Soloist Display"
-
-[[bin]]
-name = "soloist-display"
-path = "src/main.rs"
+description = "Portable Soloist ownership policy, independent of operating-system services"
 
 [dependencies]
 anyhow = "1"
 base64 = "0.22"
 clap = { version = "4", features = ["derive", "env"] }
-clap_complete = "=4.6.11"
 ed25519-dalek = "2"
-flate2 = "1"
-fs2 = "0.4"
 hex = "0.4"
-rpassword = "7"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls-native-roots"] }
 semver = { version = "1", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.11"
-soloist-engine = { path = "../soloist-engine" }
-tar = "0.4"
-tungstenite = "0.30"
-url = "2"
 
 [dev-dependencies]
-serial_test = "4"
-tempfile = "3"
 tiny_http = "0.12"
+tempfile = "3"

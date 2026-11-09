@@ -1,3 +1,13 @@
+//! Linux/XDG defaults; the installer may apply stricter validation.
+use std::{env, path::PathBuf};
+
+pub fn settings_root() -> PathBuf {
+    env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(env::var_os("HOME").unwrap_or_default()).join(".config"))
+        .join("soloist-display")
+}
+
 use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, process::Command};
@@ -207,4 +217,73 @@ mod tests {
         );
         assert_eq!(glibc_version("ldd (GNU libc) 2.41"), Some((2, 41)));
     }
+}
+
+// The manager's XDG directory resolution is an OS adapter, not business logic.
+#[derive(Clone, Debug)]
+pub struct LinuxBasePaths {
+    pub home: PathBuf,
+    pub data_home: PathBuf,
+    pub config_home: PathBuf,
+    pub state_home: PathBuf,
+    pub cache_home: PathBuf,
+    pub bin_dir: PathBuf,
+}
+
+fn env_path(name: &str, fallback: PathBuf) -> PathBuf {
+    std::env::var_os(name)
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or(fallback)
+}
+
+pub fn resolve_linux_paths() -> Result<LinuxBasePaths> {
+    let home = std::env::var_os("HOME")
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .ok_or_else(|| anyhow!("HOME is not set"))?;
+    if !home.is_absolute() {
+        return Err(anyhow!("HOME must be an absolute path"));
+    }
+    let data_home = env_path("XDG_DATA_HOME", home.join(".local/share"));
+    let config_home = env_path("XDG_CONFIG_HOME", home.join(".config"));
+    let state_home = env_path("XDG_STATE_HOME", home.join(".local/state"));
+    let cache_home = env_path("XDG_CACHE_HOME", home.join(".cache"));
+    let bin_dir = env_path("SOLOIST_DISPLAY_BIN_DIR", home.join(".local/bin"));
+    let test_root = std::env::var_os("SOLOIST_DISPLAY_TEST_ROOT")
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from);
+    let (data_home, config_home, state_home, cache_home, bin_dir) = if let Some(base) = test_root {
+        (
+            base.join("data"),
+            base.join("config"),
+            base.join("state"),
+            base.join("cache"),
+            base.join("bin"),
+        )
+    } else {
+        (data_home, config_home, state_home, cache_home, bin_dir)
+    };
+    for (name, path) in [
+        ("XDG data", &data_home),
+        ("XDG config", &config_home),
+        ("XDG state", &state_home),
+        ("XDG cache", &cache_home),
+        ("binary", &bin_dir),
+    ] {
+        if !path.is_absolute() {
+            return Err(anyhow!(
+                "{name} directory must be absolute: {}",
+                path.display()
+            ));
+        }
+    }
+    Ok(LinuxBasePaths {
+        home,
+        data_home,
+        config_home,
+        state_home,
+        cache_home,
+        bin_dir,
+    })
 }

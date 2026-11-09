@@ -6,7 +6,7 @@ use crate::{
 };
 use anyhow::{anyhow, bail, Context, Result};
 use flate2::read::GzDecoder;
-use soloist_engine::{classify, EngineMode};
+use soloist_display_core::{classify, EngineMode};
 use std::{
     fs,
     io::{self, IsTerminal, Write},

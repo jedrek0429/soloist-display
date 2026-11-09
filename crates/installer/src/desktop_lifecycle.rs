@@ -1,12 +1,14 @@
 //! External-only desktop installation lifecycle.
 //! Uses the same signed release manifest and verifier as the Linux manager.
 //! Never installs, starts, kills, renews or alters Spotify Soloist.
-use crate::release::{sha256_file, ReleaseChannel, ReleaseClient};
 use semver::Version;
 use serde::{Deserialize, Serialize};
+use soloist_display_core::{
+    lifecycle::{self, StagedPath},
+    release::{sha256_file, ReleaseChannel, ReleaseClient},
+};
 use std::{
     env, fs,
-    io::Write,
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
@@ -35,6 +37,12 @@ struct Installed {
     previous_version: Option<String>,
 }
 
+impl soloist_display_core::lifecycle::VersionedState for Installed {
+    fn schema(&self) -> u32 {
+        self.schema
+    }
+}
+
 #[derive(Clone, Debug)]
 struct Paths {
     releases: PathBuf,
@@ -42,70 +50,54 @@ struct Paths {
     state: PathBuf,
 }
 
+type ActivationJournal = lifecycle::TransactionJournal<lifecycle::ActivationSnapshot>;
+
+fn activation_journal(paths: &Paths) -> PathBuf {
+    paths.state.with_file_name("desktop-activation.json")
+}
+
+/// An unfinished activation is conservatively rolled back on the next CLI run.
+/// The signed, versioned release files themselves are never modified.
+fn recover_activation(paths: &Paths) -> Result<()> {
+    let journal = activation_journal(paths);
+    if !journal.exists() {
+        return Ok(());
+    }
+    let transaction: ActivationJournal = serde_json::from_slice(&fs::read(&journal)?)?;
+    if !matches!(transaction.status, lifecycle::TransactionStatus::Committed) {
+        let snapshot = transaction
+            .install_recovery
+            .as_ref()
+            .ok_or("activation journal is missing its recovery snapshot")?;
+        paths.check_shim_ownership()?;
+        lifecycle::restore_activation(snapshot, &paths.state, &paths.shim, Some(0o700))?;
+    }
+    fs::remove_file(journal)?;
+    Ok(())
+}
+
 fn settings_root() -> PathBuf {
-    if let Some(custom) = env::var_os("SOLOIST_DISPLAY_CONFIG_DIR") {
-        return PathBuf::from(custom);
-    }
-    #[cfg(target_os = "windows")]
-    {
-        return env::var_os("APPDATA")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("soloist-display");
-    }
-    #[cfg(target_os = "macos")]
-    {
-        PathBuf::from(env::var_os("HOME").unwrap_or_default())
-            .join("Library/Application Support/soloist-display")
-    }
+    soloist_display_platform::settings_root()
 }
 
 impl Paths {
     fn discover() -> Result<Self> {
-        let root = if let Some(custom) = env::var_os("SOLOIST_DISPLAY_INSTALL_ROOT") {
-            PathBuf::from(custom)
-        } else {
-            #[cfg(target_os = "windows")]
-            {
-                env::var_os("LOCALAPPDATA")
-                    .map(PathBuf::from)
-                    .ok_or("LOCALAPPDATA is not set")?
-                    .join("soloist-display")
-            }
-            #[cfg(target_os = "macos")]
-            {
-                PathBuf::from(env::var_os("HOME").ok_or("HOME is not set")?)
-                    .join("Library/Application Support/soloist-display/app")
-            }
-        };
+        let root = soloist_display_platform::desktop_install_root()?;
         if !root.is_absolute() {
             return Err("installation root must be an absolute path".into());
         }
-        let bin = if let Some(custom) = env::var_os("SOLOIST_DISPLAY_BIN_DIR") {
-            PathBuf::from(custom)
-        } else {
-            #[cfg(target_os = "windows")]
-            {
-                root.join("bin")
-            }
-            #[cfg(target_os = "macos")]
-            {
-                PathBuf::from(env::var_os("HOME").ok_or("HOME is not set")?).join(".local/bin")
-            }
-        };
+        let bin = soloist_display_platform::desktop_bin_dir(&root)?;
         if !bin.is_absolute() {
             return Err("CLI bin directory must be an absolute path".into());
         }
-        #[cfg(target_os = "windows")]
-        let shim = bin.join("soloist-display.cmd");
-        #[cfg(target_os = "macos")]
-        let shim = bin.join("soloist-display");
+        let shim = bin.join(soloist_display_platform::desktop_shim_name());
         let paths = Self {
             releases: root.join("releases"),
             state: root.join("desktop-install.json"),
             shim,
         };
         recover_uninstall(&paths)?;
+        recover_activation(&paths)?;
         Ok(paths)
     }
 
@@ -114,51 +106,20 @@ impl Paths {
     }
 
     fn load(&self) -> Result<Option<Installed>> {
-        if !self.state.exists() {
-            return Ok(None);
+        let state: Option<Installed> =
+            soloist_display_core::lifecycle::load_state(&self.state, STATE_SCHEMA)?;
+        if let Some(ref state) = state {
+            Version::parse(&state.version)?;
         }
-        let state: Installed = serde_json::from_slice(&fs::read(&self.state)?)?;
-        if state.schema != STATE_SCHEMA {
-            return Err("unsupported desktop installation metadata version".into());
-        }
-        Version::parse(&state.version)?;
-        Ok(Some(state))
+        Ok(state)
     }
 
     fn write_atomic(&self, path: &Path, data: &[u8]) -> Result<()> {
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        let temp = path.with_extension(format!("pending-{}", std::process::id()));
-        let result = (|| -> Result<()> {
-            let mut file = fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&temp)?;
-            file.write_all(data)?;
-            file.sync_all()?;
-            // Windows rename cannot overwrite an existing file. Keep a backup until
-            // the replacement succeeds, restoring the previous state on failure.
-            let backup = path.with_extension(format!("backup-{}", std::process::id()));
-            let had_old = path.exists();
-            if had_old {
-                fs::rename(path, &backup)?;
-            }
-            if let Err(error) = fs::rename(&temp, path) {
-                if had_old {
-                    let _ = fs::rename(&backup, path);
-                }
-                return Err(error.into());
-            }
-            if had_old {
-                let _ = fs::remove_file(&backup);
-            }
-            Ok(())
-        })();
-        if result.is_err() {
-            let _ = fs::remove_file(&temp);
-        }
-        result
+        Ok(soloist_display_core::lifecycle::atomic_write(
+            path,
+            data,
+            Some(0o600),
+        )?)
     }
 
     fn shim_content(&self, version: &str) -> Vec<u8> {
@@ -200,7 +161,8 @@ impl Paths {
     }
 
     fn save(&self, state: &Installed) -> Result<()> {
-        self.write_atomic(&self.state, &serde_json::to_vec_pretty(state)?)
+        soloist_display_core::lifecycle::atomic_json(&self.state, state, Some(0o600))?;
+        Ok(())
     }
 }
 
@@ -231,7 +193,7 @@ fn download_version(
     paths: &Paths,
     client: &ReleaseClient,
     version: &Version,
-    artifact: &crate::release::Artifact,
+    artifact: &soloist_display_core::release::Artifact,
 ) -> Result<()> {
     let directory = paths.releases.join(version.to_string());
     fs::create_dir_all(&directory)?;
@@ -277,7 +239,7 @@ fn select(
     client: &ReleaseClient,
     channel: ReleaseChannel,
     version: Option<&str>,
-) -> Result<(Version, crate::release::Artifact)> {
+) -> Result<(Version, soloist_display_core::release::Artifact)> {
     let (manifest, _) = client.select(Some(channel), version)?;
     let artifact = manifest.artifact_target("desktop", TARGET)?.clone();
     if manifest.version.to_string() != parse_version(&manifest.version.to_string())?.to_string() {
@@ -303,16 +265,27 @@ fn activate(
             .map(|s| s.version.clone())
             .filter(|old| old != &version_string),
     };
-    // Repoint only after the new signed binary has passed --version.
-    paths.point_to(&version_string)?;
-    if let Err(error) = paths.save(&state) {
-        if let Some(old) = current {
-            let _ = paths.point_to(&old.version);
-        } else {
-            let _ = fs::remove_file(&paths.shim);
-        }
+    // Write the recovery snapshot BEFORE switching the launcher.
+    paths.check_shim_ownership()?;
+    let journal = activation_journal(paths);
+    if journal.exists() {
+        return Err("interrupted activation must be recovered before retrying".into());
+    }
+    let snapshot = lifecycle::snapshot_activation(&paths.state, &paths.shim)?;
+    let mut tx = ActivationJournal::begin_at(&journal, "activate", Some(snapshot))?;
+    let switched = (|| -> Result<()> {
+        paths.point_to(&version_string)?;
+        paths.save(&state)?;
+        Ok(())
+    })();
+    if let Err(error) = switched {
+        recover_activation(paths).map_err(|recovery| {
+            format!("activation failed: {error}; rollback incomplete: {recovery}")
+        })?;
         return Err(error);
     }
+    tx.set_status(&journal, lifecycle::TransactionStatus::Committed)?;
+    fs::remove_file(journal)?;
     println!("Soloist Display {version_string} installed (External Soloist)");
     println!("Command: {}", paths.shim.display());
     println!("Soloist itself was not modified.");
@@ -413,7 +386,7 @@ pub fn check_updates() -> Result<()> {
 }
 
 /// Checks for updates without blocking the display startup.
-pub fn maybe_notify() {
+pub fn maybe_notify(verbose: bool) {
     let result = (|| -> Result<()> {
         let paths = Paths::discover()?;
         let Some(current) = paths.load()? else {
@@ -430,7 +403,7 @@ pub fn maybe_notify() {
         Ok(())
     })();
     if let Err(error) = result {
-        if crate::cli::verbose() {
+        if verbose {
             eprintln!("Update check unavailable: {error}");
         }
     }
@@ -513,26 +486,25 @@ fn recover_uninstall(paths: &Paths) -> Result<()> {
         return Ok(());
     }
     let intent: UninstallIntent = serde_json::from_slice(&fs::read(&journal)?)?;
+    let moves = [
+        StagedPath {
+            original: paths.releases.clone(),
+            staged: releases.clone(),
+        },
+        StagedPath {
+            original: paths.shim.clone(),
+            staged: shim.clone(),
+        },
+    ];
     if paths.state.exists() {
-        if releases.exists() {
-            if paths.releases.exists() {
-                return Err("uninstall recovery conflict: releases already exist".into());
-            }
-            fs::rename(&releases, &paths.releases)?;
-        }
-        if shim.exists() {
-            if paths.shim.exists() {
-                return Err("uninstall recovery conflict: launcher already exists".into());
-            }
-            fs::rename(&shim, &paths.shim)?;
-        }
+        let staged: Vec<_> = moves
+            .iter()
+            .filter(|entry| entry.staged.exists())
+            .cloned()
+            .collect();
+        lifecycle::restore_staged(&staged)?;
     } else {
-        if releases.exists() {
-            fs::remove_dir_all(&releases)?;
-        }
-        if shim.exists() {
-            fs::remove_file(&shim)?;
-        }
+        lifecycle::cleanup_staged(&moves)?;
         if intent.remove_data {
             remove_user_data()?;
         }
@@ -558,10 +530,10 @@ fn remove_installation(
     )?;
     let result = (|| -> Result<()> {
         if paths.releases.exists() {
-            fs::rename(&paths.releases, &releases)?;
+            lifecycle::rename_staged(&paths.releases, &releases)?;
         }
         if paths.shim.exists() {
-            fs::rename(&paths.shim, &shim)?;
+            lifecycle::rename_staged(&paths.shim, &shim)?;
         }
         staged_check()?;
         fs::remove_file(&paths.state)?;
@@ -655,6 +627,83 @@ mod tests {
         assert!(!staged_shim.exists());
         assert!(!paths.state.exists());
         assert!(!exe.exists());
+    }
+
+    #[test]
+    fn interrupted_activation_restores_old_release_and_metadata() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = Paths {
+            releases: dir.path().join("releases"),
+            shim: dir.path().join("bin").join(if cfg!(windows) {
+                "soloist-display.cmd"
+            } else {
+                "soloist-display"
+            }),
+            state: dir.path().join("desktop-install.json"),
+        };
+        paths.point_to("1.2.3").unwrap();
+        let old = Installed {
+            schema: STATE_SCHEMA,
+            version: "1.2.3".into(),
+            channel: ReleaseChannel::Prerelease,
+            suppress_updates: false,
+            previous_version: None,
+        };
+        paths.save(&old).unwrap();
+        let previous = lifecycle::snapshot_activation(&paths.state, &paths.shim).unwrap();
+        ActivationJournal::begin_at(&activation_journal(&paths), "activate", Some(previous))
+            .unwrap();
+        paths.point_to("1.2.4").unwrap();
+        let mut next = old;
+        next.version = "1.2.4".into();
+        paths.save(&next).unwrap();
+        recover_activation(&paths).unwrap();
+        assert_eq!(paths.load().unwrap().unwrap().version, "1.2.3");
+        assert!(String::from_utf8_lossy(&fs::read(&paths.shim).unwrap()).contains("1.2.3"));
+        assert!(!activation_journal(&paths).exists());
+    }
+
+    #[test]
+    fn committed_activation_journal_does_not_roll_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = Paths {
+            releases: dir.path().join("releases"),
+            shim: dir.path().join("bin").join(if cfg!(windows) {
+                "soloist-display.cmd"
+            } else {
+                "soloist-display"
+            }),
+            state: dir.path().join("desktop-install.json"),
+        };
+        paths.point_to("1.2.3").unwrap();
+        paths
+            .save(&Installed {
+                schema: STATE_SCHEMA,
+                version: "1.2.3".into(),
+                channel: ReleaseChannel::Prerelease,
+                suppress_updates: false,
+                previous_version: None,
+            })
+            .unwrap();
+        let before = lifecycle::snapshot_activation(&paths.state, &paths.shim).unwrap();
+        let journal = activation_journal(&paths);
+        let mut tx = ActivationJournal::begin_at(&journal, "activate", Some(before)).unwrap();
+        paths.point_to("1.2.4").unwrap();
+        paths
+            .save(&Installed {
+                schema: STATE_SCHEMA,
+                version: "1.2.4".into(),
+                channel: ReleaseChannel::Prerelease,
+                suppress_updates: false,
+                previous_version: Some("1.2.3".into()),
+            })
+            .unwrap();
+        tx.set_status(&journal, lifecycle::TransactionStatus::Committed)
+            .unwrap();
+        recover_activation(&paths).unwrap();
+        assert_eq!(paths.load().unwrap().unwrap().version, "1.2.4");
+        assert!(String::from_utf8_lossy(&fs::read(&paths.shim).unwrap()).contains("1.2.4"));
+        assert!(!journal.exists());
     }
 
     #[test]

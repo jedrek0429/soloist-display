@@ -4,7 +4,7 @@ use crate::{
     paths::{path_string, Paths},
     platform::{Architecture, Platform},
     process,
-    release::{Artifact, ReleaseChannel, ReleaseClient, ReleaseManifest},
+    release::{Artifact, LinuxReleaseArtifact, ReleaseChannel, ReleaseClient, ReleaseManifest},
     service, soloist,
     state::{
         now, InstallRecovery, InstallState, SoloistOwnership, TransactionJournal, TransactionStatus,
@@ -23,18 +23,7 @@ use std::{
     time::Duration,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
-pub enum SoloistRemoval {
-    Restore,
-    Keep,
-    Remove,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
-pub enum DisplayDataRemoval {
-    Keep,
-    Remove,
-}
+pub use soloist_display_cli::linux::{DisplayDataRemoval, SoloistRemoval};
 
 pub struct UninstallOptions {
     pub soloist: Option<SoloistRemoval>,
@@ -935,7 +924,8 @@ pub fn install(
             "port 9090 belongs to a process outside soloist.service; stop it before switching to managed Soloist"
         );
     }
-    let (mut transaction, journal_path) = TransactionJournal::begin(paths, "install")?;
+    let (mut transaction, journal_path) =
+        TransactionJournal::begin(&paths.transactions, "install")?;
     if let Some(unit) = &existing_unit {
         unit.persist(paths)?;
     }
@@ -1225,7 +1215,7 @@ pub fn update(
     let progress = Progress::new(quiet, "Updating Soloist Display");
     progress.step(1, "Checking release");
     progress.step(2, "Downloading & verifying");
-    let (mut tx, tx_path) = TransactionJournal::begin(paths, "update")?;
+    let (mut tx, tx_path) = TransactionJournal::begin(&paths.transactions, "update")?;
     tx.previous_current = Some(state.active_release.clone());
     tx.persist(&tx_path)?;
     let result = (|| {
@@ -1333,7 +1323,7 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
         if had_original {
             fs::rename(&original_release, &backup).context("back up corrupt active release")?;
         }
-        let (mut tx, tx_path) = TransactionJournal::begin(paths, "repair")?;
+        let (mut tx, tx_path) = TransactionJournal::begin(&paths.transactions, "repair")?;
         tx.previous_current = Some(original_release.clone());
         if had_original {
             tx.backups.push(crate::state::Backup {
@@ -1973,7 +1963,8 @@ mod tests {
         fs::create_dir_all(&previous).unwrap();
         fs::create_dir_all(&incomplete).unwrap();
         atomic_link(&incomplete, &paths.current).unwrap();
-        let (mut transaction, journal_path) = TransactionJournal::begin(&paths, "update").unwrap();
+        let (mut transaction, journal_path) =
+            TransactionJournal::begin(&paths.transactions, "update").unwrap();
         transaction.previous_current = Some(previous.clone());
         transaction.created.push(incomplete.clone());
         transaction.status = TransactionStatus::Activating;
@@ -1994,7 +1985,7 @@ mod tests {
         fs::create_dir_all(&paths.config).unwrap();
         let config = paths.config.join("config.json");
         fs::write(&config, b"original settings").unwrap();
-        let (mut tx, journal) = TransactionJournal::begin(&paths, "install").unwrap();
+        let (mut tx, journal) = TransactionJournal::begin(&paths.transactions, "install").unwrap();
         tx.install_recovery = Some(InstallRecovery {
             previous_settings: Some(b"original settings".to_vec()),
             previous_config_schema: None,
@@ -2041,7 +2032,7 @@ mod tests {
         fs::write(&paths.soloist_env, env).unwrap();
         let snapshot = service::SoloistUnitSnapshot::capture(&paths).unwrap();
         snapshot.persist(&paths).unwrap();
-        let (mut tx, journal) = TransactionJournal::begin(&paths, "install").unwrap();
+        let (mut tx, journal) = TransactionJournal::begin(&paths.transactions, "install").unwrap();
         tx.install_recovery = Some(InstallRecovery {
             previous_settings: None,
             previous_config_schema: None,
@@ -2091,7 +2082,8 @@ mod tests {
         let snapshot = service::SoloistUnitSnapshot::capture(&paths).unwrap();
         snapshot.persist(&paths).unwrap();
 
-        let (mut transaction, journal) = TransactionJournal::begin(&paths, "install").unwrap();
+        let (mut transaction, journal) =
+            TransactionJournal::begin(&paths.transactions, "install").unwrap();
         transaction.install_recovery = Some(InstallRecovery {
             previous_settings: None,
             previous_config_schema: None,
@@ -2170,7 +2162,8 @@ mod tests {
         let previous = paths.releases.join("previous");
         fs::create_dir_all(&previous).unwrap();
         fs::write(previous.join("still-here"), b"safe").unwrap();
-        let (mut transaction, journal_path) = TransactionJournal::begin(&paths, "repair").unwrap();
+        let (mut transaction, journal_path) =
+            TransactionJournal::begin(&paths.transactions, "repair").unwrap();
         transaction.previous_current = Some(previous.clone());
         transaction.backups.push(crate::state::Backup {
             original: previous.clone(),

@@ -7,9 +7,7 @@ on:
   pull_request:
     branches: ['alpha/**', 'beta/**']
     paths:
-      - 'audio-bridge/**'
-      - 'installer/src/release.rs'
-      - 'cli_arguments.rs'
+      - 'crates/**'
       - 'install.ps1'
       - 'install.sh'
       - 'Cargo.lock'
@@ -37,7 +35,7 @@ jobs:
           key: standalone-windows
       - name: Fast compile check (PR)
         if: github.event_name == 'pull_request'
-        run: cargo check --locked -p soloist-audio-bridge
+        run: cargo check --locked -p soloist-display-audio
       - name: Bootstrap PowerShell syntax (PR)
         if: github.event_name == 'pull_request'
         shell: pwsh
@@ -48,12 +46,14 @@ jobs:
           if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
       - name: Desktop lifecycle unit tests (PR)
         if: github.event_name == 'pull_request'
-        run: cargo test --locked -p soloist-audio-bridge
+        run: cargo test --locked -p soloist-display-audio
+      - name: Test desktop lifecycle library
+        run: cargo test --locked -p soloist-display-installer --lib
       - name: Build and test manual desktop preview
         if: github.event_name != 'pull_request'
         run: |
-          cargo test --locked -p soloist-audio-bridge
-          cargo build --release --locked -p soloist-audio-bridge
+          cargo test --locked -p soloist-display-audio
+          cargo build --release --locked -p soloist-display-audio
       - name: Portable CLI smoke test
         if: github.event_name != 'pull_request'
         shell: pwsh
@@ -118,19 +118,21 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           test "$(uname -m)" = "arm64"
-          cargo check --locked -p soloist-audio-bridge
+          cargo check --locked -p soloist-display-audio
       - name: Bootstrap shell syntax (PR)
         if: github.event_name == 'pull_request'
         run: sh -n install.sh
       - name: Desktop lifecycle unit tests (PR)
         if: github.event_name == 'pull_request'
-        run: cargo test --locked -p soloist-audio-bridge
+        run: cargo test --locked -p soloist-display-audio
+      - name: Test desktop lifecycle library
+        run: cargo test --locked -p soloist-display-installer --lib
       - name: Build and test manual desktop preview
         if: github.event_name != 'pull_request'
         run: |
           test "$(uname -m)" = "arm64"
-          cargo test --locked -p soloist-audio-bridge
-          cargo build --release --locked -p soloist-audio-bridge
+          cargo test --locked -p soloist-display-audio
+          cargo build --release --locked -p soloist-display-audio
       - name: Portable CLI smoke test
         if: github.event_name != 'pull_request'
         run: |

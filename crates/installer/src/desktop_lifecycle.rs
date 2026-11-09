@@ -63,9 +63,15 @@ fn recover_activation(paths: &Paths) -> Result<()> {
     if !journal.exists() {
         return Ok(());
     }
-    let snapshot: lifecycle::ActivationSnapshot = serde_json::from_slice(&fs::read(&journal)?)?;
-    paths.check_shim_ownership()?;
-    lifecycle::restore_activation(&snapshot, &paths.state, &paths.shim, Some(0o700))?;
+    let transaction: ActivationJournal = serde_json::from_slice(&fs::read(&journal)?)?;
+    if !matches!(transaction.status, lifecycle::TransactionStatus::Committed) {
+        let snapshot = transaction
+            .install_recovery
+            .as_ref()
+            .ok_or("activation journal is missing its recovery snapshot")?;
+        paths.check_shim_ownership()?;
+        lifecycle::restore_activation(snapshot, &paths.state, &paths.shim, Some(0o700))?;
+    }
     fs::remove_file(journal)?;
     Ok(())
 }
@@ -645,11 +651,7 @@ mod tests {
         };
         paths.save(&old).unwrap();
         let previous = lifecycle::snapshot_activation(&paths.state, &paths.shim).unwrap();
-        paths
-            .write_atomic(
-                &activation_journal(&paths),
-                &serde_json::to_vec(&previous).unwrap(),
-            )
+        ActivationJournal::begin_at(&activation_journal(&paths), "activate", Some(previous))
             .unwrap();
         paths.point_to("1.2.4").unwrap();
         let mut next = old;
@@ -659,6 +661,49 @@ mod tests {
         assert_eq!(paths.load().unwrap().unwrap().version, "1.2.3");
         assert!(String::from_utf8_lossy(&fs::read(&paths.shim).unwrap()).contains("1.2.3"));
         assert!(!activation_journal(&paths).exists());
+    }
+
+    #[test]
+    fn committed_activation_journal_does_not_roll_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = Paths {
+            releases: dir.path().join("releases"),
+            shim: dir.path().join("bin").join(if cfg!(windows) {
+                "soloist-display.cmd"
+            } else {
+                "soloist-display"
+            }),
+            state: dir.path().join("desktop-install.json"),
+        };
+        paths.point_to("1.2.3").unwrap();
+        paths
+            .save(&Installed {
+                schema: STATE_SCHEMA,
+                version: "1.2.3".into(),
+                channel: ReleaseChannel::Prerelease,
+                suppress_updates: false,
+                previous_version: None,
+            })
+            .unwrap();
+        let before = lifecycle::snapshot_activation(&paths.state, &paths.shim).unwrap();
+        let journal = activation_journal(&paths);
+        let mut tx = ActivationJournal::begin_at(&journal, "activate", Some(before)).unwrap();
+        paths.point_to("1.2.4").unwrap();
+        paths
+            .save(&Installed {
+                schema: STATE_SCHEMA,
+                version: "1.2.4".into(),
+                channel: ReleaseChannel::Prerelease,
+                suppress_updates: false,
+                previous_version: Some("1.2.3".into()),
+            })
+            .unwrap();
+        tx.set_status(&journal, lifecycle::TransactionStatus::Committed)
+            .unwrap();
+        recover_activation(&paths).unwrap();
+        assert_eq!(paths.load().unwrap().unwrap().version, "1.2.4");
+        assert!(String::from_utf8_lossy(&fs::read(&paths.shim).unwrap()).contains("1.2.4"));
+        assert!(!journal.exists());
     }
 
     #[test]

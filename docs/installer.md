@@ -2,19 +2,19 @@
 
 `install.sh` detects Linux and the CPU, verifies the signed bootstrap manifest and installer checksum, then runs the Rust manager as your user. Installing system dependencies may still require sudo. The standard `curl -fsSL https://jedrek0429.github.io/soloist-display/install.sh | sh` keeps prompts interactive when a controlling terminal exists. For headless installations pass `--yes`.
 
-## Windows/macOS desktop installation
+## Windows and macOS installation
 
-The alpha/beta desktop builds remain **External-only** for Spotify Soloist. The portable executable now implements its own Display lifecycle, using the same Ed25519-verified release manifest and SHA-256 artifact verification as the Linux manager. Windows installs are bootstrapped by the release-rendered `install.ps1`, and Apple Silicon macOS uses the Darwin branch of `install.sh`. Both bootstraps pin the raw platform binary to an immutable release digest before running `install`.
+The alpha/beta Windows/macOS builds remain **External-only** for Spotify Soloist. The Windows/macOS binaries implement their own per-user Display installation lifecycle, using the same Ed25519-verified release manifest and SHA-256 artifact verification as the Linux manager. Windows installs are bootstrapped by the release-rendered `install.ps1`, and Apple Silicon macOS uses the Darwin branch of `install.sh`. Both bootstraps pin the raw platform binary to an immutable release digest before running `install`.
 
-The signed prerelease manifest records `soloist-display-windows-x86_64.exe` and `soloist-display-macos-arm64` as desktop artifacts. The unsigned ZIP previews remain available separately. Installed desktop releases use versioned directories and a thin command shim so updating the selected version does not overwrite a running Windows executable. The installer refuses to replace unowned command shims, verifies the downloaded executable's `--version` before switching and preserves the previous release when activation fails.
+The signed prerelease manifest records `soloist-display-windows-x86_64.exe` and `soloist-display-macos-arm64` as Windows/macOS artifacts. The unsigned ZIP previews remain available separately. Installed Windows/macOS releases use versioned directories and a thin command shim so updating the selected version does not overwrite a running Windows executable. The installer refuses to replace unowned command shims, verifies the downloaded executable's `--version` before switching and preserves the previous release when activation fails.
 
-This does not enable Managed Soloist, background services, unattended autostart, or automatic renewal of Spotify Soloist. Close Display before uninstalling on Windows; locked files cause uninstall to fail. See [desktop installation](standalone-desktop.md).
+This does not enable Managed Soloist, background services, unattended autostart, or automatic renewal of Spotify Soloist. Close Display before uninstalling on Windows; locked files cause uninstall to fail. See [Windows/macOS installation](windows-macos.md).
 
 ## Linux release ABI
 
 The manager and audio bridge ship for GNU/Linux x86_64, ARM64 and hard-float ARMv7. Both are dynamically linked against glibc, with a **glibc 2.38** compatibility ceiling enforced at build time. The audio bridge additionally requires `libasound.so.2`. CPAL reads the PulseAudio/PipeWire-Pulse output monitor through a shared Rust capture path, not a microphone. The installer checks and installs runtime dependencies.
 
-For backwards compatibility, newly signed release manifests also contain the previous `*-linux-musl*` target identifiers as aliases pointing to the **same GNU binaries**. They are migration identifiers, not separate `musl` downloads. New bootstraps request only GNU targets; previously installed managers can still update using their older identifiers. The old signed release formats remain readable for explicit downgrades.
+New release manifests include only the supported GNU/Linux target identifiers. Installers and updaters require an exact target match.
 
 Display releases live under `$XDG_DATA_HOME/soloist-display/releases`. The active release uses an atomic `current` symlink. Config, cache, logs and transaction journals live in their XDG directories; `~/.local/bin/soloist-display` points to the active manager.
 
@@ -96,4 +96,4 @@ Port conflicts stop installation. Unrelated processes are not killed.
 
 ## Releases
 
-Bootstrap supports `SOLOIST_DISPLAY_VERSION` and `SOLOIST_DISPLAY_CHANNEL=stable|alpha|beta|prerelease`. Version selection and downgrades are covered in [advanced installation](advanced-installation.md); signing and publishing are covered in [releasing](releasing.md).
+Bootstrap supports `SOLOIST_DISPLAY_VERSION` and `SOLOIST_DISPLAY_CHANNEL=stable|alpha|beta`. Version selection and downgrades are covered in [advanced installation](advanced-installation.md); signing and publishing are covered in [releasing](releasing.md).

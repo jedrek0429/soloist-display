@@ -58,7 +58,7 @@ Downloads and verifies the Soloist Display installer, then runs it.
   --verbose     show additional diagnostics
   --help        show this help
   SOLOIST_DISPLAY_VERSION=SEMVER  select signed release (default: latest)
-  SOLOIST_DISPLAY_CHANNEL=NAME   stable, alpha, beta or prerelease
+  SOLOIST_DISPLAY_CHANNEL=NAME   stable, alpha or beta
   --version     show bootstrap version
 EOF
     exit 0
@@ -99,9 +99,9 @@ fi
 bits=$(getconf LONG_BIT 2>/dev/null || printf unknown)
 machine=$(uname -m 2>/dev/null || printf unknown)
 case "$machine:$bits" in
-  x86_64:64|amd64:64) target=x86_64-unknown-linux-gnu; legacy_target=x86_64-unknown-linux-musl ;;
-  aarch64:64|arm64:64) target=aarch64-unknown-linux-gnu; legacy_target=aarch64-unknown-linux-musl ;;
-  armv7*:32|armv8*:32|armhf:32|aarch64:32) target=armv7-unknown-linux-gnueabihf; legacy_target=armv7-unknown-linux-musleabihf ;;
+  x86_64:64|amd64:64) target=x86_64-unknown-linux-gnu ;;
+  aarch64:64|arm64:64) target=aarch64-unknown-linux-gnu ;;
+  armv7*:32|armv8*:32|armhf:32|aarch64:32) target=armv7-unknown-linux-gnueabihf ;;
   *) fail "unsupported architecture or userland: $machine ($bits-bit)" ;;
 esac
 
@@ -143,8 +143,7 @@ openssl base64 -d -A -in "$signature_b64" -out "$signature" 2>/dev/null || fail 
 openssl pkeyutl -verify -pubin -inkey "$public_key" -rawin -in "$manifest" -sigfile "$signature" >/dev/null 2>&1 || fail 'installer metadata signature verification failed'
 
 record=$(awk -v target="$target" '$1 == target && $2 ~ /^[0-9a-f]{64}$/ && $3 ~ /^https:\/\// { print $2 " " $3; found++ } END { if (found != 1) exit 1 }' "$manifest") ||
-  record=$(awk -v target="$legacy_target" '$1 == target && $2 ~ /^[0-9a-f]{64}$/ && $3 ~ /^https:\/\// { print $2 " " $3; found++ } END { if (found != 1) exit 1 }' "$manifest") ||
-  fail "authenticated metadata has no unique installer for $target or $legacy_target"
+  fail "authenticated metadata has no unique installer for $target"
 expected_sha=${record%% *}
 installer_url=${record#* }
   ;;

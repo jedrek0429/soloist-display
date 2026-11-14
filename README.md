@@ -48,7 +48,7 @@ Managed Soloist checks for new builds weekly. External Soloist is left alone.
 
 ## Windows and macOS (alpha)
 
-Windows x86_64 and macOS Apple Silicon preview builds support an **External-only** Display installation, with `install`, `check-updates`, `update`, `repair`, and `uninstall`. They never install or manage Spotify Soloist. Each **new** alpha/beta release includes its own authenticated bootstrap scripts (`install.ps1` for Windows and `install.sh` for macOS) and raw desktop binaries in the signed release manifest. See [desktop installation and limitations](docs/standalone-desktop.md).
+Windows x86_64 and macOS Apple Silicon preview builds support an **External-only** Display installation, with `install`, `check-updates`, `update`, `repair`, and `uninstall`. They never install or manage Spotify Soloist. Each **new** alpha/beta release includes its own authenticated bootstrap scripts (`install.ps1` for Windows and `install.sh` for macOS) and raw Windows/macOS binaries in the signed release manifest. See [Windows/macOS installation and limitations](docs/windows-macos.md).
 
 ## Media keys (optional)
 

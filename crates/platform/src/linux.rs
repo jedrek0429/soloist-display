@@ -89,14 +89,6 @@ impl Architecture {
             Self::Armv7 => "armv7-unknown-linux-gnueabihf",
         }
     }
-
-    pub fn legacy_target(&self) -> &'static str {
-        match self {
-            Self::X86_64 => "x86_64-unknown-linux-musl",
-            Self::Aarch64 => "aarch64-unknown-linux-musl",
-            Self::Armv7 => "armv7-unknown-linux-musleabihf",
-        }
-    }
 }
 
 impl Platform {
@@ -197,15 +189,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn release_targets_use_glibc_but_keep_legacy_identifiers() {
+    fn release_targets_use_glibc() {
         for arch in [
             Architecture::X86_64,
             Architecture::Aarch64,
             Architecture::Armv7,
         ] {
             assert!(arch.release_target().contains("-linux-gnu"));
-            assert!(arch.legacy_target().contains("-linux-musl"));
-            assert_ne!(arch.release_target(), arch.legacy_target());
         }
     }
 

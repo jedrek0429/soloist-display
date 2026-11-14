@@ -30,22 +30,22 @@ pub fn config_path() -> PathBuf {
 }
 
 #[cfg(any(target_os = "windows", target_os = "macos"))]
-pub fn desktop_install_root() -> std::io::Result<PathBuf> {
+pub fn install_root() -> std::io::Result<PathBuf> {
     env::var_os("SOLOIST_DISPLAY_INSTALL_ROOT")
         .map(PathBuf::from)
         .map(Ok)
-        .unwrap_or_else(platform::desktop_install_root)
+        .unwrap_or_else(platform::install_root)
 }
 
 #[cfg(any(target_os = "windows", target_os = "macos"))]
-pub fn desktop_bin_dir(root: &Path) -> std::io::Result<PathBuf> {
+pub fn bin_dir(root: &Path) -> std::io::Result<PathBuf> {
     env::var_os("SOLOIST_DISPLAY_BIN_DIR")
         .map(PathBuf::from)
         .map(Ok)
-        .unwrap_or_else(|| platform::desktop_bin_dir(root))
+        .unwrap_or_else(|| platform::bin_dir(root))
 }
 
 #[cfg(any(target_os = "windows", target_os = "macos"))]
-pub fn desktop_shim_name() -> &'static str {
-    platform::desktop_shim_name()
+pub fn shim_name() -> &'static str {
+    platform::shim_name()
 }

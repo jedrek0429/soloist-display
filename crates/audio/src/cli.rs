@@ -1,7 +1,7 @@
 //! Runtime diagnostics and audio output selection.
 use crate::{cli_output, config_path, device, read_settings};
 use futures_util::{SinkExt, StreamExt};
-pub use soloist_display_cli::desktop::{completions, help, parse, quiet, verbose, Command};
+pub use soloist_display_cli::runtime::{completions, help, parse, quiet, verbose, Command};
 use std::time::Duration;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 const DEFAULT_SOLOIST: &str = "ws://127.0.0.1:9090";
@@ -102,7 +102,7 @@ pub async fn doctor() -> bool {
     let endpoint = settings["soloistWebSocket"]
         .as_str()
         .unwrap_or(DEFAULT_SOLOIST);
-    cli_output::heading("External-only desktop preview");
+    cli_output::heading("External Soloist audio bridge");
     cli_output::section("Configuration");
     cli_output::field("Config file", path.display());
     cli_output::field("Soloist WebSocket", endpoint);
@@ -173,7 +173,7 @@ mod tests {
 
     #[cfg(any(windows, target_os = "macos"))]
     #[test]
-    fn desktop_lifecycle_commands_are_accepted() {
+    fn windows_macos_lifecycle_commands_are_accepted() {
         assert_eq!(parse(&["install".into()]).unwrap(), Command::Install);
         assert_eq!(
             parse(&["uninstall".into()]).unwrap(),

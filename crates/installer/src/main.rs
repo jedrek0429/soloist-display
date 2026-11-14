@@ -3,7 +3,6 @@ mod dependencies;
 mod legacy;
 mod lock;
 mod manager;
-mod migrations;
 mod mpris;
 mod paths;
 mod platform;
@@ -60,12 +59,7 @@ fn run() -> Result<i32> {
         locked(&paths, || Ok(()))?;
     }
     terminal::set_log_path(paths.logs.join("installer.jsonl"));
-    let requested = if cli.settings {
-        Some(Command::Settings)
-    } else {
-        cli.command
-    };
-    let command = match requested {
+    let command = match cli.command {
         Some(command) => command,
         None if state::InstallState::load(&paths)?.is_some() => Command::Launch,
         None => Command::Install {

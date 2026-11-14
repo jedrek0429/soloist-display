@@ -14,17 +14,17 @@ pub fn settings_root() -> PathBuf {
         .join("soloist-display")
 }
 
-pub fn desktop_install_root() -> io::Result<PathBuf> {
+pub fn install_root() -> io::Result<PathBuf> {
     env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
         .map(|p| p.join("soloist-display"))
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "LOCALAPPDATA is not set"))
 }
 
-pub fn desktop_bin_dir(root: &Path) -> io::Result<PathBuf> {
+pub fn bin_dir(root: &Path) -> io::Result<PathBuf> {
     Ok(root.join("bin"))
 }
 
-pub fn desktop_shim_name() -> &'static str {
+pub fn shim_name() -> &'static str {
     "soloist-display.cmd"
 }

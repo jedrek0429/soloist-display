@@ -129,7 +129,7 @@ fn sync_parent(parent: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Common journal representation for Linux-managed and desktop lifecycle operations.
+/// Common journal representation for Linux-managed and Windows/macOS lifecycle operations.
 /// The platform-specific snapshot is supplied as the generic recovery payload.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

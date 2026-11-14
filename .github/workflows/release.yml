@@ -2,6 +2,8 @@ name: Signed release
 on:
   push:
     tags: ['v*']
+  # Manual branch dispatch builds all Linux targets and runs distro smoke,
+  # but signing/publishing are gated to tag refs.
   workflow_dispatch:
 permissions:
   contents: read
@@ -31,7 +33,7 @@ jobs:
         with:
           key: glibc-${{ matrix.target }}
       - name: Validate release version
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        if: matrix.target == 'x86_64-unknown-linux-gnu' && startsWith(github.ref, 'refs/tags/')
         run: |
           cargo run --quiet -p soloist-display-installer --bin release-tools -- verify-workspace-version "$GITHUB_REF_NAME"
           if [[ ! "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(alpha|beta)\.[1-9][0-9]*)?$ ]]; then
@@ -84,9 +86,62 @@ jobs:
           if-no-files-found: error
 
 
-  # Desktop previews are intentionally unsigned and are NOT part of the Linux
+  distribution-smoke:
+    name: Distro smoke (${{ matrix.expected }})
+    needs: build
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: archlinux:latest
+            install: pacman -Syu --noconfirm ca-certificates
+            expected: Arch
+          - image: ubuntu:24.04
+            install: apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates
+            expected: Ubuntu
+          - image: debian:stable
+            install: apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates
+            expected: Debian
+          - image: fedora:latest
+            install: dnf install -y ca-certificates
+            expected: Fedora
+    container:
+      image: ${{ matrix.image }}
+    steps:
+      - name: Install trust store
+        run: ${{ matrix.install }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: unsigned-x86_64-unknown-linux-gnu
+          path: /tmp/soloist-display-bin
+      - name: Exercise production manager
+        run: |
+          cp /tmp/soloist-display-bin/soloist-display-x86_64-unknown-linux-gnu /tmp/soloist-display-bin/soloist-display
+          chmod +x /tmp/soloist-display-bin/soloist-display
+          /tmp/soloist-display-bin/soloist-display --version
+          /tmp/soloist-display-bin/soloist-display --help
+          if /tmp/soloist-display-bin/soloist-display doctor >/tmp/doctor.log 2>&1; then exit 1; fi
+          grep -q 'Installation metadata' /tmp/doctor.log
+          if HOME=/tmp/home SOLOIST_DISPLAY_TEST_ROOT=/tmp/test-root \
+            /tmp/soloist-display-bin/soloist-display install </dev/null >/tmp/no-tty.log 2>&1; then
+            echo 'Installation accepted missing --yes' >&2
+            exit 1
+          fi
+          grep -Fq 'non-interactive installation requires --yes' /tmp/no-tty.log
+          if HOME=/tmp/home SOLOIST_DISPLAY_TEST_ROOT=/tmp/test-root \
+            SOLOIST_DISPLAY_FAULT=package_install \
+            /tmp/soloist-display-bin/soloist-display install --yes >/tmp/install.log 2>&1; then
+            echo 'Injected installer failure was ignored' >&2
+            exit 1
+          fi
+          grep -Fq 'injected package installation failure' /tmp/install.log
+          grep -Fq 'Soloist Display · ${{ matrix.expected }} / X86_64' /tmp/install.log
+          test ! -f /tmp/test-root/state/soloist-display/install.json
+
+  # Windows/macOS previews are intentionally unsigned and are NOT part of the Linux
   # installer manifests. Build them from the release tag, not the alpha/beta head.
-  desktop_windows:
+  windows:
     if: contains(github.ref_name, '-alpha.') || contains(github.ref_name, '-beta.')
     runs-on: windows-2025
     steps:
@@ -94,7 +149,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          key: desktop-release-windows
+          key: release-windows
       - name: Build and test Windows preview
         run: |
           cargo test --locked -p soloist-display-audio
@@ -112,7 +167,7 @@ jobs:
           New-Item -ItemType Directory -Path dist, out -Force | Out-Null
           Copy-Item target/release/soloist-audio-bridge.exe dist/soloist-display.exe
           Copy-Item target/release/soloist-audio-bridge.exe out/soloist-display-windows-x86_64.exe
-          Copy-Item docs/standalone-desktop.md dist/README.md
+          Copy-Item docs/windows-macos.md dist/README.md
           Set-Content -Path dist/BUILD.txt -Value "tag=$env:GITHUB_REF_NAME", "commit=$env:GITHUB_SHA", "mode=external-only", "experimental=true"
       - name: Smoke test standalone HTTP server
         shell: pwsh
@@ -147,12 +202,12 @@ jobs:
       - name: Upload Windows preview for publishing
         uses: actions/upload-artifact@v7
         with:
-          name: desktop-preview-windows
+          name: windows-preview
           path: out/*
           retention-days: 30
           if-no-files-found: error
 
-  desktop_macos:
+  macos:
     if: contains(github.ref_name, '-alpha.') || contains(github.ref_name, '-beta.')
     runs-on: macos-15
     steps:
@@ -160,7 +215,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          key: desktop-release-macos-arm64
+          key: release-macos-arm64
       - name: Build and test Apple Silicon preview
         run: |
           test "$(uname -m)" = arm64
@@ -177,7 +232,7 @@ jobs:
           mkdir -p dist out
           install -m755 target/release/soloist-audio-bridge dist/soloist-display
           install -m755 target/release/soloist-audio-bridge out/soloist-display-macos-arm64
-          cp docs/standalone-desktop.md dist/README.md
+          cp docs/windows-macos.md dist/README.md
           printf 'tag=%s\ncommit=%s\nmode=external-only\nexperimental=true\n' "$GITHUB_REF_NAME" "$GITHUB_SHA" > dist/BUILD.txt
       - name: Smoke test standalone HTTP server
         env:
@@ -202,17 +257,19 @@ jobs:
       - name: Upload Apple Silicon preview for publishing
         uses: actions/upload-artifact@v7
         with:
-          name: desktop-preview-macos
+          name: macos-preview
           path: out/*
           retention-days: 30
           if-no-files-found: error
 
   sign:
-    needs: [build, desktop_windows, desktop_macos]
+    needs: [build, windows, macos, distribution-smoke]
     if: >-
-      always() && needs.build.result == 'success' &&
-      ((needs.desktop_windows.result == 'success' && needs.desktop_macos.result == 'success') ||
-       (needs.desktop_windows.result == 'skipped' && needs.desktop_macos.result == 'skipped' &&
+      always() && startsWith(github.ref, 'refs/tags/') &&
+      needs.build.result == 'success' &&
+      needs.distribution-smoke.result == 'success' &&
+      ((needs.windows.result == 'success' && needs.macos.result == 'success') ||
+       (needs.windows.result == 'skipped' && needs.macos.result == 'skipped' &&
         !contains(github.ref_name, '-alpha.') && !contains(github.ref_name, '-beta.')))
     runs-on: ubuntu-24.04
     steps:
@@ -229,11 +286,11 @@ jobs:
           pattern: unsigned-*-unknown-linux-gnu*
           path: dist/
           merge-multiple: true
-      - name: Restore desktop release binaries and previews before signing
+      - name: Restore Windows/macOS release binaries and previews before signing
         if: contains(github.ref_name, '-alpha.') || contains(github.ref_name, '-beta.')
         uses: actions/download-artifact@v8
         with:
-          pattern: desktop-preview-*
+          pattern: '*-preview'
           path: dist/
           merge-multiple: true
       - name: Restore executable permissions
@@ -276,13 +333,13 @@ jobs:
           if-no-files-found: error
 
   publish:
-    needs: [sign, desktop_windows, desktop_macos]
-    # For prereleases both desktop jobs are mandatory; for stable they must be
+    needs: [sign, windows, macos]
+    # For prereleases both Windows/macOS jobs are mandatory; for stable they must be
     # skipped. always() is needed because GitHub skips dependent jobs by default.
     if: >-
       always() && needs.sign.result == 'success' &&
-      ((needs.desktop_windows.result == 'success' && needs.desktop_macos.result == 'success') ||
-       (needs.desktop_windows.result == 'skipped' && needs.desktop_macos.result == 'skipped' &&
+      ((needs.windows.result == 'success' && needs.macos.result == 'success') ||
+       (needs.windows.result == 'skipped' && needs.macos.result == 'skipped' &&
         !contains(github.ref_name, '-alpha.') && !contains(github.ref_name, '-beta.')))
     runs-on: ubuntu-24.04
     permissions:
@@ -293,7 +350,7 @@ jobs:
         with:
           name: signed-release
           path: dist/
-      - name: Validate desktop previews match this release tag
+      - name: Validate Windows/macOS previews match this release tag
         if: contains(github.ref_name, '-alpha.') || contains(github.ref_name, '-beta.')
         run: |
           for archive in "dist/soloist-display-preview-windows-x86_64-$GITHUB_REF_NAME.zip" "dist/soloist-display-preview-macos-arm64-$GITHUB_REF_NAME.zip"; do

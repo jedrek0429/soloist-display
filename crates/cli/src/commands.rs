@@ -31,9 +31,6 @@ pub struct Cli {
     pub command: Option<Command>,
     #[command(flatten)]
     pub flags: GlobalFlags,
-    /// Compatibility alias for `settings`.
-    #[arg(long, hide = true)]
-    pub settings: bool,
 }
 
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
@@ -147,10 +144,14 @@ mod tests {
     }
 
     #[test]
-    fn shared_global_flags_retain_settings_alias() {
-        let cli = Cli::try_parse_from(["soloist-display", "--settings"]).unwrap();
-        assert!(cli.settings);
-        assert!(cli.command.is_none());
+    fn only_the_settings_subcommand_opens_settings() {
+        assert!(Cli::try_parse_from(["soloist-display", "--settings"]).is_err());
+        assert!(matches!(
+            Cli::try_parse_from(["soloist-display", "settings"])
+                .unwrap()
+                .command,
+            Some(Command::Settings)
+        ));
     }
 
     #[cfg(target_os = "linux")]

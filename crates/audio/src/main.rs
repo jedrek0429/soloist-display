@@ -10,11 +10,9 @@ mod capture;
 mod cli;
 use soloist_display_cli::output as cli_output;
 #[cfg(any(windows, target_os = "macos"))]
-use soloist_display_installer::desktop_lifecycle;
+use soloist_display_installer::windows_macos_lifecycle;
 mod device;
 mod pcm;
-#[cfg(any(windows, target_os = "macos"))]
-use soloist_display_core::release;
 mod spectrum;
 use serde_json::Value;
 use spectrum::{HOP, RATE};
@@ -47,109 +45,14 @@ fn config_path() -> PathBuf {
 }
 
 fn read_settings(path: &PathBuf) -> Value {
-    let defaults: Value = serde_json::from_str(DEFAULT_CONFIG).expect("valid built-in settings");
-    let mut settings = defaults;
+    let mut settings: Value =
+        serde_json::from_str(DEFAULT_CONFIG).expect("valid built-in settings");
     if let Ok(contents) = std::fs::read_to_string(path) {
         if let Ok(Value::Object(values)) = serde_json::from_str::<Value>(&contents) {
             if let Value::Object(ref mut object) = settings {
-                let old_dot = values.get("discAppearance").and_then(Value::as_str) == Some("dot");
-                for (key, value) in &values {
-                    if object.contains_key(key) {
-                        object.insert(key.clone(), value.clone());
-                    }
-                }
-                if values.get("idleText").and_then(Value::as_str) == Some("Ready when you are") {
-                    object.insert("idleText".into(), Value::from(""));
-                }
-                // Existing global diameters become the initial size for every appearance.
-                if let Some(size) = values.get("discSize").and_then(Value::as_f64) {
-                    for key in [
-                        "discSizeBasic",
-                        "discSizeCd",
-                        "discSizeVinyl",
-                        "discSizeVinylCover",
-                        "discSizeCdCover",
-                        "discSizeAlbumCover",
-                    ] {
-                        if !values.contains_key(key) {
-                            object.insert(key.into(), Value::from(size));
-                        }
-                    }
-                }
-                // Seed new appearance-specific sizes from the user's previous styles.
-                for (new_key, old_key) in [
-                    ("discSizeVinylCover", "discSizeVinyl"),
-                    ("discSizeCdCover", "discSizeCd"),
-                    ("discSizeAlbumCover", "discSizeBasic"),
-                ] {
-                    if !values.contains_key(new_key) {
-                        if let Some(size) = values.get(old_key).or_else(|| values.get("discSize")) {
-                            object.insert(new_key.into(), size.clone());
-                        }
-                    }
-                }
-                for suffix in [
-                    "Basic",
-                    "Cd",
-                    "Vinyl",
-                    "VinylCover",
-                    "CdCover",
-                    "AlbumCover",
-                ] {
-                    for key in ["transitionStyle", "transitionDuration", "transitionDelay"] {
-                        let name = format!("{key}{suffix}");
-                        if !values.contains_key(&name) {
-                            if let Some(previous) = values.get(key) {
-                                object.insert(name, previous.clone());
-                            }
-                        }
-                    }
-                }
-                // Sleeve presets exist only for appearances with an actual sleeve.
-                // Never emit keys that are absent from DEFAULT_CONFIG: the settings UI
-                // submits the entire object and the PUT endpoint rejects unknown keys.
-                for suffix in ["VinylCover", "CdCover"] {
-                    for key in [
-                        "sleeveTransitionStyle",
-                        "sleeveAlignment",
-                        "sleeveDuration",
-                        "sleeveDelayIn",
-                        "sleeveDelayOut",
-                    ] {
-                        let name = format!("{key}{suffix}");
-                        if !values.contains_key(&name) {
-                            if let Some(previous) = values.get(key) {
-                                object.insert(name, previous.clone());
-                            }
-                        }
-                    }
-                }
-                for key in [
-                    "transitionStyle",
-                    "backdropTransitionStyle",
-                    "panelTransitionStyle",
-                ] {
-                    if object.get(key).and_then(Value::as_str) == Some("instant") {
-                        object.insert(key.into(), Value::String("off".into()));
-                    }
-                }
-                for suffix in [
-                    "Basic",
-                    "Cd",
-                    "Vinyl",
-                    "VinylCover",
-                    "CdCover",
-                    "AlbumCover",
-                ] {
-                    let key = format!("transitionStyle{suffix}");
-                    if object.get(&key).and_then(Value::as_str) == Some("instant") {
-                        object.insert(key, Value::String("off".into()));
-                    }
-                }
-                if old_dot {
-                    object.insert("discAppearance".into(), Value::String("basic".into()));
-                    if let Some(size) = values.get("centerHoleDot").and_then(Value::as_f64) {
-                        object.insert("centerHoleBasic".into(), Value::from(size));
+                for (key, value) in values {
+                    if object.contains_key(&key) {
+                        object.insert(key, value);
                     }
                 }
             }
@@ -575,7 +478,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
         #[cfg(any(windows, target_os = "macos"))]
         cli::Command::Install => {
-            tokio::task::spawn_blocking(desktop_lifecycle::install).await??;
+            tokio::task::spawn_blocking(windows_macos_lifecycle::install).await??;
             return Ok(());
         }
         #[cfg(any(windows, target_os = "macos"))]
@@ -585,30 +488,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             allow_downgrade,
         } => {
             tokio::task::spawn_blocking(move || {
-                desktop_lifecycle::update(channel, version.as_deref(), allow_downgrade)
+                windows_macos_lifecycle::update(channel, version.as_deref(), allow_downgrade)
             })
             .await??;
             return Ok(());
         }
         #[cfg(any(windows, target_os = "macos"))]
         cli::Command::CheckUpdates => {
-            tokio::task::spawn_blocking(desktop_lifecycle::check_updates).await??;
+            tokio::task::spawn_blocking(windows_macos_lifecycle::check_updates).await??;
             return Ok(());
         }
         #[cfg(any(windows, target_os = "macos"))]
         cli::Command::Notifications(enabled) => {
-            tokio::task::spawn_blocking(move || desktop_lifecycle::notifications(enabled))
+            tokio::task::spawn_blocking(move || windows_macos_lifecycle::notifications(enabled))
                 .await??;
             return Ok(());
         }
         #[cfg(any(windows, target_os = "macos"))]
         cli::Command::Repair => {
-            tokio::task::spawn_blocking(desktop_lifecycle::repair).await??;
+            tokio::task::spawn_blocking(windows_macos_lifecycle::repair).await??;
             return Ok(());
         }
         #[cfg(any(windows, target_os = "macos"))]
         cli::Command::Uninstall(remove_data) => {
-            tokio::task::spawn_blocking(move || desktop_lifecycle::uninstall(remove_data))
+            tokio::task::spawn_blocking(move || windows_macos_lifecycle::uninstall(remove_data))
                 .await??;
             return Ok(());
         }
@@ -628,7 +531,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     #[cfg(any(windows, target_os = "macos"))]
     if !cli::quiet() {
         let verbose = cli::verbose();
-        std::thread::spawn(move || desktop_lifecycle::maybe_notify(verbose));
+        std::thread::spawn(move || windows_macos_lifecycle::maybe_notify(verbose));
     }
     if cli::verbose() {
         eprintln!("Configuration: {}", config_path().display());
@@ -899,29 +802,6 @@ mod tests {
     }
 
     #[test]
-    fn migrates_legacy_transitions_and_dot_without_losing_durations() {
-        let path = env::temp_dir().join(format!(
-            "soloist-display-migration-{}.json",
-            std::process::id()
-        ));
-        std::fs::write(&path, r#"{"transitionStyle":"instant","backdropTransitionStyle":"instant","panelTransitionStyle":"instant","transitionDuration":3400,"discAppearance":"dot","centerHoleDot":8,"visualizerSensitivity":2.5}"#).unwrap();
-        let migrated = read_settings(&path);
-        std::fs::remove_file(&path).unwrap();
-        for key in [
-            "transitionStyle",
-            "backdropTransitionStyle",
-            "panelTransitionStyle",
-        ] {
-            assert_eq!(migrated[key], "off");
-        }
-        assert_eq!(migrated["discAppearance"], "basic");
-        assert_eq!(migrated["centerHoleBasic"].as_f64(), Some(8.0));
-        assert_eq!(migrated["transitionDuration"], 3400);
-        assert_eq!(migrated["visualizerSensitivity"], 2.5);
-        assert!(migrated.get("centerHoleDot").is_none());
-    }
-
-    #[test]
     fn display_probe_rejects_unrelated_http_server() {
         use std::io::{Read, Write};
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -941,31 +821,6 @@ mod tests {
     }
 
     #[test]
-    fn migrates_global_diameter_to_each_appearance() {
-        let path = env::temp_dir().join(format!(
-            "soloist-display-diameter-{}.json",
-            std::process::id()
-        ));
-        std::fs::write(&path, r#"{ "discSize": 142, "discSizeCd": 88 }"#).unwrap();
-        let settings = read_settings(&path);
-        std::fs::remove_file(&path).unwrap();
-        assert_eq!(settings["discSizeBasic"].as_f64(), Some(142.0));
-        assert_eq!(settings["discSizeCd"].as_f64(), Some(88.0));
-        assert_eq!(settings["discSizeVinyl"].as_f64(), Some(142.0));
-    }
-
-    #[test]
-    fn clears_previous_default_standby_text_but_keeps_custom_messages() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("config.json");
-        assert_eq!(read_settings(&path)["idleText"], "");
-        std::fs::write(&path, r#"{"idleText":"Ready when you are"}"#).unwrap();
-        assert_eq!(read_settings(&path)["idleText"], "");
-        std::fs::write(&path, r#"{"idleText":"Play some music"}"#).unwrap();
-        assert_eq!(read_settings(&path)["idleText"], "Play some music");
-    }
-
-    #[test]
     fn preserves_defaults_for_missing_fields() {
         let path = env::temp_dir().join(format!(
             "soloist-display-defaults-{}.json",
@@ -982,7 +837,7 @@ mod tests {
         assert_eq!(settings["vinylGrooveDensity"], 5);
     }
     #[test]
-    fn defaults_and_legacy_presets_are_appearance_specific() {
+    fn defaults_are_appearance_specific_and_removed_settings_are_ignored() {
         let defaults: Value = serde_json::from_str(DEFAULT_CONFIG).unwrap();
         assert_eq!(defaults["discAppearance"], "vinyl-cover");
         assert_eq!(defaults["discOpacityCdCoverDown"], 0.7);
@@ -995,21 +850,6 @@ mod tests {
         ] {
             assert_eq!(defaults[key], 75, "{key} should default to 75");
         }
-
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("config.json");
-        std::fs::write(&path, r#"{"discAppearance":"cd-cover","discSizeCd":91,"transitionStyle":"slide","transitionDuration":3700,"sleeveDuration":1700}"#).unwrap();
-        let settings = read_settings(&path);
-        assert_eq!(settings["discAppearance"], "cd-cover");
-        assert_eq!(settings["discSizeCdCover"], 91);
-        assert_eq!(settings["transitionStyleCdCover"], "slide");
-        assert_eq!(settings["transitionDurationCdCover"], 3700);
-        assert_eq!(settings["sleeveDurationCdCover"], 1700);
-        // The response must remain PUT-compatible for every legacy preset.
-        let default_keys = defaults.as_object().unwrap();
-        for key in settings.as_object().unwrap().keys() {
-            assert!(default_keys.contains_key(key), "Unexpected setting: {key}");
-        }
         for suffix in ["Basic", "Cd", "Vinyl", "AlbumCover"] {
             for prefix in [
                 "sleeveTransitionStyle",
@@ -1018,14 +858,23 @@ mod tests {
                 "sleeveDelayIn",
                 "sleeveDelayOut",
             ] {
-                assert!(settings.get(format!("{prefix}{suffix}")).is_none());
+                assert!(defaults.get(format!("{prefix}{suffix}")).is_none());
             }
         }
 
-        assert_eq!(
-            settings["discSizeAlbumCover"],
-            defaults["discSizeAlbumCover"]
-        );
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("config.json");
+        std::fs::write(
+            &path,
+            r#"{"discAppearance":"cd-cover","discSizeCdCover":91,"centerHoleDot":8,"discSize":142}"#,
+        )
+        .unwrap();
+        let settings = read_settings(&path);
+        assert_eq!(settings["discAppearance"], "cd-cover");
+        assert_eq!(settings["discSizeCdCover"], 91);
+        assert!(settings.get("centerHoleDot").is_none());
+        assert_eq!(settings["discSize"], 142);
+        assert_eq!(settings["discSizeVinyl"], defaults["discSizeVinyl"]);
     }
 
     #[tokio::test]

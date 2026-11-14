@@ -14,7 +14,7 @@ if ($releaseBase -notmatch '^https://github\.com/jedrek0429/soloist-display/rele
     throw 'This is an unrendered bootstrap. Download install.ps1 from a published release.'
 }
 if ($expectedSha -notmatch '^[0-9a-f]{64}$') {
-    throw 'This release has no signed Windows binary. Use an alpha/beta release with desktop support.'
+    throw 'This release has no signed Windows binary. Use an alpha/beta release with Windows support.'
 }
 $tag = ($releaseBase -split '/')[-1]
 $requested = $env:SOLOIST_DISPLAY_VERSION

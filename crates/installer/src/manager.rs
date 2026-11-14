@@ -1,6 +1,6 @@
 use crate::terminal::Progress;
 use crate::{
-    dependencies, legacy, migrations, mpris,
+    dependencies, legacy, mpris,
     paths::{path_string, Paths},
     platform::{Architecture, Platform},
     process,
@@ -625,11 +625,6 @@ fn recover_install(paths: &Paths, previous: &InstallRecovery) -> Result<()> {
         0o600,
     )?;
     restore_snapshot_file(
-        &paths.state.join("config-schema.json"),
-        previous.previous_config_schema.as_deref(),
-        0o600,
-    )?;
-    restore_snapshot_file(
         &paths.state.join("soloist-runtime.json"),
         previous.previous_runtime.as_deref(),
         0o600,
@@ -935,7 +930,6 @@ pub fn install(
         .context("missing systemd user unit directory")?;
     transaction.install_recovery = Some(InstallRecovery {
         previous_settings: original_settings.clone(),
-        previous_config_schema: fs::read(paths.state.join("config-schema.json")).ok(),
         previous_metadata: original_metadata.clone(),
         previous_env: fs::read(&paths.soloist_env).ok(),
         previous_runtime: original_runtime.clone(),
@@ -1013,7 +1007,6 @@ pub fn install(
         transaction.set_status(&journal_path, TransactionStatus::Activating)?;
         atomic_link(&release, &paths.current)?;
         install_visible_command(paths)?;
-        migrations::migrate(paths)?;
         let soloist_state = if let Some(external) = &verified_external {
             external.clone()
         } else if discovered_soloist.ownership == SoloistOwnership::Installer {
@@ -1113,12 +1106,11 @@ pub fn install(
         InstallState {
             schema: crate::state::STATE_SCHEMA,
             version: manifest.version.to_string(),
-            channel: Some(
-                previous_state
-                    .as_ref()
-                    .map(|state| state.effective_channel())
-                    .unwrap_or_else(|| ReleaseChannel::for_version(&manifest.version)),
-            ),
+            channel: if let Some(previous) = previous_state.as_ref() {
+                previous.channel
+            } else {
+                ReleaseChannel::for_version(&manifest.version)?
+            },
             suppress_updates: previous_state
                 .as_ref()
                 .is_some_and(|state| state.suppress_updates),
@@ -1175,7 +1167,7 @@ pub fn update(
     let state =
         InstallState::load(paths)?.ok_or_else(|| anyhow!("Soloist Display is not installed"))?;
     let client = ReleaseClient::new()?;
-    let requested_channel = channel.unwrap_or_else(|| state.effective_channel());
+    let requested_channel = channel.unwrap_or(state.channel);
     let (manifest, _) = client.select(Some(requested_channel), version)?;
     let installed_version =
         semver::Version::parse(&state.version).context("installed version metadata is invalid")?;
@@ -1190,20 +1182,14 @@ pub fn update(
         );
     }
     if manifest.version.to_string() == state.version {
-        if (channel.is_some() || version.is_some())
-            && state.channel
-                != Some(if version.is_some() && channel.is_none() {
-                    ReleaseChannel::for_version(&manifest.version)
-                } else {
-                    requested_channel
-                })
-        {
+        let effective_channel = if version.is_some() && channel.is_none() {
+            ReleaseChannel::for_version(&manifest.version)?
+        } else {
+            requested_channel
+        };
+        if (channel.is_some() || version.is_some()) && state.channel != effective_channel {
             let mut next = state.clone();
-            next.channel = Some(if version.is_some() && channel.is_none() {
-                ReleaseChannel::for_version(&manifest.version)
-            } else {
-                requested_channel
-            });
+            next.channel = effective_channel;
             next.save(paths)?;
         }
         if let Err(error) = install_completions(paths) {
@@ -1222,7 +1208,6 @@ pub fn update(
         let release = install_artifacts(paths, platform, &client, &manifest, &mut tx, &tx_path)?;
         tx.set_status(&tx_path, TransactionStatus::Activating)?;
         atomic_link(&release, &paths.current)?;
-        migrations::migrate(paths)?;
         let mut next_soloist = state.soloist.clone();
         if state.soloist.ownership == SoloistOwnership::Installer
             && !state
@@ -1246,13 +1231,13 @@ pub fn update(
         next.previous_release = Some(state.active_release.clone());
         next.active_release = release;
         next.version = manifest.version.to_string();
-        next.channel = Some(if channel.is_some() {
+        next.channel = if channel.is_some() {
             requested_channel
         } else if version.is_some() {
-            ReleaseChannel::for_version(&manifest.version)
+            ReleaseChannel::for_version(&manifest.version)?
         } else {
             requested_channel
-        });
+        };
         next.target = platform.target.clone();
         next.soloist = next_soloist;
         next.save(paths)?;
@@ -1295,7 +1280,6 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
     progress.step(1, "Checking files");
     let mut state = InstallState::load(paths)?
         .ok_or_else(|| anyhow!("Soloist Display is not installed; run the installer first"))?;
-    migrations::migrate(paths)?;
     let client = ReleaseClient::new()?;
     let (manifest, _) = client.select(None, Some(&state.version))?;
     let release_valid = ["manager", "audio-bridge"].iter().all(|kind| {
@@ -1430,7 +1414,7 @@ pub fn check_update_briefly(paths: &Paths, state: &InstallState) -> Option<Strin
     if state.suppress_updates {
         return None;
     }
-    let channel = state.effective_channel();
+    let channel = state.channel;
     let cache_path = paths.cache.join("update.json");
     if let Ok(bytes) = fs::read(&cache_path) {
         if let Ok(cache) = serde_json::from_slice::<UpdateCache>(&bytes) {
@@ -1482,7 +1466,7 @@ pub fn update_status(paths: &Paths) -> Result<()> {
         InstallState::load(paths)?.ok_or_else(|| anyhow!("Soloist Display is not installed"))?;
     let client = ReleaseClient::new()?;
     println!("Installed: {}", state.version);
-    println!("Channel: {:?}", state.effective_channel());
+    println!("Channel: {:?}", state.channel);
     println!(
         "Notifications: {}",
         if state.suppress_updates { "off" } else { "on" }
@@ -1518,7 +1502,7 @@ pub fn launch(paths: &Paths, settings: bool) -> Result<()> {
     if let Some(latest) = check_update_briefly(paths, &state) {
         eprintln!(
             "Soloist Display {latest} is available on the {:?} channel.",
-            state.effective_channel()
+            state.channel
         );
         if io::stdin().is_terminal() {
             eprint!("Update now? [y/N] ");
@@ -1914,7 +1898,7 @@ mod tests {
         InstallState {
             schema: crate::state::STATE_SCHEMA,
             version: "1.0.0".into(),
-            channel: None,
+            channel: ReleaseChannel::Stable,
             suppress_updates: false,
             target: "test".into(),
             active_release: release,
@@ -1988,7 +1972,6 @@ mod tests {
         let (mut tx, journal) = TransactionJournal::begin(&paths.transactions, "install").unwrap();
         tx.install_recovery = Some(InstallRecovery {
             previous_settings: Some(b"original settings".to_vec()),
-            previous_config_schema: None,
             previous_metadata: None,
             previous_env: None,
             previous_runtime: None,
@@ -2035,7 +2018,6 @@ mod tests {
         let (mut tx, journal) = TransactionJournal::begin(&paths.transactions, "install").unwrap();
         tx.install_recovery = Some(InstallRecovery {
             previous_settings: None,
-            previous_config_schema: None,
             previous_metadata: None,
             previous_env: Some(env.to_vec()),
             previous_runtime: None,
@@ -2086,7 +2068,6 @@ mod tests {
             TransactionJournal::begin(&paths.transactions, "install").unwrap();
         transaction.install_recovery = Some(InstallRecovery {
             previous_settings: None,
-            previous_config_schema: None,
             previous_metadata: None,
             previous_env: None,
             previous_runtime: None,

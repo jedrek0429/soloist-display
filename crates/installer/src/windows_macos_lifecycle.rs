@@ -1,11 +1,11 @@
-//! External-only desktop installation lifecycle.
+//! Per-user Windows/macOS Display installation lifecycle (External Soloist only).
 //! Uses the same signed release manifest and verifier as the Linux manager.
 //! Never installs, starts, kills, renews or alters Spotify Soloist.
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use soloist_display_core::{
     lifecycle::{self, StagedPath},
-    release::{sha256_file, ReleaseChannel, ReleaseClient},
+    release::{sha256_file, Artifact, ReleaseChannel, ReleaseClient, ReleaseManifest},
 };
 use std::{
     env, fs,
@@ -53,7 +53,7 @@ struct Paths {
 type ActivationJournal = lifecycle::TransactionJournal<lifecycle::ActivationSnapshot>;
 
 fn activation_journal(paths: &Paths) -> PathBuf {
-    paths.state.with_file_name("desktop-activation.json")
+    paths.state.with_file_name("display-activation.json")
 }
 
 /// An unfinished activation is conservatively rolled back on the next CLI run.
@@ -82,18 +82,18 @@ fn settings_root() -> PathBuf {
 
 impl Paths {
     fn discover() -> Result<Self> {
-        let root = soloist_display_platform::desktop_install_root()?;
+        let root = soloist_display_platform::install_root()?;
         if !root.is_absolute() {
             return Err("installation root must be an absolute path".into());
         }
-        let bin = soloist_display_platform::desktop_bin_dir(&root)?;
+        let bin = soloist_display_platform::bin_dir(&root)?;
         if !bin.is_absolute() {
             return Err("CLI bin directory must be an absolute path".into());
         }
-        let shim = bin.join(soloist_display_platform::desktop_shim_name());
+        let shim = bin.join(soloist_display_platform::shim_name());
         let paths = Self {
             releases: root.join("releases"),
-            state: root.join("desktop-install.json"),
+            state: root.join("display-install.json"),
             shim,
         };
         recover_uninstall(&paths)?;
@@ -235,13 +235,18 @@ fn download_version(
     result
 }
 
+// Artifact kind identifies the component; target identifies OS and architecture.
+fn display_artifact(manifest: &ReleaseManifest) -> Result<&Artifact> {
+    Ok(manifest.artifact_target("display", TARGET)?)
+}
+
 fn select(
     client: &ReleaseClient,
     channel: ReleaseChannel,
     version: Option<&str>,
 ) -> Result<(Version, soloist_display_core::release::Artifact)> {
     let (manifest, _) = client.select(Some(channel), version)?;
-    let artifact = manifest.artifact_target("desktop", TARGET)?.clone();
+    let artifact = display_artifact(&manifest)?.clone();
     if manifest.version.to_string() != parse_version(&manifest.version.to_string())?.to_string() {
         return Err("non-canonical release version".into());
     }
@@ -298,11 +303,8 @@ fn configured_channel() -> Result<Option<ReleaseChannel>> {
             "stable" => ReleaseChannel::Stable,
             "alpha" => ReleaseChannel::Alpha,
             "beta" => ReleaseChannel::Beta,
-            "prerelease" => ReleaseChannel::Prerelease,
             _ => {
-                return Err(
-                    "SOLOIST_DISPLAY_CHANNEL must be stable, alpha, beta or prerelease".into(),
-                );
+                return Err("SOLOIST_DISPLAY_CHANNEL must be stable, alpha or beta".into());
             }
         })),
         Err(env::VarError::NotPresent) => Ok(None),
@@ -318,10 +320,11 @@ pub fn install() -> Result<()> {
     let configured = configured_channel()?;
     let channel = configured
         .or_else(|| current.as_ref().map(|state| state.channel))
-        .unwrap_or(ReleaseChannel::Prerelease);
+        // Windows/macOS builds are currently on the alpha channel by default.
+        .unwrap_or(ReleaseChannel::Alpha);
     let (version, artifact) = select(&client, channel, None)?;
     let effective_channel = if current.is_none() && configured.is_none() {
-        ReleaseChannel::for_version(&version)
+        ReleaseChannel::for_version(&version)?
     } else {
         channel
     };
@@ -440,7 +443,7 @@ struct UninstallIntent {
 
 fn uninstall_paths(paths: &Paths) -> (PathBuf, PathBuf, PathBuf) {
     (
-        paths.state.with_file_name("desktop-uninstall.json"),
+        paths.state.with_file_name("display-uninstall.json"),
         paths.releases.with_extension("removing"),
         paths.shim.with_extension("removing"),
     )
@@ -561,12 +564,37 @@ mod tests {
     use super::*;
 
     #[test]
+    fn selects_only_display_component() {
+        for kind in ["display", "desktop"] {
+            let manifest = ReleaseManifest {
+                schema: 1,
+                version: Version::parse("1.1.0-alpha.1").unwrap(),
+                published_at: "2026-11-14T00:00:00Z".into(),
+                artifacts: vec![Artifact {
+                    name: "soloist-display".into(),
+                    kind: kind.into(),
+                    target: TARGET.into(),
+                    url: "https://example.invalid/app".into(),
+                    fallback_url: None,
+                    sha256: "0".repeat(64),
+                    size: 1,
+                }],
+            };
+            if kind == "display" {
+                assert_eq!(display_artifact(&manifest).unwrap().kind, kind);
+            } else {
+                assert!(display_artifact(&manifest).is_err());
+            }
+        }
+    }
+
+    #[test]
     fn failed_uninstall_restores_installation() {
         let dir = tempfile::tempdir().unwrap();
         let paths = Paths {
             releases: dir.path().join("releases"),
             shim: dir.path().join("bin").join("soloist-display"),
-            state: dir.path().join("desktop-install.json"),
+            state: dir.path().join("display-install.json"),
         };
         fs::create_dir_all(paths.executable("1.2.3").parent().unwrap()).unwrap();
         fs::write(paths.executable("1.2.3"), b"release").unwrap();
@@ -574,7 +602,7 @@ mod tests {
         let state = Installed {
             schema: STATE_SCHEMA,
             version: "1.2.3".into(),
-            channel: ReleaseChannel::Prerelease,
+            channel: ReleaseChannel::Alpha,
             suppress_updates: false,
             previous_version: None,
         };
@@ -590,7 +618,7 @@ mod tests {
         let paths = Paths {
             releases: dir.path().join("releases"),
             shim: dir.path().join("bin").join("soloist-display"),
-            state: dir.path().join("desktop-install.json"),
+            state: dir.path().join("display-install.json"),
         };
         let exe = paths.executable("1.2.3");
         fs::create_dir_all(exe.parent().unwrap()).unwrap();
@@ -600,7 +628,7 @@ mod tests {
             .save(&Installed {
                 schema: STATE_SCHEMA,
                 version: "1.2.3".into(),
-                channel: ReleaseChannel::Prerelease,
+                channel: ReleaseChannel::Alpha,
                 suppress_updates: false,
                 previous_version: None,
             })
@@ -639,13 +667,13 @@ mod tests {
             } else {
                 "soloist-display"
             }),
-            state: dir.path().join("desktop-install.json"),
+            state: dir.path().join("display-install.json"),
         };
         paths.point_to("1.2.3").unwrap();
         let old = Installed {
             schema: STATE_SCHEMA,
             version: "1.2.3".into(),
-            channel: ReleaseChannel::Prerelease,
+            channel: ReleaseChannel::Alpha,
             suppress_updates: false,
             previous_version: None,
         };
@@ -673,14 +701,14 @@ mod tests {
             } else {
                 "soloist-display"
             }),
-            state: dir.path().join("desktop-install.json"),
+            state: dir.path().join("display-install.json"),
         };
         paths.point_to("1.2.3").unwrap();
         paths
             .save(&Installed {
                 schema: STATE_SCHEMA,
                 version: "1.2.3".into(),
-                channel: ReleaseChannel::Prerelease,
+                channel: ReleaseChannel::Alpha,
                 suppress_updates: false,
                 previous_version: None,
             })
@@ -693,7 +721,7 @@ mod tests {
             .save(&Installed {
                 schema: STATE_SCHEMA,
                 version: "1.2.4".into(),
-                channel: ReleaseChannel::Prerelease,
+                channel: ReleaseChannel::Alpha,
                 suppress_updates: false,
                 previous_version: Some("1.2.3".into()),
             })
@@ -711,7 +739,7 @@ mod tests {
         assert!(parse_version("1.2.0-alpha.3").is_ok());
         assert!(parse_version("1.02.0").is_err());
         assert!(matches!(
-            ReleaseChannel::for_version(&parse_version("1.2.0-beta.3").unwrap()),
+            ReleaseChannel::for_version(&parse_version("1.2.0-beta.3").unwrap()).unwrap(),
             ReleaseChannel::Beta
         ));
     }
@@ -729,7 +757,7 @@ mod tests {
             } else {
                 "soloist-display"
             }),
-            state: dir.path().join("desktop-install.json"),
+            state: dir.path().join("display-install.json"),
         };
         fs::create_dir_all(paths.executable("1.2.3").parent().unwrap()).unwrap();
         fs::write(paths.executable("1.2.3"), b"old").unwrap();

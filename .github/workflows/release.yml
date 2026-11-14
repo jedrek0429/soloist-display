@@ -84,6 +84,59 @@ jobs:
           if-no-files-found: error
 
 
+  distribution-smoke:
+    name: Distro smoke (${{ matrix.expected }})
+    needs: build
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: archlinux:latest
+            install: pacman -Syu --noconfirm ca-certificates
+            expected: Arch
+          - image: ubuntu:24.04
+            install: apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates
+            expected: Ubuntu
+          - image: debian:stable
+            install: apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates
+            expected: Debian
+          - image: fedora:latest
+            install: dnf install -y ca-certificates
+            expected: Fedora
+    container:
+      image: ${{ matrix.image }}
+    steps:
+      - name: Install trust store
+        run: ${{ matrix.install }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: unsigned-x86_64-unknown-linux-gnu
+          path: /tmp/soloist-display-bin
+      - name: Exercise production manager
+        run: |
+          cp /tmp/soloist-display-bin/soloist-display-x86_64-unknown-linux-gnu /tmp/soloist-display-bin/soloist-display
+          chmod +x /tmp/soloist-display-bin/soloist-display
+          /tmp/soloist-display-bin/soloist-display --version
+          /tmp/soloist-display-bin/soloist-display --help
+          if /tmp/soloist-display-bin/soloist-display doctor >/tmp/doctor.log 2>&1; then exit 1; fi
+          grep -q 'Installation metadata' /tmp/doctor.log
+          if HOME=/tmp/home SOLOIST_DISPLAY_TEST_ROOT=/tmp/test-root \
+            /tmp/soloist-display-bin/soloist-display install </dev/null >/tmp/no-tty.log 2>&1; then
+            echo 'Installation accepted missing --yes' >&2
+            exit 1
+          fi
+          grep -Fq 'non-interactive installation requires --yes' /tmp/no-tty.log
+          if HOME=/tmp/home SOLOIST_DISPLAY_TEST_ROOT=/tmp/test-root \
+            SOLOIST_DISPLAY_FAULT=package_install \
+            /tmp/soloist-display-bin/soloist-display install --yes >/tmp/install.log 2>&1; then
+            echo 'Injected installer failure was ignored' >&2
+            exit 1
+          fi
+          grep -Fq 'injected package installation failure' /tmp/install.log
+          grep -Fq 'Soloist Display · ${{ matrix.expected }} / X86_64' /tmp/install.log
+          test ! -f /tmp/test-root/state/soloist-display/install.json
+
   # Windows/macOS previews are intentionally unsigned and are NOT part of the Linux
   # installer manifests. Build them from the release tag, not the alpha/beta head.
   windows:
@@ -208,9 +261,10 @@ jobs:
           if-no-files-found: error
 
   sign:
-    needs: [build, windows, macos]
+    needs: [build, windows, macos, distribution-smoke]
     if: >-
       always() && needs.build.result == 'success' &&
+      needs.distribution-smoke.result == 'success' &&
       ((needs.windows.result == 'success' && needs.macos.result == 'success') ||
        (needs.windows.result == 'skipped' && needs.macos.result == 'skipped' &&
         !contains(github.ref_name, '-alpha.') && !contains(github.ref_name, '-beta.')))

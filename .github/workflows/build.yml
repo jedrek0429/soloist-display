@@ -20,47 +20,27 @@ on:
       - 'site/**'
       - '.github/workflows/**'
   pull_request:
-  schedule:
-    - cron: '17 4 * * 1'
 concurrency:
   group: checks-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 jobs:
-  scope:
-    name: Changed areas
+  linux:
+    name: Linux
     runs-on: ubuntu-24.04
-    outputs:
-      code: ${{ steps.detect.outputs.code }}
-      windows_macos: ${{ steps.detect.outputs.windows_macos }}
-      systemd: ${{ steps.detect.outputs.systemd }}
-      abi: ${{ steps.detect.outputs.abi }}
-      documentation: ${{ steps.detect.outputs.documentation }}
-      distribution: ${{ steps.detect.outputs.distribution }}
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0
-      - name: Classify changes
-        id: detect
-        env:
-          EVENT: ${{ github.event_name }}
-          BEFORE: ${{ github.event.before }}
+          fetch-depth: 2
+      - name: Choose relevant checks
+        id: changed
         shell: bash
         run: |
           set -euo pipefail
-          code=false; windows_macos=false; systemd=false; abi=false; documentation=false; distribution=false
-          if [[ "$EVENT" == 'workflow_dispatch' ]]; then
-            code=true; windows_macos=true; systemd=true; abi=true; documentation=true; distribution=true
-          elif [[ "$EVENT" == 'schedule' ]]; then
-            distribution=true
+          code=false; documentation=false; systemd=false; abi=false
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            code=true; documentation=true; systemd=true; abi=true
           else
-            if [[ "$EVENT" == 'pull_request' ]]; then
-              changed="$(git diff --name-only HEAD^1 HEAD)"
-            elif [[ -z "$BEFORE" || "$BEFORE" =~ ^0+$ ]]; then
-              changed="$(git ls-files)"
-            else
-              changed="$(git diff --name-only "$BEFORE" "$GITHUB_SHA")"
-            fi
+            changed="$(git diff --name-only HEAD^1 HEAD)"
             while IFS= read -r file; do
               [[ -n "$file" ]] || continue
               case "$file" in
@@ -68,57 +48,37 @@ jobs:
                 *) code=true ;;
               esac
               case "$file" in
-                crates/*|Cargo.toml|Cargo.lock|install.sh|install.ps1|.github/workflows/build.yml) windows_macos=true ;;
-              esac
-              case "$file" in
                 crates/installer/*|crates/core/*|crates/platform/src/linux.rs|Cargo.toml|Cargo.lock|install.sh|.github/workflows/build.yml) systemd=true ;;
               esac
               case "$file" in
                 Cargo.toml|Cargo.lock|crates/*/Cargo.toml|crates/audio/src/capture.rs|crates/audio/src/device.rs|crates/platform/*|scripts/ci-build-glibc.sh|.github/workflows/build.yml) abi=true ;;
               esac
-              if [[ "$EVENT" == 'push' ]]; then
-                case "$file" in
-                  crates/*|src/*|Cargo.toml|Cargo.lock|config.json|install.sh|.github/workflows/*|scripts/*) distribution=true ;;
-                esac
-              fi
-              if [[ "$file" == .github/workflows/build.yml ]]; then documentation=true; fi
+              if [[ "$file" == ".github/workflows/build.yml" ]]; then documentation=true; fi
             done <<< "$changed"
           fi
           {
-            printf 'code=%s\n' "$code"
-            printf 'windows_macos=%s\n' "$windows_macos"
-            printf 'systemd=%s\n' "$systemd"
-            printf 'abi=%s\n' "$abi"
-            printf 'documentation=%s\n' "$documentation"
-            printf 'distribution=%s\n' "$distribution"
+            echo "code=$code"
+            echo "documentation=$documentation"
+            echo "systemd=$systemd"
+            echo "abi=$abi"
           } >> "$GITHUB_OUTPUT"
-  test:
-    needs: scope
-    if: always() && github.event_name != 'schedule'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 2
-      - name: Require successful change classification
-        run: test "${{ needs.scope.result }}" = success
       - name: Install system dependencies
-        if: needs.scope.outputs.code == 'true'
+        if: steps.changed.outputs.code == 'true'
         run: |
           sudo sed -i 's|azure.archive.ubuntu.com|archive.ubuntu.com|g' /etc/apt/apt-mirrors.txt
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libasound2-dev libpulse-dev shellcheck
       - uses: dtolnay/rust-toolchain@stable
-        if: needs.scope.outputs.code == 'true'
+        if: steps.changed.outputs.code == 'true'
         with:
           components: rustfmt, clippy
-      - if: needs.scope.outputs.code == 'true'
+      - if: steps.changed.outputs.code == 'true'
         uses: Swatinem/rust-cache@v2
-      - if: needs.scope.outputs.code == 'true'
+      - if: steps.changed.outputs.code == 'true'
         run: cargo fmt --all -- --check
-      - if: needs.scope.outputs.code == 'true'
+      - if: steps.changed.outputs.code == 'true'
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
-      - if: needs.scope.outputs.code == 'true'
+      - if: steps.changed.outputs.code == 'true'
         run: cargo test --locked --workspace --all-targets
       - name: CPAL PulseAudio output monitor smoke test
         if: github.event_name == 'workflow_dispatch'
@@ -135,14 +95,14 @@ jobs:
           ldd target/debug/soloist-audio-bridge | tee /tmp/cpal-runtime-libraries.txt
           ! grep -q 'not found' /tmp/cpal-runtime-libraries.txt
       - name: Shell checks
-        if: needs.scope.outputs.code == 'true'
+        if: steps.changed.outputs.code == 'true'
         run: |
           sh -n install.sh
           shellcheck install.sh
           sh -n scripts/test-bootstrap-e2e.sh
           sh -n scripts/test-release-lifecycle.sh
       - name: Frontend syntax
-        if: needs.scope.outputs.code == 'true'
+        if: steps.changed.outputs.code == 'true'
         run: |
           for file in src/*.js; do node --check --input-type=module < "$file"; done
           node --experimental-default-type=module --test scripts/test-standby.mjs
@@ -151,7 +111,7 @@ jobs:
           node --experimental-default-type=module --test scripts/test-backdrop-integration.mjs
           cargo run --locked --quiet -p soloist-display-installer --bin release-tools -- check-settings .
       - name: Release bootstrap pin smoke test
-        if: needs.scope.outputs.code == 'true'
+        if: steps.changed.outputs.code == 'true'
         run: |
           mkdir -p /tmp/bootstrap-test
           for target in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu armv7-unknown-linux-gnueabihf; do
@@ -165,7 +125,7 @@ jobs:
           ! grep -q '@SOLOIST_DISPLAY_' /tmp/bootstrap-test/install.sh
           sh scripts/test-bootstrap-e2e.sh
       - name: CLI smoke test
-        if: needs.scope.outputs.code == 'true'
+        if: steps.changed.outputs.code == 'true'
         run: |
           cargo build --locked --workspace
           target/debug/soloist-display --help
@@ -189,38 +149,8 @@ jobs:
           fi
           grep -Fq 'non-interactive installation requires --yes' /tmp/soloist-display-probe/output
           ! grep -Fq 'SECRET_TEST_VALUE' /tmp/soloist-display-probe/output
-  cross-build:
-    needs: scope
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.scope.outputs.code == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: ubuntu-24.04-arm
-            target: aarch64-unknown-linux-gnu
-          - runner: ubuntu-24.04
-            target: armv7-unknown-linux-gnueabihf
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: glibc-${{ matrix.target }}
-      - uses: mlugg/setup-zig@v2
-        with:
-          version: 0.13.0
-      - uses: taiki-e/install-action@cargo-zigbuild
-      - run: bash scripts/ci-build-glibc.sh ${{ matrix.target }}
-  documentation:
-    needs: scope
-    if: needs.scope.outputs.documentation == 'true'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
       - name: Relative assets exist
+        if: steps.changed.outputs.documentation == 'true'
         run: |
           python3 - <<'PY'
           from html.parser import HTMLParser
@@ -252,83 +182,50 @@ jobs:
           test -f docs/installer.md
           test -f docs/releasing.md
       - name: External documentation resolves
+        if: steps.changed.outputs.documentation == 'true'
         run: |
           curl --fail --location --silent --show-error --retry 3 --output /dev/null \
             https://developer.spotify.com/documentation/soloist
           curl --fail --location --silent --show-error --retry 3 --output /dev/null \
             https://developer.spotify.com/dashboard/soloist
-  systemd-integration:
-    needs: scope
-    if: needs.scope.outputs.systemd == 'true' && github.event_name != 'schedule'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
       - name: Start systemd user manager
+        if: steps.changed.outputs.systemd == 'true'
         run: |
           sudo loginctl enable-linger "$(whoami)"
           sudo systemctl start "user@$(id -u).service"
           echo "XDG_RUNTIME_DIR=/run/user/$(id -u)" >> "$GITHUB_ENV"
           echo "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus" >> "$GITHUB_ENV"
       - name: Test generated Soloist service with live systemd
+        if: steps.changed.outputs.systemd == 'true'
         env:
           SOLOIST_DISPLAY_RUN_SYSTEMD_TEST: '1'
         run: cargo test --locked -p soloist-display-installer generated_soloist_unit_passes_credentials_to_live_systemd -- --nocapture
       - name: Test live Soloist unit restoration
+        if: steps.changed.outputs.systemd == 'true'
         env:
           SOLOIST_DISPLAY_RUN_SYSTEMD_TEST: '1'
         run: |
           cargo test --locked -p soloist-display-installer restores_previous_live_systemd_user_service -- --nocapture
       - name: Test optional MPRIS bridge service with live systemd
+        if: steps.changed.outputs.systemd == 'true'
         env:
           SOLOIST_DISPLAY_RUN_SYSTEMD_TEST: '1'
         run: cargo test --locked -p soloist-display-installer live_mpris_unit_can_start_independently -- --nocapture
       - name: Test live uninstall and original service restoration
+        if: steps.changed.outputs.systemd == 'true'
         env:
           SOLOIST_DISPLAY_RUN_SYSTEMD_TEST: '1'
         run: cargo test --locked -p soloist-display-installer live_uninstall_restores_original_service -- --nocapture
-  linux-abi:
-    needs: scope
-    if: needs.scope.outputs.abi == 'true' && github.event_name != 'schedule'
-    # Native x86 on relevant PRs; native ARM64 is only built manually.
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '[{"runner":"ubuntu-24.04","target":"x86_64-unknown-linux-gnu"},{"runner":"ubuntu-24.04-arm","target":"aarch64-unknown-linux-gnu"}]' || '[{"runner":"ubuntu-24.04","target":"x86_64-unknown-linux-gnu"}]') }}
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: glibc-${{ matrix.target }}
       - uses: mlugg/setup-zig@v2
+        if: steps.changed.outputs.abi == 'true'
         with:
           version: 0.13.0
       - uses: taiki-e/install-action@cargo-zigbuild
-      - run: bash scripts/ci-build-glibc.sh ${{ matrix.target }}
+        if: steps.changed.outputs.abi == 'true'
+      - run: bash scripts/ci-build-glibc.sh x86_64-unknown-linux-gnu
+        if: steps.changed.outputs.abi == 'true'
 
-  linux-abi-armv7:
-    needs: scope
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: armv7-unknown-linux-gnueabihf
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: glibc-armv7
-      - uses: mlugg/setup-zig@v2
-        with:
-          version: 0.13.0
-      - uses: taiki-e/install-action@cargo-zigbuild
-      - run: bash scripts/ci-build-glibc.sh armv7-unknown-linux-gnueabihf
-  windows-macos:
-    needs: scope
-    if: needs.scope.outputs.windows_macos == 'true' && github.event_name != 'schedule'
+  native:
     name: ${{ matrix.label }} checks
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -343,17 +240,34 @@ jobs:
             runner: macos-15
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+      - name: Check for platform-relevant changes
+        id: changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          relevant=false
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            relevant=true
+          elif git diff --name-only HEAD^1 HEAD | grep -Eq '^(crates/|Cargo\.toml$|Cargo\.lock$|install\.sh$|install\.ps1$|\.github/workflows/build\.yml$)'; then
+            relevant=true
+          fi
+          echo "relevant=$relevant" >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@stable
+        if: steps.changed.outputs.relevant == 'true'
       - uses: Swatinem/rust-cache@v2
+        if: steps.changed.outputs.relevant == 'true'
         with:
           key: native-${{ matrix.system }}
       - name: Verify Apple Silicon runner
-        if: matrix.system == 'macos'
+        if: steps.changed.outputs.relevant == 'true' && (matrix.system == 'macos')
         run: test "$(uname -m)" = arm64
       - name: Compile platform-specific Rust
+        if: steps.changed.outputs.relevant == 'true'
         run: cargo check --locked -p soloist-display-audio
       - name: Validate Windows bootstrap syntax
-        if: matrix.system == 'windows'
+        if: steps.changed.outputs.relevant == 'true' && (matrix.system == 'windows')
         shell: pwsh
         run: |
           $tokens = $null
@@ -361,78 +275,11 @@ jobs:
           [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path install.ps1), [ref]$tokens, [ref]$errors) | Out-Null
           if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
       - name: Validate macOS bootstrap syntax
-        if: matrix.system == 'macos'
+        if: steps.changed.outputs.relevant == 'true' && (matrix.system == 'macos')
         run: sh -n install.sh
       - name: Test Windows/macOS audio runtime
+        if: steps.changed.outputs.relevant == 'true'
         run: cargo test --locked -p soloist-display-audio
       - name: Test Windows/macOS installer library
+        if: steps.changed.outputs.relevant == 'true'
         run: cargo test --locked -p soloist-display-installer --lib
-  distribution-build:
-    needs: scope
-    if: needs.scope.outputs.distribution == 'true' && github.event_name != 'pull_request'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: mlugg/setup-zig@v2
-        with:
-          version: 0.13.0
-      - uses: taiki-e/install-action@cargo-zigbuild
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo zigbuild --release --locked -p soloist-display-installer --target x86_64-unknown-linux-gnu.2.38
-      - uses: actions/upload-artifact@v7
-        with:
-          name: manager-x86_64
-          path: target/x86_64-unknown-linux-gnu/release/soloist-display
-          if-no-files-found: error
-  distribution:
-    name: CLI (${{ matrix.image }})
-    needs: distribution-build
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - image: archlinux:latest
-            install: pacman -Syu --noconfirm ca-certificates
-            expected: Arch
-          - image: ubuntu:24.04
-            install: apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates
-            expected: Ubuntu
-          - image: debian:stable
-            install: apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates
-            expected: Debian
-          - image: fedora:latest
-            install: dnf install -y ca-certificates
-            expected: Fedora
-    container:
-      image: ${{ matrix.image }}
-    steps:
-      - name: Install trust store
-        run: ${{ matrix.install }}
-      - uses: actions/download-artifact@v8
-        with:
-          name: manager-x86_64
-          path: /tmp/soloist-display-bin
-      - name: Exercise production manager
-        run: |
-          chmod +x /tmp/soloist-display-bin/soloist-display
-          /tmp/soloist-display-bin/soloist-display --version
-          /tmp/soloist-display-bin/soloist-display --help
-          if /tmp/soloist-display-bin/soloist-display doctor >/tmp/doctor.log 2>&1; then exit 1; fi
-          grep -q 'Installation metadata' /tmp/doctor.log
-          if HOME=/tmp/home SOLOIST_DISPLAY_TEST_ROOT=/tmp/test-root \
-            /tmp/soloist-display-bin/soloist-display install </dev/null >/tmp/no-tty.log 2>&1; then
-            echo 'Installation accepted missing --yes' >&2
-            exit 1
-          fi
-          grep -Fq 'non-interactive installation requires --yes' /tmp/no-tty.log
-          if HOME=/tmp/home SOLOIST_DISPLAY_TEST_ROOT=/tmp/test-root \
-            SOLOIST_DISPLAY_FAULT=package_install \
-            /tmp/soloist-display-bin/soloist-display install --yes >/tmp/install.log 2>&1; then
-            echo 'Injected installer failure was ignored' >&2
-            exit 1
-          fi
-          grep -Fq 'injected package installation failure' /tmp/install.log
-          grep -Fq 'Soloist Display · ${{ matrix.expected }} / X86_64' /tmp/install.log
-          test ! -f /tmp/test-root/state/soloist-display/install.json

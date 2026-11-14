@@ -93,10 +93,12 @@ jobs:
           } >> "$GITHUB_OUTPUT"
   test:
     needs: scope
-    if: github.event_name != 'schedule'
+    if: always() && github.event_name != 'schedule'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+      - name: Require successful change classification
+        run: test "${{ needs.scope.result }}" = success
         with:
           fetch-depth: 2
       - name: Install system dependencies

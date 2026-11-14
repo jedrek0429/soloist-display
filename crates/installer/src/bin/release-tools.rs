@@ -500,10 +500,7 @@ mod tests {
         let artifacts = parsed["artifacts"].as_array().unwrap();
         assert_eq!(artifacts.len(), 16);
         for kind in ["portable", "desktop"] {
-            assert_eq!(
-                artifacts.iter().filter(|a| a["kind"] == kind).count(),
-                2
-            );
+            assert_eq!(artifacts.iter().filter(|a| a["kind"] == kind).count(), 2);
         }
         for (current, legacy) in TARGETS.into_iter().zip(LEGACY_TARGETS) {
             let new_asset = artifacts

@@ -2,6 +2,8 @@ name: Signed release
 on:
   push:
     tags: ['v*']
+  # Manual branch dispatch builds all Linux targets and runs distro smoke,
+  # but signing/publishing are gated to tag refs.
   workflow_dispatch:
 permissions:
   contents: read
@@ -31,7 +33,7 @@ jobs:
         with:
           key: glibc-${{ matrix.target }}
       - name: Validate release version
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        if: matrix.target == 'x86_64-unknown-linux-gnu' && startsWith(github.ref, 'refs/tags/')
         run: |
           cargo run --quiet -p soloist-display-installer --bin release-tools -- verify-workspace-version "$GITHUB_REF_NAME"
           if [[ ! "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(alpha|beta)\.[1-9][0-9]*)?$ ]]; then
@@ -263,7 +265,8 @@ jobs:
   sign:
     needs: [build, windows, macos, distribution-smoke]
     if: >-
-      always() && needs.build.result == 'success' &&
+      always() && startsWith(github.ref, 'refs/tags/') &&
+      needs.build.result == 'success' &&
       needs.distribution-smoke.result == 'success' &&
       ((needs.windows.result == 'success' && needs.macos.result == 'success') ||
        (needs.windows.result == 'skipped' && needs.macos.result == 'skipped' &&

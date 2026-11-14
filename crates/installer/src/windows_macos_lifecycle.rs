@@ -739,7 +739,7 @@ mod tests {
         assert!(parse_version("1.2.0-alpha.3").is_ok());
         assert!(parse_version("1.02.0").is_err());
         assert!(matches!(
-            ReleaseChannel::for_version(&parse_version("1.2.0-beta.3").unwrap()),
+            ReleaseChannel::for_version(&parse_version("1.2.0-beta.3").unwrap()).unwrap(),
             ReleaseChannel::Beta
         ));
     }

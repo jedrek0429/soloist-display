@@ -89,7 +89,6 @@ impl Architecture {
             Self::Armv7 => "armv7-unknown-linux-gnueabihf",
         }
     }
-
 }
 
 impl Platform {

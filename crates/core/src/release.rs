@@ -67,7 +67,9 @@ impl ReleaseChannel {
         } else if version.pre.as_str().starts_with("beta.") {
             Ok(Self::Beta)
         } else {
-            bail!("unsupported release channel for version {version}; expected stable, alpha or beta")
+            bail!(
+                "unsupported release channel for version {version}; expected stable, alpha or beta"
+            )
         }
     }
 
@@ -465,7 +467,6 @@ mod channel_tests {
             select_release_tag(&releases, Some(ReleaseChannel::Stable)).unwrap(),
             "v1.0.0"
         );
-
     }
 
     #[test]
@@ -505,7 +506,6 @@ mod channel_tests {
             select_release_tag(&releases, Some(ReleaseChannel::Beta)).unwrap(),
             "v1.1.0-beta.67"
         );
-
     }
 
     #[test]

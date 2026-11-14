@@ -478,7 +478,11 @@ mod tests {
             }
         }
         for (_, filename) in WINDOWS_MACOS_TARGETS {
-            fs::write(dir.path().join(filename), b"signed Windows/macOS binary fixture").unwrap();
+            fs::write(
+                dir.path().join(filename),
+                b"signed Windows/macOS binary fixture",
+            )
+            .unwrap();
         }
         build_manifest(dir.path(), "v1.0.0-alpha.4", "1.0.0-alpha.4").unwrap();
         let parsed: Value =
@@ -486,16 +490,24 @@ mod tests {
                 .unwrap();
         let artifacts = parsed["artifacts"].as_array().unwrap();
         assert_eq!(artifacts.len(), 8);
-        assert_eq!(artifacts.iter().filter(|a| a["kind"] == "display").count(), 2);
+        assert_eq!(
+            artifacts.iter().filter(|a| a["kind"] == "display").count(),
+            2
+        );
         for target in TARGETS {
             for kind in ["manager", "audio-bridge"] {
                 assert_eq!(
-                    artifacts.iter().filter(|a| a["kind"] == kind && a["target"] == target).count(),
+                    artifacts
+                        .iter()
+                        .filter(|a| a["kind"] == kind && a["target"] == target)
+                        .count(),
                     1
                 );
             }
         }
-        assert!(artifacts.iter().all(|a| !["desktop", "portable"].contains(&a["kind"].as_str().unwrap_or(""))));
+        assert!(artifacts
+            .iter()
+            .all(|a| !["desktop", "portable"].contains(&a["kind"].as_str().unwrap_or(""))));
         assert!(artifacts
             .iter()
             .all(|artifact| artifact["kind"] != "soloist"));

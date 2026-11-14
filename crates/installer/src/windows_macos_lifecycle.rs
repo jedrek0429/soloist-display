@@ -304,9 +304,7 @@ fn configured_channel() -> Result<Option<ReleaseChannel>> {
             "alpha" => ReleaseChannel::Alpha,
             "beta" => ReleaseChannel::Beta,
             _ => {
-                return Err(
-                    "SOLOIST_DISPLAY_CHANNEL must be stable, alpha or beta".into(),
-                );
+                return Err("SOLOIST_DISPLAY_CHANNEL must be stable, alpha or beta".into());
             }
         })),
         Err(env::VarError::NotPresent) => Ok(None),

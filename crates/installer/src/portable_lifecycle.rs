@@ -1,4 +1,4 @@
-//! External-only desktop installation lifecycle.
+//! External-only Windows/macOS installation lifecycle.
 //! Uses the same signed release manifest and verifier as the Linux manager.
 //! Never installs, starts, kills, renews or alters Spotify Soloist.
 use semver::Version;
@@ -52,6 +52,7 @@ struct Paths {
 
 type ActivationJournal = lifecycle::TransactionJournal<lifecycle::ActivationSnapshot>;
 
+// Preserve existing on-disk filenames to recover installations made by earlier releases.
 fn activation_journal(paths: &Paths) -> PathBuf {
     paths.state.with_file_name("desktop-activation.json")
 }
@@ -82,15 +83,15 @@ fn settings_root() -> PathBuf {
 
 impl Paths {
     fn discover() -> Result<Self> {
-        let root = soloist_display_platform::desktop_install_root()?;
+        let root = soloist_display_platform::portable_install_root()?;
         if !root.is_absolute() {
             return Err("installation root must be an absolute path".into());
         }
-        let bin = soloist_display_platform::desktop_bin_dir(&root)?;
+        let bin = soloist_display_platform::portable_bin_dir(&root)?;
         if !bin.is_absolute() {
             return Err("CLI bin directory must be an absolute path".into());
         }
-        let shim = bin.join(soloist_display_platform::desktop_shim_name());
+        let shim = bin.join(soloist_display_platform::portable_shim_name());
         let paths = Self {
             releases: root.join("releases"),
             state: root.join("desktop-install.json"),
@@ -241,7 +242,11 @@ fn select(
     version: Option<&str>,
 ) -> Result<(Version, soloist_display_core::release::Artifact)> {
     let (manifest, _) = client.select(Some(channel), version)?;
-    let artifact = manifest.artifact_target("desktop", TARGET)?.clone();
+    // New manifests use "portable"; old signed releases used "desktop".
+    let artifact = manifest
+        .artifact_target("portable", TARGET)
+        .or_else(|_| manifest.artifact_target("desktop", TARGET))?
+        .clone();
     if manifest.version.to_string() != parse_version(&manifest.version.to_string())?.to_string() {
         return Err("non-canonical release version".into());
     }

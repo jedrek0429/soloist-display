@@ -1,4 +1,4 @@
-//! Desktop runtime command mapping onto the shared CLI grammar.
+//! Runtime command mapping onto the shared cross-platform CLI grammar.
 #[cfg(any(windows, target_os = "macos"))]
 use crate::commands::{DisplayDataRemoval, NotificationSetting};
 use crate::{
@@ -76,7 +76,7 @@ pub fn parse(args: &[String]) -> Result<Command, String> {
         }) => {
             if device_name.is_some() || api_key.is_some() || soloist_ws.is_some() || start_external
             {
-                return Err("Managed Soloist and external process control are unavailable in this desktop preview".into());
+                return Err("Managed Soloist and external process control are unavailable in this Windows/macOS build".into());
             }
             Command::Install
         }

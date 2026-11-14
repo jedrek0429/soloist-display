@@ -15,7 +15,7 @@ const TARGETS: [&str; 3] = [
     "aarch64-unknown-linux-gnu",
     "armv7-unknown-linux-gnueabihf",
 ];
-const DESKTOP_TARGETS: [(&str, &str); 2] = [
+const PORTABLE_TARGETS: [(&str, &str); 2] = [
     (
         "x86_64-pc-windows-msvc",
         "soloist-display-windows-x86_64.exe",
@@ -223,15 +223,18 @@ fn build_manifest(dist: &Path, tag: &str, version: &str) -> Result<()> {
         }
     }
     if !parsed.pre.is_empty() {
-        for (target, name) in DESKTOP_TARGETS {
+        for (target, name) in PORTABLE_TARGETS {
             let file = dist.join(name);
             let sha = digest(&file)?;
             let size = file.metadata()?.len();
-            artifacts.push(json!({
-                "name": name, "kind": "desktop", "target": target,
-                "url": format!("{base}/{name}"), "fallback_url": null,
-                "sha256": sha, "size": size
-            }));
+            // Preserve the old "desktop" kind for clients already installed from alpha releases.
+            for kind in ["portable", "desktop"] {
+                artifacts.push(json!({
+                    "name": name, "kind": kind, "target": target,
+                    "url": format!("{base}/{name}"), "fallback_url": null,
+                    "sha256": sha, "size": size
+                }));
+            }
             bootstrap.push_str(&format!("{target} {sha} {base}/{name}\n"));
         }
     }
@@ -264,7 +267,7 @@ fn render_bootstrap(template: &Path, manifest: &Path, base: &str) -> Result<()> 
             format!("soloist-display-{}", TARGETS[index])
         } else if let Some(index) = LEGACY_TARGETS.iter().position(|old| *old == target) {
             format!("soloist-display-{}", TARGETS[index])
-        } else if let Some((_, name)) = DESKTOP_TARGETS
+        } else if let Some((_, name)) = PORTABLE_TARGETS
             .iter()
             .find(|(selected, _)| *selected == target)
         {
@@ -285,7 +288,7 @@ fn render_bootstrap(template: &Path, manifest: &Path, base: &str) -> Result<()> 
     let expected_count = TARGETS.len()
         + LEGACY_TARGETS.len()
         + if base.contains("-alpha.") || base.contains("-beta.") {
-            DESKTOP_TARGETS.len()
+            PORTABLE_TARGETS.len()
         } else {
             0
         };
@@ -487,19 +490,21 @@ mod tests {
                 fs::write(dir.path().join(format!("{prefix}-{target}")), b"test").unwrap();
             }
         }
-        for (_, filename) in DESKTOP_TARGETS {
-            fs::write(dir.path().join(filename), b"signed desktop binary fixture").unwrap();
+        for (_, filename) in PORTABLE_TARGETS {
+            fs::write(dir.path().join(filename), b"signed portable binary fixture").unwrap();
         }
         build_manifest(dir.path(), "v1.0.0-alpha.4", "1.0.0-alpha.4").unwrap();
         let parsed: Value =
             serde_json::from_slice(&fs::read(dir.path().join("release-manifest.json")).unwrap())
                 .unwrap();
         let artifacts = parsed["artifacts"].as_array().unwrap();
-        assert_eq!(artifacts.len(), 14);
-        assert_eq!(
-            artifacts.iter().filter(|a| a["kind"] == "desktop").count(),
-            2
-        );
+        assert_eq!(artifacts.len(), 16);
+        for kind in ["portable", "desktop"] {
+            assert_eq!(
+                artifacts.iter().filter(|a| a["kind"] == kind).count(),
+                2
+            );
+        }
         for (current, legacy) in TARGETS.into_iter().zip(LEGACY_TARGETS) {
             let new_asset = artifacts
                 .iter()

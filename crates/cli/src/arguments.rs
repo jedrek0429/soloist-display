@@ -1,4 +1,4 @@
-//! Command-line options shared by the installed Linux manager and portable desktop bridge.
+//! Command-line options shared by the installed Linux manager and Windows/macOS audio bridge.
 use clap::{Args, Subcommand};
 
 #[derive(Args, Debug, Clone, Default)]

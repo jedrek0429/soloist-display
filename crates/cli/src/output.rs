@@ -1,4 +1,4 @@
-//! Shared, dependency-free CLI presentation for Linux and desktop previews.
+//! Shared, dependency-free CLI presentation for Linux, Windows and macOS.
 //! Diagnostic output stays readable when piped or when NO_COLOR is set.
 
 use std::io::{self, IsTerminal};
@@ -41,7 +41,7 @@ pub fn check(label: &str, passed: bool, hint: &str) -> bool {
     passed
 }
 
-#[allow(dead_code)] // The Linux installer uses clap for help; desktop uses this formatter.
+#[allow(dead_code)] // The Linux installer uses clap for help; the audio runtime uses this formatter.
 pub fn command(syntax: &str, description: &str) {
     println!("  {syntax:<32} {description}");
 }

@@ -284,7 +284,10 @@ async fn put_config(
             && !["blurred-artwork", "dominant-colour", "custom-colour"]
                 .contains(&value.as_str().unwrap_or(""))
         {
-            return Err((StatusCode::BAD_REQUEST, "Unsupported background type".into()));
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Unsupported background type".into(),
+            ));
         }
         if key == "backgroundColor" {
             let colour = value.as_str().unwrap_or("");
@@ -1032,7 +1035,10 @@ mod tests {
             path: Arc::new(directory.path().join("config.json")),
             write_lock: Arc::new(Mutex::new(())),
         };
-        assert_eq!(read_settings(&state.path)["backgroundMode"], "blurred-artwork");
+        assert_eq!(
+            read_settings(&state.path)["backgroundMode"],
+            "blurred-artwork"
+        );
         for (mode, colour, valid) in [
             ("dominant-colour", "#Aa11ff", true),
             ("custom-colour", "#0077ee", true),
@@ -1050,6 +1056,9 @@ mod tests {
             let result = put_config(State(state.clone()), headers, Json(submitted)).await;
             assert_eq!(result.is_ok(), valid, "mode={mode}, colour={colour}");
         }
-        assert_eq!(read_settings(&state.path)["backgroundMode"], "blurred-artwork");
+        assert_eq!(
+            read_settings(&state.path)["backgroundMode"],
+            "blurred-artwork"
+        );
     }
 }

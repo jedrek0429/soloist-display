@@ -1,12 +1,25 @@
 import {dominantColourForArtwork} from './backdrop-colour.mjs';
 
 const imageStyle=url=>url?'url('+JSON.stringify(url)+')':'none';
-function preload(url){
+// One image preload supplies both the display and optional palette extraction.
+function preload(url,{forColour=false}={}){
   return new Promise(resolve=>{
-    if(!url)return resolve();
-    const img=new Image();let finished=false;
-    const done=()=>{if(!finished){finished=true;resolve()}};
-    img.onload=done;img.onerror=done;img.src=url;setTimeout(done,1500);
+    if(!url){resolve(null);return}
+    const image=new Image();
+    let finished=false;
+    const finish=result=>{
+      if(finished)return;
+      finished=true;
+      clearTimeout(timeout);
+      image.onload=null;
+      image.onerror=null;
+      resolve(result);
+    };
+    const timeout=setTimeout(()=>finish(null),1500);
+    if(forColour)image.crossOrigin='anonymous';
+    image.onload=()=>finish(image);
+    image.onerror=()=>finish(null);
+    image.src=url;
   });
 }
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -25,6 +38,7 @@ export class DiscDirector{
   setBackdrop(element,url,dominantColour){
     const mode=this.settings.backgroundMode;
     const colour=mode==='custom-colour'?this.settings.backgroundColor:mode==='dominant-colour'?dominantColour:null;
+    element.dataset.backdropKind=colour?'colour':'artwork';
     element.style.backgroundImage=colour?'none':imageStyle(url);
     element.style.backgroundColor=colour||'';
   }
@@ -439,11 +453,10 @@ export class DiscDirector{
     this.pauseRetracted=false;
     if(this.playbackKnown&&!this.playing&&this.isSleeve())this.pauseStartedAt=Date.now();
     else this.pauseStartedAt=null;
-    const [,dominantColour]=await Promise.all([
-      preload(url),
-      this.settings.backgroundMode==='dominant-colour'?dominantColourForArtwork(url):Promise.resolve(null)
-    ]);
+    const forColour=this.settings.backgroundMode==='dominant-colour';
+    const artwork=await preload(url,{forColour});
     if(token!==this.token)return;
+    const dominantColour=forColour?dominantColourForArtwork(url,artwork):null;
     if(['vinyl-cover','cd-cover'].includes(document.documentElement.dataset.discAppearance)){
       await this.changeSleeve(url,onShow,token,dominantColour);
       return;

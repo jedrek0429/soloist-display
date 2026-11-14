@@ -99,40 +99,24 @@ export function dominantColourFromPixels({data,width,height}){
   return fromOklch(lightness,chroma,hue);
 }
 
+// Cache tiny derived colours, not decoded bitmaps.
 const cache=new Map();
-export function dominantColourForArtwork(url){
-  if(!url)return Promise.resolve(null);
+export function dominantColourForArtwork(url,image){
+  if(!url||!image)return null;
   if(cache.has(url))return cache.get(url);
-  const task=new Promise(resolve=>{
-    const image=new Image();
-    let finished=false;
-    let timeout;
-    const finish=colour=>{
-      if(finished)return;
-      finished=true;
-      clearTimeout(timeout);
-      image.onload=null;image.onerror=null;
-      resolve(colour);
-    };
-    image.crossOrigin='anonymous';
-    image.onload=()=>{
-      try{
-        const canvas=document.createElement('canvas');
-        canvas.width=canvas.height=64;
-        const context=canvas.getContext('2d',{willReadFrequently:true});
-        if(!context){finish(null);return}
-        context.drawImage(image,0,0,64,64);
-        finish(dominantColourFromPixels(context.getImageData(0,0,64,64)));
-      }catch{
-        // Some artwork CDNs forbid canvas pixel reads. Use blurred artwork instead.
-        finish(null);
-      }
-    };
-    image.onerror=()=>finish(null);
-    timeout=setTimeout(()=>finish(null),2000);
-    image.src=url;
-  });
-  cache.set(url,task);
+  let colour=null;
+  try{
+    const canvas=document.createElement('canvas');
+    canvas.width=canvas.height=64;
+    const context=canvas.getContext('2d',{willReadFrequently:true});
+    if(context){
+      context.drawImage(image,0,0,64,64);
+      colour=dominantColourFromPixels(context.getImageData(0,0,64,64));
+    }
+  }catch{
+    // A failed pixel read still allows an unchanged, blurred CSS artwork fallback.
+  }
+  cache.set(url,colour);
   if(cache.size>64)cache.delete(cache.keys().next().value);
-  return task;
+  return colour;
 }

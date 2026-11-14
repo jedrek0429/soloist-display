@@ -14,7 +14,7 @@ This does not enable Managed Soloist, background services, unattended autostart,
 
 The manager and audio bridge ship for GNU/Linux x86_64, ARM64 and hard-float ARMv7. Both are dynamically linked against glibc, with a **glibc 2.38** compatibility ceiling enforced at build time. The audio bridge additionally requires `libasound.so.2`. CPAL reads the PulseAudio/PipeWire-Pulse output monitor through a shared Rust capture path, not a microphone. The installer checks and installs runtime dependencies.
 
-For backwards compatibility, newly signed release manifests also contain the previous `*-linux-musl*` target identifiers as aliases pointing to the **same GNU binaries**. They are migration identifiers, not separate `musl` downloads. New bootstraps request only GNU targets; previously installed managers can still update using their older identifiers. The old signed release formats remain readable for explicit downgrades.
+New release manifests include only the supported GNU/Linux target identifiers. Installers and updaters require an exact target match.
 
 Display releases live under `$XDG_DATA_HOME/soloist-display/releases`. The active release uses an atomic `current` symlink. Config, cache, logs and transaction journals live in their XDG directories; `~/.local/bin/soloist-display` points to the active manager.
 
@@ -96,4 +96,4 @@ Port conflicts stop installation. Unrelated processes are not killed.
 
 ## Releases
 
-Bootstrap supports `SOLOIST_DISPLAY_VERSION` and `SOLOIST_DISPLAY_CHANNEL=stable|alpha|beta|prerelease`. Version selection and downgrades are covered in [advanced installation](advanced-installation.md); signing and publishing are covered in [releasing](releasing.md).
+Bootstrap supports `SOLOIST_DISPLAY_VERSION` and `SOLOIST_DISPLAY_CHANNEL=stable|alpha|beta`. Version selection and downgrades are covered in [advanced installation](advanced-installation.md); signing and publishing are covered in [releasing](releasing.md).

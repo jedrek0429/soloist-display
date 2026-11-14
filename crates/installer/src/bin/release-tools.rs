@@ -22,11 +22,6 @@ const WINDOWS_MACOS_TARGETS: [(&str, &str); 2] = [
     ),
     ("aarch64-apple-darwin", "soloist-display-macos-arm64"),
 ];
-const LEGACY_TARGETS: [&str; 3] = [
-    "x86_64-unknown-linux-musl",
-    "aarch64-unknown-linux-musl",
-    "armv7-unknown-linux-musleabihf",
-];
 const STYLES: [&str; 6] = [
     "Basic",
     "Cd",
@@ -201,7 +196,7 @@ fn build_manifest(dist: &Path, tag: &str, version: &str) -> Result<()> {
     let base = format!("https://github.com/{repo}/releases/download/{tag}");
     let mut artifacts = Vec::new();
     let mut bootstrap = String::new();
-    for (index, target) in TARGETS.iter().enumerate() {
+    for target in TARGETS {
         for (kind, prefix) in [
             ("manager", "soloist-display"),
             ("audio-bridge", "soloist-audio-bridge"),
@@ -210,15 +205,13 @@ fn build_manifest(dist: &Path, tag: &str, version: &str) -> Result<()> {
             let file = dist.join(&name);
             let sha = digest(&file)?;
             let size = file.metadata()?.len();
-            for selected_target in [*target, LEGACY_TARGETS[index]] {
-                artifacts.push(json!({
-                    "name": name, "kind": kind, "target": selected_target,
-                    "url": format!("{base}/{name}"), "fallback_url": null,
-                    "sha256": sha, "size": size
-                }));
-                if kind == "manager" {
-                    bootstrap.push_str(&format!("{selected_target} {sha} {base}/{name}\n"));
-                }
+            artifacts.push(json!({
+                "name": name, "kind": kind, "target": target,
+                "url": format!("{base}/{name}"), "fallback_url": null,
+                "sha256": sha, "size": size
+            }));
+            if kind == "manager" {
+                bootstrap.push_str(&format!("{target} {sha} {base}/{name}\n"));
             }
         }
     }
@@ -227,14 +220,11 @@ fn build_manifest(dist: &Path, tag: &str, version: &str) -> Result<()> {
             let file = dist.join(name);
             let sha = digest(&file)?;
             let size = file.metadata()?.len();
-            // Keep "desktop" only as a compatibility alias for previously signed manifests.
-            for kind in ["display", "desktop"] {
-                artifacts.push(json!({
-                    "name": name, "kind": kind, "target": target,
-                    "url": format!("{base}/{name}"), "fallback_url": null,
-                    "sha256": sha, "size": size
-                }));
-            }
+            artifacts.push(json!({
+                "name": name, "kind": "display", "target": target,
+                "url": format!("{base}/{name}"), "fallback_url": null,
+                "sha256": sha, "size": size
+            }));
             bootstrap.push_str(&format!("{target} {sha} {base}/{name}\n"));
         }
     }
@@ -265,8 +255,6 @@ fn render_bootstrap(template: &Path, manifest: &Path, base: &str) -> Result<()> 
         let mapped_name = if let Some(index) = TARGETS.iter().position(|current| *current == target)
         {
             format!("soloist-display-{}", TARGETS[index])
-        } else if let Some(index) = LEGACY_TARGETS.iter().position(|old| *old == target) {
-            format!("soloist-display-{}", TARGETS[index])
         } else if let Some((_, name)) = WINDOWS_MACOS_TARGETS
             .iter()
             .find(|(selected, _)| *selected == target)
@@ -286,7 +274,6 @@ fn render_bootstrap(template: &Path, manifest: &Path, base: &str) -> Result<()> 
         }
     }
     let expected_count = TARGETS.len()
-        + LEGACY_TARGETS.len()
         + if base.contains("-alpha.") || base.contains("-beta.") {
             WINDOWS_MACOS_TARGETS.len()
         } else {
@@ -498,35 +485,17 @@ mod tests {
             serde_json::from_slice(&fs::read(dir.path().join("release-manifest.json")).unwrap())
                 .unwrap();
         let artifacts = parsed["artifacts"].as_array().unwrap();
-        assert_eq!(artifacts.len(), 16);
-        for kind in ["display", "desktop"] {
-            assert_eq!(artifacts.iter().filter(|a| a["kind"] == kind).count(), 2);
+        assert_eq!(artifacts.len(), 8);
+        assert_eq!(artifacts.iter().filter(|a| a["kind"] == "display").count(), 2);
+        for target in TARGETS {
+            for kind in ["manager", "audio-bridge"] {
+                assert_eq!(
+                    artifacts.iter().filter(|a| a["kind"] == kind && a["target"] == target).count(),
+                    1
+                );
+            }
         }
-        assert!(artifacts.iter().all(|a| a["kind"] != "portable"));
-        for (target, _) in WINDOWS_MACOS_TARGETS {
-            let display = artifacts
-                .iter()
-                .find(|a| a["kind"] == "display" && a["target"] == target)
-                .unwrap();
-            let legacy = artifacts
-                .iter()
-                .find(|a| a["kind"] == "desktop" && a["target"] == target)
-                .unwrap();
-            assert_eq!(display["url"], legacy["url"]);
-            assert_eq!(display["sha256"], legacy["sha256"]);
-        }
-        for (current, legacy) in TARGETS.into_iter().zip(LEGACY_TARGETS) {
-            let new_asset = artifacts
-                .iter()
-                .find(|asset| asset["kind"] == "manager" && asset["target"] == current)
-                .unwrap();
-            let old_asset = artifacts
-                .iter()
-                .find(|asset| asset["kind"] == "manager" && asset["target"] == legacy)
-                .unwrap();
-            assert_eq!(new_asset["url"], old_asset["url"]);
-            assert_eq!(new_asset["sha256"], old_asset["sha256"]);
-        }
+        assert!(artifacts.iter().all(|a| !["desktop", "portable"].contains(&a["kind"].as_str().unwrap_or(""))));
         assert!(artifacts
             .iter()
             .all(|artifact| artifact["kind"] != "soloist"));

@@ -90,13 +90,6 @@ impl Architecture {
         }
     }
 
-    pub fn legacy_target(&self) -> &'static str {
-        match self {
-            Self::X86_64 => "x86_64-unknown-linux-musl",
-            Self::Aarch64 => "aarch64-unknown-linux-musl",
-            Self::Armv7 => "armv7-unknown-linux-musleabihf",
-        }
-    }
 }
 
 impl Platform {

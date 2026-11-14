@@ -47,7 +47,8 @@ fn config_path() -> PathBuf {
 }
 
 fn read_settings(path: &PathBuf) -> Value {
-    let mut settings: Value = serde_json::from_str(DEFAULT_CONFIG).expect("valid built-in settings");
+    let mut settings: Value =
+        serde_json::from_str(DEFAULT_CONFIG).expect("valid built-in settings");
     if let Ok(contents) = std::fs::read_to_string(path) {
         if let Ok(Value::Object(values)) = serde_json::from_str::<Value>(&contents) {
             if let Value::Object(ref mut object) = settings {

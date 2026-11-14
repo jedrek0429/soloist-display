@@ -97,10 +97,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - name: Require successful change classification
-        run: test "${{ needs.scope.result }}" = success
         with:
           fetch-depth: 2
+      - name: Require successful change classification
+        run: test "${{ needs.scope.result }}" = success
       - name: Install system dependencies
         if: needs.scope.outputs.code == 'true'
         run: |

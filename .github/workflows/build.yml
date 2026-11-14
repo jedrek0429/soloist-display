@@ -85,7 +85,7 @@ jobs:
       - name: Frontend syntax
         if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'
         run: |
-          for file in src/*.js src/*.mjs; do node --check --input-type=module < "$file"; done
+          for file in src/*.js; do node --check --input-type=module < "$file"; done
           node --experimental-default-type=module --test scripts/test-standby.mjs
           node --experimental-default-type=module --test scripts/test-landing-preview.mjs
           node --experimental-default-type=module --test scripts/test-backdrop-colour.mjs

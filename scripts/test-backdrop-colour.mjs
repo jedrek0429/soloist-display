@@ -40,3 +40,20 @@ test('highly saturated colours are gamut-mapped to valid six-digit hex',()=>{
     assert.match(dominantColourFromPixels(artwork(12,12,()=>rgb)),/^#[0-9a-f]{6}$/);
   }
 });
+
+test('dark burgundy with black borders remains visibly red, not grey',()=>{
+  const image=artwork(64,64,(x,y)=>x<55?[65,12,30]:y<40?[3,4,5]:[253,251,250]);
+  const colour=dominantColourFromPixels(image);
+  const [r,g,b]=channels(colour);
+  assert.ok(r>g*1.2&&r>b*1.05,colour);
+  assert.ok(r-g>22,colour);
+});
+test('pastel mint retains a green hue',()=>{
+  const [r,g,b]=channels(dominantColourFromPixels(artwork(48,48,()=>[157,219,190])));
+  assert.ok(g>r&&g>b);
+});
+test('bright typography does not dominate a cyan artwork',()=>{
+  const colour=dominantColourFromPixels(artwork(64,64,(x,y)=>x<6||y<4?[242,22,21]:[48,177,193]));
+  const [r,g,b]=channels(colour);
+  assert.ok(g>r*1.2&&b>r*1.2,colour);
+});

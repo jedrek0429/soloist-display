@@ -39,6 +39,9 @@ fn valid_tag(tag: &str) -> Result<Version> {
     if format!("v{parsed}") != tag {
         bail!("tag is not canonical SemVer");
     }
+    if release_channel(&parsed).is_none() {
+        bail!("release tags must use stable, alpha.N or beta.N channels");
+    }
     Ok(parsed)
 }
 
@@ -515,8 +518,11 @@ mod tests {
 
     #[test]
     fn accepts_canonical_release_tags() {
-        for tag in ["v1.0.0", "v1.0.0-alpha.1", "v1.0.0-beta.2", "v1.0.0-rc.1"] {
+        for tag in ["v1.0.0", "v1.0.0-alpha.1", "v1.0.0-beta.2"] {
             assert!(valid_tag(tag).is_ok(), "{tag}");
+        }
+        for tag in ["v1.0.0-rc.1", "v1.0.0-foo.1", "v1.0.0-alpha.0"] {
+            assert!(valid_tag(tag).is_err(), "{tag}");
         }
     }
     #[test]

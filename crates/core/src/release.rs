@@ -181,6 +181,7 @@ impl ReleaseClient {
             if parsed.to_string() != requested || !parsed.build.is_empty() {
                 bail!("SOLOIST_DISPLAY_VERSION must be canonical SemVer");
             }
+            ReleaseChannel::for_version(&parsed)?;
             format!("https://github.com/jedrek0429/soloist-display/releases/download/v{requested}")
         };
         let manifest_url = format!("{}/release-manifest.json", base.trim_end_matches('/'));

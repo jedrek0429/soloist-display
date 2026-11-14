@@ -32,7 +32,7 @@ const SETTINGS_HTML: &str = include_str!("../../../settings.html");
 const SETTINGS_JS: &str = include_str!("../../../src/settings.js");
 const MAIN_JS: &str = include_str!("../../../src/main.js");
 const MOTION_JS: &str = include_str!("../../../src/motion.js");
-const BACKDROP_COLOUR_JS: &str = include_str!("../../../src/backdrop-colour.mjs");
+const BACKDROP_COLOUR_JS: &str = include_str!("../../../src/backdrop-colour.js");
 const SPECTRUM_JS: &str = include_str!("../../../src/spectrum.js");
 const SOLOIST_JS: &str = include_str!("../../../src/soloist.js");
 
@@ -443,7 +443,7 @@ async fn static_file(axum::extract::Path(path): axum::extract::Path<String>) -> 
         "src/settings.js" => ("text/javascript; charset=utf-8", SETTINGS_JS),
         "src/main.js" => ("text/javascript; charset=utf-8", MAIN_JS),
         "src/motion.js" => ("text/javascript; charset=utf-8", MOTION_JS),
-        "src/backdrop-colour.mjs" => ("text/javascript; charset=utf-8", BACKDROP_COLOUR_JS),
+        "src/backdrop-colour.js" => ("text/javascript; charset=utf-8", BACKDROP_COLOUR_JS),
         "src/spectrum.js" => ("text/javascript; charset=utf-8", SPECTRUM_JS),
         "src/soloist.js" => ("text/javascript; charset=utf-8", SOLOIST_JS),
         _ => return StatusCode::NOT_FOUND.into_response(),

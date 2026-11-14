@@ -564,7 +564,7 @@ mod tests {
         let state = InstallState {
             schema: STATE_SCHEMA,
             version: "1.0.0".into(),
-            channel: None,
+            channel: crate::release::ReleaseChannel::Stable,
             suppress_updates: false,
             target: "test".into(),
             active_release: paths.releases.join("1.0.0"),
@@ -626,7 +626,7 @@ mod tests {
         let state = InstallState {
             schema: STATE_SCHEMA,
             version: "1.0.0".into(),
-            channel: None,
+            channel: crate::release::ReleaseChannel::Stable,
             suppress_updates: false,
             target: "test".into(),
             active_release: paths.releases.join("1.0.0"),

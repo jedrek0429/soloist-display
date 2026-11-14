@@ -45,8 +45,7 @@ impl Default for SoloistState {
 pub struct InstallState {
     pub schema: u32,
     pub version: String,
-    #[serde(default)]
-    pub channel: Option<ReleaseChannel>,
+    pub channel: ReleaseChannel,
     #[serde(default)]
     pub suppress_updates: bool,
     pub target: String,
@@ -65,14 +64,6 @@ impl soloist_display_core::lifecycle::VersionedState for InstallState {
 }
 
 impl InstallState {
-    pub fn effective_channel(&self) -> ReleaseChannel {
-        self.channel.unwrap_or_else(|| {
-            semver::Version::parse(&self.version)
-                .map(|version| ReleaseChannel::for_version(&version))
-                .unwrap_or(ReleaseChannel::Stable)
-        })
-    }
-
     pub fn load(paths: &Paths) -> Result<Option<Self>> {
         soloist_display_core::lifecycle::load_state(&paths.install_state, STATE_SCHEMA)
     }

@@ -56,20 +56,18 @@ pub enum ReleaseChannel {
     Stable,
     Alpha,
     Beta,
-    /// Legacy combined channel, kept for existing installations.
-    Prerelease,
 }
 
 impl ReleaseChannel {
-    pub fn for_version(version: &Version) -> Self {
+    pub fn for_version(version: &Version) -> Result<Self> {
         if version.pre.is_empty() {
-            Self::Stable
+            Ok(Self::Stable)
         } else if version.pre.as_str().starts_with("alpha.") {
-            Self::Alpha
+            Ok(Self::Alpha)
         } else if version.pre.as_str().starts_with("beta.") {
-            Self::Beta
+            Ok(Self::Beta)
         } else {
-            Self::Prerelease
+            bail!("unsupported release channel for version {version}; expected stable, alpha or beta")
         }
     }
 
@@ -78,7 +76,6 @@ impl ReleaseChannel {
             Self::Stable => version.pre.is_empty(),
             Self::Alpha => version.pre.as_str().starts_with("alpha."),
             Self::Beta => version.pre.as_str().starts_with("beta."),
-            Self::Prerelease => !version.pre.is_empty(),
         }
     }
 }
@@ -166,8 +163,7 @@ impl ReleaseClient {
                 "stable" => ReleaseChannel::Stable,
                 "alpha" => ReleaseChannel::Alpha,
                 "beta" => ReleaseChannel::Beta,
-                "prerelease" => ReleaseChannel::Prerelease,
-                _ => bail!("SOLOIST_DISPLAY_CHANNEL must be stable, alpha, beta or prerelease"),
+                _ => bail!("SOLOIST_DISPLAY_CHANNEL must be stable, alpha or beta"),
             })
         } else {
             channel
@@ -469,10 +465,7 @@ mod channel_tests {
             select_release_tag(&releases, Some(ReleaseChannel::Stable)).unwrap(),
             "v1.0.0"
         );
-        assert_eq!(
-            select_release_tag(&releases, Some(ReleaseChannel::Prerelease)).unwrap(),
-            "v1.2.0-beta.3"
-        );
+
     }
 
     #[test]
@@ -485,7 +478,11 @@ mod channel_tests {
         ];
         assert_eq!(select_release_tag(&releases, None).unwrap(), "v1.0.0");
         assert_eq!(
-            select_release_tag(&releases, Some(ReleaseChannel::Prerelease)).unwrap(),
+            select_release_tag(&releases, Some(ReleaseChannel::Alpha)).unwrap(),
+            "v1.1.0-alpha.8"
+        );
+        assert_eq!(
+            select_release_tag(&releases, Some(ReleaseChannel::Beta)).unwrap(),
             "v1.1.0-beta.67"
         );
     }
@@ -508,10 +505,7 @@ mod channel_tests {
             select_release_tag(&releases, Some(ReleaseChannel::Beta)).unwrap(),
             "v1.1.0-beta.67"
         );
-        assert_eq!(
-            select_release_tag(&releases, Some(ReleaseChannel::Prerelease)).unwrap(),
-            "v1.2.0-alpha.1"
-        );
+
     }
 
     #[test]
@@ -524,17 +518,23 @@ mod channel_tests {
     #[test]
     fn installed_version_determines_its_specific_channel() {
         assert_eq!(
-            ReleaseChannel::for_version(&Version::parse("1.0.0").unwrap()),
+            ReleaseChannel::for_version(&Version::parse("1.0.0").unwrap()).unwrap(),
             ReleaseChannel::Stable
         );
         assert_eq!(
-            ReleaseChannel::for_version(&Version::parse("1.1.0-alpha.7").unwrap()),
+            ReleaseChannel::for_version(&Version::parse("1.1.0-alpha.7").unwrap()).unwrap(),
             ReleaseChannel::Alpha
         );
         assert_eq!(
-            ReleaseChannel::for_version(&Version::parse("1.1.0-beta.67").unwrap()),
+            ReleaseChannel::for_version(&Version::parse("1.1.0-beta.67").unwrap()).unwrap(),
             ReleaseChannel::Beta
         );
+    }
+
+    #[test]
+    fn unsupported_prerelease_version_has_no_release_channel() {
+        assert!(ReleaseChannel::for_version(&Version::parse("1.2.0-rc.1").unwrap()).is_err());
+        assert!(serde_json::from_str::<ReleaseChannel>(r#""prerelease""#).is_err());
     }
 
     #[test]

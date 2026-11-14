@@ -1167,7 +1167,7 @@ pub fn update(
     let state =
         InstallState::load(paths)?.ok_or_else(|| anyhow!("Soloist Display is not installed"))?;
     let client = ReleaseClient::new()?;
-    let requested_channel = channel.unwrap_or_else(|| state.channel);
+    let requested_channel = channel.unwrap_or(state.channel);
     let (manifest, _) = client.select(Some(requested_channel), version)?;
     let installed_version =
         semver::Version::parse(&state.version).context("installed version metadata is invalid")?;

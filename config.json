@@ -20,6 +20,8 @@
   "cdCoverSide": "down",
   "cdRainbow": 0.5,
   "vinylGrooveDensity": 5,
+  "backgroundMode": "blurred-artwork",
+  "backgroundColor": "#101010",
   "backgroundDim": 0.52,
   "backgroundBlur": 50,
   "metadataOpacity": 0.58,

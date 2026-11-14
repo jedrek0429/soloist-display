@@ -88,6 +88,8 @@ jobs:
           for file in src/*.js; do node --check --input-type=module < "$file"; done
           node --experimental-default-type=module --test scripts/test-standby.mjs
           node --experimental-default-type=module --test scripts/test-landing-preview.mjs
+          node --experimental-default-type=module --test scripts/test-backdrop-colour.mjs
+          node --experimental-default-type=module --test scripts/test-backdrop-integration.mjs
           cargo run --locked --quiet -p soloist-display-installer --bin release-tools -- check-settings .
       - name: Release bootstrap pin smoke test
         if: github.event_name != 'pull_request' || steps.scope.outputs.code_changed == 'true'

@@ -31,6 +31,8 @@ const settings={
   transitionDuration:bounded(motionValue('transitionDuration'),2000,100,10000),
   backdropTransitionStyle:config.backdropTransitionStyle||'fade',
   backdropTransitionDuration:bounded(config.backdropTransitionDuration,2000,100,10000),
+  backgroundMode:['blurred-artwork','dominant-colour','custom-colour'].includes(config.backgroundMode)?config.backgroundMode:'blurred-artwork',
+  backgroundColor:/^#[0-9a-f]{6}$/i.test(config.backgroundColor||'')?config.backgroundColor:'#101010',
   backgroundDim:bounded(config.backgroundDim,.52,0,1),
   backgroundBlur:bounded(config.backgroundBlur,50,0,150),
   metadataOpacity:bounded(config.metadataOpacity,.58,0,1),

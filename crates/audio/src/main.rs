@@ -32,6 +32,7 @@ const SETTINGS_HTML: &str = include_str!("../../../settings.html");
 const SETTINGS_JS: &str = include_str!("../../../src/settings.js");
 const MAIN_JS: &str = include_str!("../../../src/main.js");
 const MOTION_JS: &str = include_str!("../../../src/motion.js");
+const BACKDROP_COLOUR_JS: &str = include_str!("../../../src/backdrop-colour.js");
 const SPECTRUM_JS: &str = include_str!("../../../src/spectrum.js");
 const SOLOIST_JS: &str = include_str!("../../../src/soloist.js");
 
@@ -279,6 +280,24 @@ async fn put_config(
                 return Err((StatusCode::BAD_REQUEST, format!("Out of range: {key}")));
             }
         }
+        if key == "backgroundMode"
+            && !["blurred-artwork", "dominant-colour", "custom-colour"]
+                .contains(&value.as_str().unwrap_or(""))
+        {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Unsupported background type".into(),
+            ));
+        }
+        if key == "backgroundColor" {
+            let colour = value.as_str().unwrap_or("");
+            if colour.len() != 7
+                || !colour.starts_with('#')
+                || !colour[1..].bytes().all(|byte| byte.is_ascii_hexdigit())
+            {
+                return Err((StatusCode::BAD_REQUEST, "Invalid background colour".into()));
+            }
+        }
         if key == "idleAppearance"
             && !["digital-clock", "vinyl-clock", "vinyl", "text", "black"]
                 .contains(&value.as_str().unwrap_or(""))
@@ -424,6 +443,7 @@ async fn static_file(axum::extract::Path(path): axum::extract::Path<String>) -> 
         "src/settings.js" => ("text/javascript; charset=utf-8", SETTINGS_JS),
         "src/main.js" => ("text/javascript; charset=utf-8", MAIN_JS),
         "src/motion.js" => ("text/javascript; charset=utf-8", MOTION_JS),
+        "src/backdrop-colour.js" => ("text/javascript; charset=utf-8", BACKDROP_COLOUR_JS),
         "src/spectrum.js" => ("text/javascript; charset=utf-8", SPECTRUM_JS),
         "src/soloist.js" => ("text/javascript; charset=utf-8", SOLOIST_JS),
         _ => return StatusCode::NOT_FOUND.into_response(),
@@ -1005,6 +1025,40 @@ mod tests {
         assert_eq!(
             settings["discSizeAlbumCover"],
             defaults["discSizeAlbumCover"]
+        );
+    }
+
+    #[tokio::test]
+    async fn background_modes_accept_valid_colours_and_reject_invalid_settings() {
+        let directory = tempfile::tempdir().unwrap();
+        let state = WebState {
+            path: Arc::new(directory.path().join("config.json")),
+            write_lock: Arc::new(Mutex::new(())),
+        };
+        assert_eq!(
+            read_settings(&state.path)["backgroundMode"],
+            "blurred-artwork"
+        );
+        for (mode, colour, valid) in [
+            ("dominant-colour", "#Aa11ff", true),
+            ("custom-colour", "#0077ee", true),
+            ("blurred-artwork", "#000000", true),
+            ("unexpected", "#123456", false),
+            ("custom-colour", "#12345g", false),
+            ("custom-colour", "red", false),
+        ] {
+            let current = read_settings(&state.path);
+            let mut submitted = current.clone();
+            submitted["backgroundMode"] = Value::from(mode);
+            submitted["backgroundColor"] = Value::from(colour);
+            let mut headers = HeaderMap::new();
+            headers.insert(header::IF_MATCH, config_etag(&current).parse().unwrap());
+            let result = put_config(State(state.clone()), headers, Json(submitted)).await;
+            assert_eq!(result.is_ok(), valid, "mode={mode}, colour={colour}");
+        }
+        assert_eq!(
+            read_settings(&state.path)["backgroundMode"],
+            "blurred-artwork"
         );
     }
 }

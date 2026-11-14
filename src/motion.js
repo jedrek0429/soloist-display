@@ -1,10 +1,25 @@
+import {dominantColourForArtwork} from './backdrop-colour.js';
+
 const imageStyle=url=>url?'url('+JSON.stringify(url)+')':'none';
-function preload(url){
+// One image preload supplies both the display and optional palette extraction.
+function preload(url,{forColour=false}={}){
   return new Promise(resolve=>{
-    if(!url)return resolve();
-    const img=new Image();let finished=false;
-    const done=()=>{if(!finished){finished=true;resolve()}};
-    img.onload=done;img.onerror=done;img.src=url;setTimeout(done,1500);
+    if(!url){resolve(null);return}
+    const image=new Image();
+    let finished=false;
+    const finish=result=>{
+      if(finished)return;
+      finished=true;
+      clearTimeout(timeout);
+      image.onload=null;
+      image.onerror=null;
+      resolve(result);
+    };
+    const timeout=setTimeout(()=>finish(null),1500);
+    if(forColour)image.crossOrigin='anonymous';
+    image.onload=()=>finish(image);
+    image.onerror=()=>finish(null);
+    image.src=url;
   });
 }
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -19,6 +34,13 @@ export class DiscDirector{
     this.pauseRetractTimer=null;this.pauseStartedAt=null;this.pauseRetracted=false;this.artworkChanging=false;this.playbackKnown=false;
     this.panelPauseTimer=null;this.panelPauseStartedAt=null;this.panelPauseHidden=false;this.pendingPanelShow=null;
     requestAnimationFrame(t=>this.spin(t));
+  }
+  setBackdrop(element,url,dominantColour){
+    const mode=this.settings.backgroundMode;
+    const colour=mode==='custom-colour'?this.settings.backgroundColor:mode==='dominant-colour'?dominantColour:null;
+    element.dataset.backdropKind=colour?'colour':'artwork';
+    element.style.backgroundImage=colour?'none':imageStyle(url);
+    element.style.backgroundColor=colour||'';
   }
   spin(now){
     const dt=Math.min(.08,(now-this.last)/1000);this.last=now;
@@ -291,7 +313,7 @@ export class DiscDirector{
     // Leave disc, backdrop, rotation and pending disc transitions untouched.
     void this.transitionPanel(onShow);
   }
-  async changeSleeve(url,onShow,token){
+  async changeSleeve(url,onShow,token,dominantColour){
     const outgoingIndex=this.current;
     const incomingIndex=this.started?1-outgoingIndex:outgoingIndex;
     const outgoing=this.discs[outgoingIndex],incoming=this.discs[incomingIndex];
@@ -326,7 +348,7 @@ export class DiscDirector{
     incoming.querySelector('.disc-label').style.backgroundImage=imageStyle(url);
     incoming.style.setProperty('--cd-cover-art',imageStyle(url));
     newSleeve.style.backgroundImage=imageStyle(url);
-    nextBg.style.backgroundImage=imageStyle(url);
+    this.setBackdrop(nextBg,url,dominantColour);
     incoming.dataset.angleOffset=String(this.angle);
     newTrack.style.transform=sleeveOn&&this.started?'translateX(0)':'translateX(50%)';
     if(!this.started)oldTrack.style.transform='translateX(50%)';
@@ -431,10 +453,12 @@ export class DiscDirector{
     this.pauseRetracted=false;
     if(this.playbackKnown&&!this.playing&&this.isSleeve())this.pauseStartedAt=Date.now();
     else this.pauseStartedAt=null;
-    await preload(url);
+    const forColour=this.settings.backgroundMode==='dominant-colour';
+    const artwork=await preload(url,{forColour});
     if(token!==this.token)return;
+    const dominantColour=forColour?dominantColourForArtwork(url,artwork):null;
     if(['vinyl-cover','cd-cover'].includes(document.documentElement.dataset.discAppearance)){
-      await this.changeSleeve(url,onShow,token);
+      await this.changeSleeve(url,onShow,token,dominantColour);
       return;
     }
     const outgoingIndex=this.current;
@@ -446,7 +470,7 @@ export class DiscDirector{
     incoming.querySelector('.disc-image').style.backgroundImage=imageStyle(url);
     incoming.querySelector('.disc-label').style.backgroundImage=imageStyle(url);
     incoming.dataset.angleOffset=String(this.angle);
-    nextBg.style.backgroundImage=imageStyle(url);
+    this.setBackdrop(nextBg,url,dominantColour);
     const commit=()=>{
       if(token!==this.token)return;
       this.current=incomingIndex;

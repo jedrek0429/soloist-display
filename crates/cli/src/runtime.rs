@@ -57,9 +57,6 @@ pub fn parse(args: &[String]) -> Result<Command, String> {
     cli.flags.configure_color();
     QUIET.store(cli.flags.quiet, Ordering::Relaxed);
     VERBOSE.store(cli.flags.verbose, Ordering::Relaxed);
-    if cli.settings {
-        return Ok(Command::Settings);
-    }
     Ok(match cli.command {
         None => Command::Serve,
         Some(SharedCommand::Launch) => Command::Launch,

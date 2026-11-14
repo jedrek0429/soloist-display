@@ -1,6 +1,6 @@
 use crate::terminal::Progress;
 use crate::{
-    dependencies, legacy, migrations, mpris,
+    dependencies, legacy, mpris,
     paths::{path_string, Paths},
     platform::{Architecture, Platform},
     process,
@@ -625,11 +625,6 @@ fn recover_install(paths: &Paths, previous: &InstallRecovery) -> Result<()> {
         0o600,
     )?;
     restore_snapshot_file(
-        &paths.state.join("config-schema.json"),
-        previous.previous_config_schema.as_deref(),
-        0o600,
-    )?;
-    restore_snapshot_file(
         &paths.state.join("soloist-runtime.json"),
         previous.previous_runtime.as_deref(),
         0o600,
@@ -935,7 +930,6 @@ pub fn install(
         .context("missing systemd user unit directory")?;
     transaction.install_recovery = Some(InstallRecovery {
         previous_settings: original_settings.clone(),
-        previous_config_schema: fs::read(paths.state.join("config-schema.json")).ok(),
         previous_metadata: original_metadata.clone(),
         previous_env: fs::read(&paths.soloist_env).ok(),
         previous_runtime: original_runtime.clone(),
@@ -1013,7 +1007,6 @@ pub fn install(
         transaction.set_status(&journal_path, TransactionStatus::Activating)?;
         atomic_link(&release, &paths.current)?;
         install_visible_command(paths)?;
-        migrations::migrate(paths)?;
         let soloist_state = if let Some(external) = &verified_external {
             external.clone()
         } else if discovered_soloist.ownership == SoloistOwnership::Installer {
@@ -1215,7 +1208,6 @@ pub fn update(
         let release = install_artifacts(paths, platform, &client, &manifest, &mut tx, &tx_path)?;
         tx.set_status(&tx_path, TransactionStatus::Activating)?;
         atomic_link(&release, &paths.current)?;
-        migrations::migrate(paths)?;
         let mut next_soloist = state.soloist.clone();
         if state.soloist.ownership == SoloistOwnership::Installer
             && !state
@@ -1288,7 +1280,6 @@ pub fn repair(paths: &Paths, platform: &Platform, quiet: bool) -> Result<()> {
     progress.step(1, "Checking files");
     let mut state = InstallState::load(paths)?
         .ok_or_else(|| anyhow!("Soloist Display is not installed; run the installer first"))?;
-    migrations::migrate(paths)?;
     let client = ReleaseClient::new()?;
     let (manifest, _) = client.select(None, Some(&state.version))?;
     let release_valid = ["manager", "audio-bridge"].iter().all(|kind| {
@@ -1981,7 +1972,6 @@ mod tests {
         let (mut tx, journal) = TransactionJournal::begin(&paths.transactions, "install").unwrap();
         tx.install_recovery = Some(InstallRecovery {
             previous_settings: Some(b"original settings".to_vec()),
-            previous_config_schema: None,
             previous_metadata: None,
             previous_env: None,
             previous_runtime: None,
@@ -2028,7 +2018,6 @@ mod tests {
         let (mut tx, journal) = TransactionJournal::begin(&paths.transactions, "install").unwrap();
         tx.install_recovery = Some(InstallRecovery {
             previous_settings: None,
-            previous_config_schema: None,
             previous_metadata: None,
             previous_env: Some(env.to_vec()),
             previous_runtime: None,
@@ -2079,7 +2068,6 @@ mod tests {
             TransactionJournal::begin(&paths.transactions, "install").unwrap();
         transaction.install_recovery = Some(InstallRecovery {
             previous_settings: None,
-            previous_config_schema: None,
             previous_metadata: None,
             previous_env: None,
             previous_runtime: None,

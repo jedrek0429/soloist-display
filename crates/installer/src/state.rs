@@ -78,7 +78,6 @@ pub use soloist_display_core::lifecycle::{Backup, TransactionStatus};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct InstallRecovery {
     pub previous_settings: Option<Vec<u8>>,
-    pub previous_config_schema: Option<Vec<u8>>,
     pub previous_metadata: Option<Vec<u8>>,
     pub previous_env: Option<Vec<u8>>,
     pub previous_runtime: Option<Vec<u8>>,

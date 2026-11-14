@@ -13,8 +13,6 @@ use soloist_display_cli::output as cli_output;
 use soloist_display_installer::windows_macos_lifecycle;
 mod device;
 mod pcm;
-#[cfg(any(windows, target_os = "macos"))]
-use soloist_display_core::release;
 mod spectrum;
 use serde_json::Value;
 use spectrum::{HOP, RATE};
@@ -875,7 +873,7 @@ mod tests {
         assert_eq!(settings["discAppearance"], "cd-cover");
         assert_eq!(settings["discSizeCdCover"], 91);
         assert!(settings.get("centerHoleDot").is_none());
-        assert!(settings.get("discSize").is_none());
+        assert_eq!(settings["discSize"], 142);
         assert_eq!(settings["discSizeVinyl"], defaults["discSizeVinyl"]);
     }
 

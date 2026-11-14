@@ -1,4 +1,4 @@
-import {dominantColourForArtwork} from './backdrop-colour.mjs';
+import {dominantColourForArtwork} from './backdrop-colour.js';
 
 const imageStyle=url=>url?'url('+JSON.stringify(url)+')':'none';
 // One image preload supplies both the display and optional palette extraction.

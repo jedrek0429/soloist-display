@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {DiscDirector} from '../src/motion.js';
-import {dominantColourForArtwork} from '../src/backdrop-colour.mjs';
+import {dominantColourForArtwork} from '../src/backdrop-colour.js';
 
 function element(){
   const classes=new Set(),children=new Map();
@@ -131,6 +131,12 @@ test('settings expose three modes and only their relevant controls',()=>{
   const defaults=JSON.parse(readFileSync(new URL('../config.json',import.meta.url),'utf8'));
   const src=readFileSync(new URL('../src/settings.js',import.meta.url),'utf8');
   assert.equal(defaults.backgroundMode,'blurred-artwork');
+  // The preset custom colour follows the shared UI background (#101010).
+  const settingsHtml=readFileSync(new URL('../settings.html',import.meta.url),'utf8');
+  assert.match(settingsHtml,/--bg:#101010/);
+  assert.equal(defaults.backgroundColor,'#101010');
+  assert.match(readFileSync(new URL('../src/main.js',import.meta.url),'utf8'),/config\.backgroundColor:'#101010'/);
+  assert.match(src, /draft\[key\]:'#101010'/);
   assert.match(src,/\['backgroundMode','Type','select',\['blurred-artwork','dominant-colour','custom-colour'\]\]/);
   assert.match(src,/key==='backgroundBlur'&&draft\.backgroundMode!=='blurred-artwork'/);
   assert.match(src,/key==='backgroundColor'&&draft\.backgroundMode!=='custom-colour'/);

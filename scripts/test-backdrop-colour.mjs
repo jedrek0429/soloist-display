@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {dominantColourFromPixels} from '../src/backdrop-colour.mjs';
+import {dominantColourFromPixels} from '../src/backdrop-colour.js';
 
 function artwork(width,height,pixel){
   const data=new Uint8ClampedArray(width*height*4);

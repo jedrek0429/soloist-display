@@ -339,7 +339,7 @@ function renderSection(){
       controls.append(line);continue;
     }else if(type==='colour'){
       input.type='color';
-      input.value=/^#[0-9a-f]{6}$/i.test(draft[key]||'')?draft[key]:'#48566b';
+      input.value=/^#[0-9a-f]{6}$/i.test(draft[key]||'')?draft[key]:'#101010';
       line.append(input);
     }else if(type==='range'){
       input.type='range';

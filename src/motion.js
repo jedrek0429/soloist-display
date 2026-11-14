@@ -1,3 +1,5 @@
+import {dominantColourForArtwork} from './backdrop-colour.mjs';
+
 const imageStyle=url=>url?'url('+JSON.stringify(url)+')':'none';
 function preload(url){
   return new Promise(resolve=>{
@@ -19,6 +21,12 @@ export class DiscDirector{
     this.pauseRetractTimer=null;this.pauseStartedAt=null;this.pauseRetracted=false;this.artworkChanging=false;this.playbackKnown=false;
     this.panelPauseTimer=null;this.panelPauseStartedAt=null;this.panelPauseHidden=false;this.pendingPanelShow=null;
     requestAnimationFrame(t=>this.spin(t));
+  }
+  setBackdrop(element,url,dominantColour){
+    const mode=this.settings.backgroundMode;
+    const colour=mode==='custom-colour'?this.settings.backgroundColor:mode==='dominant-colour'?dominantColour:null;
+    element.style.backgroundImage=colour?'none':imageStyle(url);
+    element.style.backgroundColor=colour||'';
   }
   spin(now){
     const dt=Math.min(.08,(now-this.last)/1000);this.last=now;
@@ -291,7 +299,7 @@ export class DiscDirector{
     // Leave disc, backdrop, rotation and pending disc transitions untouched.
     void this.transitionPanel(onShow);
   }
-  async changeSleeve(url,onShow,token){
+  async changeSleeve(url,onShow,token,dominantColour){
     const outgoingIndex=this.current;
     const incomingIndex=this.started?1-outgoingIndex:outgoingIndex;
     const outgoing=this.discs[outgoingIndex],incoming=this.discs[incomingIndex];
@@ -326,7 +334,7 @@ export class DiscDirector{
     incoming.querySelector('.disc-label').style.backgroundImage=imageStyle(url);
     incoming.style.setProperty('--cd-cover-art',imageStyle(url));
     newSleeve.style.backgroundImage=imageStyle(url);
-    nextBg.style.backgroundImage=imageStyle(url);
+    this.setBackdrop(nextBg,url,dominantColour);
     incoming.dataset.angleOffset=String(this.angle);
     newTrack.style.transform=sleeveOn&&this.started?'translateX(0)':'translateX(50%)';
     if(!this.started)oldTrack.style.transform='translateX(50%)';
@@ -431,10 +439,13 @@ export class DiscDirector{
     this.pauseRetracted=false;
     if(this.playbackKnown&&!this.playing&&this.isSleeve())this.pauseStartedAt=Date.now();
     else this.pauseStartedAt=null;
-    await preload(url);
+    const [,dominantColour]=await Promise.all([
+      preload(url),
+      this.settings.backgroundMode==='dominant-colour'?dominantColourForArtwork(url):Promise.resolve(null)
+    ]);
     if(token!==this.token)return;
     if(['vinyl-cover','cd-cover'].includes(document.documentElement.dataset.discAppearance)){
-      await this.changeSleeve(url,onShow,token);
+      await this.changeSleeve(url,onShow,token,dominantColour);
       return;
     }
     const outgoingIndex=this.current;
@@ -446,7 +457,7 @@ export class DiscDirector{
     incoming.querySelector('.disc-image').style.backgroundImage=imageStyle(url);
     incoming.querySelector('.disc-label').style.backgroundImage=imageStyle(url);
     incoming.dataset.angleOffset=String(this.angle);
-    nextBg.style.backgroundImage=imageStyle(url);
+    this.setBackdrop(nextBg,url,dominantColour);
     const commit=()=>{
       if(token!==this.token)return;
       this.current=incomingIndex;

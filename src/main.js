@@ -31,6 +31,8 @@ const settings={
   transitionDuration:bounded(motionValue('transitionDuration'),2000,100,10000),
   backdropTransitionStyle:config.backdropTransitionStyle||'fade',
   backdropTransitionDuration:bounded(config.backdropTransitionDuration,2000,100,10000),
+  backgroundMode:['blurred-artwork','dominant-colour','custom-colour'].includes(config.backgroundMode)?config.backgroundMode:'blurred-artwork',
+  backgroundColor:/^#[0-9a-f]{6}$/i.test(config.backgroundColor||'')?config.backgroundColor:'#48566b',
   backgroundDim:bounded(config.backgroundDim,.52,0,1),
   backgroundBlur:bounded(config.backgroundBlur,50,0,150),
   metadataOpacity:bounded(config.metadataOpacity,.58,0,1),
@@ -54,6 +56,7 @@ const settings={
   panelDelayOut:bounded(config.panelDelayOut,0,0,10000)
 };
 const root=document.documentElement;
+root.dataset.backgroundMode=settings.backgroundMode;
 root.dataset.reducedMotion=settings.reducedMotion?'true':'false';
 root.dataset.idleAppearance=['digital-clock','vinyl-clock','vinyl','text','black'].includes(config.idleAppearance)?config.idleAppearance:'digital-clock';
 root.dataset.idleShowDate=config.idleShowDate===false?'false':'true';

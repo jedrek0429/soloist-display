@@ -19,6 +19,8 @@ const sections=[
   {
     title:'Backdrop',
     fields:[
+      ['backgroundMode','Type','select',['blurred-artwork','dominant-colour','custom-colour']],
+      ['backgroundColor','Custom colour','colour'],
       ['backgroundDim','Darkness','range',0,1,.01],
       ['backgroundBlur','Blur','range',0,150,1,'px']
     ]
@@ -114,7 +116,7 @@ const sections=[
   }
 ];
 const selectLabel=(key,choice)=>{
-  const labels={song:'Song change',album:'Album change',cd:'CD','vinyl-cover':'Vinyl & Cover','cd-cover':'CD & Cover','album-cover':'Album cover','digital-clock':'Digital clock','vinyl-clock':'Vinyl clock',vinyl:'Vinyl',text:'Text only',black:'Pure black'};
+  const labels={song:'Song change',album:'Album change',cd:'CD','vinyl-cover':'Vinyl & Cover','cd-cover':'CD & Cover','album-cover':'Album cover','digital-clock':'Digital clock','vinyl-clock':'Vinyl clock',vinyl:'Vinyl',text:'Text only',black:'Pure black','blurred-artwork':'Blurred artwork','dominant-colour':'Dominant colour','custom-colour':'Custom colour'};
   return key==='idleAppearance'&&choice==='vinyl'?'Vinyl standby':labels[choice]||String(choice).replace(/^./,c=>c.toUpperCase());
 };
 const controls=document.querySelector('#controls');
@@ -200,6 +202,8 @@ function renderSection(){
     renderNav();
   }
   const hidden=key=>
+    (key==='backgroundColor'&&draft.backgroundMode!=='custom-colour')||
+    (key==='backgroundBlur'&&draft.backgroundMode!=='blurred-artwork')||
     (sections[activeSection].title==='Panel'&&key!=='panelEnabled'&&draft.panelEnabled===false)||
     (sections[activeSection].title==='Panel motion'&&draft.panelEnabled===false)||(key==='cdCoverSide'&&draft.discAppearance!=='cd-cover')||
     (key==='cdRainbow'&&(draft.discAppearance!=='cd-cover'||draft.cdCoverSide!=='down'))||
@@ -329,10 +333,14 @@ function renderSection(){
       line.append(select);
       const output=document.createElement('output');output.htmlFor=key;
       const refresh=()=>{const value=typeof min[0]==='number'?Number(select.value):select.value;draft[key==='centerHoleColor'?selectedHoleColorKey():selectedFieldKey(key)]=value;output.textContent=String(value);};
-      select.addEventListener('change',()=>{refresh();if(['discAppearance','cdCoverSide','timeDisplay','transitionStyle','sleeveTransitionStyle','backdropTransitionStyle','panelTransitionStyle','idleTransitionStyle','idleAppearance'].includes(key)){if(key==='discAppearance')renderNav();renderSection();}status.textContent='Unsaved changes';});
+      select.addEventListener('change',()=>{refresh();if(['discAppearance','cdCoverSide','timeDisplay','transitionStyle','sleeveTransitionStyle','backdropTransitionStyle','panelTransitionStyle','idleTransitionStyle','idleAppearance','backgroundMode'].includes(key)){if(key==='discAppearance')renderNav();renderSection();}status.textContent='Unsaved changes';});
       // Rendering a select must not change the configuration. Only user input does.
       output.textContent=select.value;
       controls.append(line);continue;
+    }else if(type==='colour'){
+      input.type='color';
+      input.value=/^#[0-9a-f]{6}$/i.test(draft[key]||'')?draft[key]:'#48566b';
+      line.append(input);
     }else if(type==='range'){
       input.type='range';
       input.min=min;

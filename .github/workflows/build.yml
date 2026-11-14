@@ -24,8 +24,7 @@ concurrency:
   group: checks-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 jobs:
-  linux:
-    name: Linux
+  test:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7

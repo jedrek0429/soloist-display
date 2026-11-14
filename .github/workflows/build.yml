@@ -35,6 +35,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Full checks on push/dispatch; PRs skip only unrelated work.
           code=false; documentation=false; systemd=false; abi=false
           if [[ "${{ github.event_name }}" != "pull_request" ]]; then
             code=true; documentation=true; systemd=true; abi=true
@@ -46,11 +47,12 @@ jobs:
                 README.md|docs/*) documentation=true ;;
                 *) code=true ;;
               esac
+              # Conservative directory-level matching includes newly added files.
               case "$file" in
-                crates/installer/*|crates/core/*|crates/platform/src/linux.rs|Cargo.toml|Cargo.lock|install.sh|.github/workflows/build.yml) systemd=true ;;
+                crates/*|Cargo.toml|Cargo.lock|install.sh|scripts/test-release-lifecycle.sh|.github/workflows/build.yml) systemd=true ;;
               esac
               case "$file" in
-                Cargo.toml|Cargo.lock|crates/*/Cargo.toml|crates/audio/src/capture.rs|crates/audio/src/device.rs|crates/platform/*|scripts/ci-build-glibc.sh|.github/workflows/build.yml) abi=true ;;
+                crates/*|Cargo.toml|Cargo.lock|scripts/ci-build-glibc.sh|.github/workflows/build.yml) abi=true ;;
               esac
               if [[ "$file" == ".github/workflows/build.yml" ]]; then documentation=true; fi
             done <<< "$changed"
@@ -249,7 +251,7 @@ jobs:
           relevant=false
           if [[ "${{ github.event_name }}" != "pull_request" ]]; then
             relevant=true
-          elif git diff --name-only HEAD^1 HEAD | grep -Eq '^(crates/|Cargo\.toml$|Cargo\.lock$|install\.sh$|install\.ps1$|\.github/workflows/build\.yml$)'; then
+          elif git diff --name-only HEAD^1 HEAD | grep -Eq '^(crates/|src/|config\\.json$|index\\.html$|settings\\.html$|styles\\.css$|Cargo\.toml$|Cargo\.lock$|install\.sh$|install\.ps1$|\.github/workflows/build\.yml$)'; then
             relevant=true
           fi
           echo "relevant=$relevant" >> "$GITHUB_OUTPUT"

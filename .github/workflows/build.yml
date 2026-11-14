@@ -76,10 +76,11 @@ jobs:
               case "$file" in
                 Cargo.toml|Cargo.lock|crates/*/Cargo.toml|crates/audio/src/capture.rs|crates/audio/src/device.rs|crates/platform/*|scripts/ci-build-glibc.sh|.github/workflows/build.yml) abi=true ;;
               esac
-              case "$file" in
-                README.md|docs/*) ;;
-                *) if [[ "$EVENT" == 'push' ]]; then distribution=true; fi ;;
-              esac
+              if [[ "$EVENT" == 'push' ]]; then
+                case "$file" in
+                  crates/*|src/*|Cargo.toml|Cargo.lock|config.json|install.sh|.github/workflows/*|scripts/*) distribution=true ;;
+                esac
+              fi
               if [[ "$file" == .github/workflows/build.yml ]]; then documentation=true; fi
             done <<< "$changed"
           fi
@@ -335,15 +336,17 @@ jobs:
   windows-macos:
     needs: scope
     if: needs.scope.outputs.windows_macos == 'true' && github.event_name != 'schedule'
-    name: Windows/macOS (${{ matrix.system }})
+    name: ${{ matrix.label }} checks
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - system: windows
+            label: Windows
             runner: windows-2025
           - system: macos
+            label: macOS
             runner: macos-15
     steps:
       - uses: actions/checkout@v7

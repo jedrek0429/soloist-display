@@ -64,7 +64,7 @@ which must remain running to keep the display available.
 
 Global flags `--no-color`, `--quiet`, `--verbose`, and `--yes`
 use the shared parser. Installation and renewal commands still work only
-on Linux; `--yes` is reserved for the upcoming desktop installer lifecycle.
+on Linux; `--yes` is reserved for the Windows/macOS installer lifecycle.
 Shell completion scripts are generated to stdout and are not automatically installed.
 
 On Linux, `soloist-display device list/use/set/default` delegates to the

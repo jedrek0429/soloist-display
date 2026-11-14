@@ -1,6 +1,6 @@
-# Desktop (Windows x86_64 and macOS Apple Silicon)
+# Windows x86_64 and macOS Apple Silicon
 
-Desktop remains **External Spotify Soloist only**: it installs and maintains Soloist Display, not Spotify Soloist. Intel macOS is not supported. The alpha builds are not OS code-signed, so Windows SmartScreen or macOS Gatekeeper may warn.
+These builds remain **External Spotify Soloist only**: it installs and maintains Soloist Display, not Spotify Soloist. Intel macOS is not supported. The alpha builds are not OS code-signed, so Windows SmartScreen or macOS Gatekeeper may warn.
 
 ## Install
 
@@ -18,7 +18,7 @@ curl -fL "https://github.com/jedrek0429/soloist-display/releases/download/<TAG>/
 sh install.sh
 ```
 
-Replace `<TAG>` with a published version such as `v1.1.0-alpha.2` **only if that release includes the new installer assets**; earlier alphas will not. Download scripts only from the official release. The bootstrap `install.sh` also continues to support Linux unchanged. Stable releases without desktop artifacts cannot install desktop builds.
+Replace `<TAG>` with a published version such as `v1.1.0-alpha.2` **only if that release includes the new installer assets**; earlier alphas will not. Download scripts only from the official release. The bootstrap `install.sh` also continues to support Linux unchanged. Stable releases without Windows/macOS artifacts cannot install these builds.
 
 The installed executable is versioned under `%LOCALAPPDATA%\soloist-display\releases\` (Windows) or `~/Library/Application Support/soloist-display/app/releases/` (macOS). A managed command shim points to the active version: `soloist-display.cmd` in the Windows user bin directory, or `~/.local/bin/soloist-display` on macOS. Windows install.ps1 adds the user bin directory to the user PATH; restart your terminal. On macOS ensure `~/.local/bin` is on PATH.
 
@@ -47,7 +47,7 @@ For one-off testing without installing, the original unsigned preview archives r
 
 **Versioned alpha/beta preview:** open [GitHub Releases](https://github.com/jedrek0429/soloist-display/releases), choose the desired `vX.Y.Z-alpha.N` or `vX.Y.Z-beta.N` release, and download `soloist-display-preview-windows-x86_64-<tag>.zip` or `soloist-display-preview-macos-arm64-<tag>.zip` under **Assets**. These are built from the exact tagged commit, and each ZIP contains `BUILD.txt` with its tag and commit SHA. Preview ZIPs are not produced for stable releases.
 
-**Integrated branch snapshots:** [Desktop prerelease builds](https://github.com/jedrek0429/soloist-display/actions/workflows/standalone-desktop.yml) still publishes branch-specific artifacts on successful `alpha/*` and `beta/*` pushes. Unlike release downloads, these are temporary GitHub Actions artifacts (14-day retention, potentially requiring GitHub sign-in) and contain the branch commit, not necessarily the tagged release commit.
+**CI verification:** Pull requests compile and test the Windows and macOS code when platform-specific files change; they do not publish temporary branch snapshots. Downloadable previews come from immutable alpha/beta release tags.
 
 Unzip the archive and run from a terminal:
 
@@ -72,6 +72,6 @@ The spectrum uses CPAL to capture the computer's **default audio output**, not a
 
 Settings are saved in the user's native configuration directory: `%APPDATA%\\soloist-display\\config.json` on Windows, `~/Library/Application Support/soloist-display/config.json` on macOS. Set `SOLOIST_DISPLAY_CONFIG_DIR` to override the settings directory for isolated tests. The HTTP and spectrum ports can be overridden using `SOLOIST_DISPLAY_HTTP_PORT` and `SOLOIST_DISPLAY_AUDIO_PORT`.
 
-These standalone ZIP previews remain **unsigned**. From the first Phase II release, the separate raw desktop binaries are included in the Ed25519-signed release manifest for installation and updates. PR checks validate code without uploading duplicate branch snapshots; alpha/beta release publication requires both tagged desktop builds and their smoke tests to pass. macOS Gatekeeper and Windows SmartScreen may warn about these binaries. Do not bypass security controls on an untrusted download. A passing CI smoke test verifies that the local pages start; it does not verify real audio capture or Spotify playback on desktop hardware.
+These standalone ZIP previews remain **unsigned**. From the first Phase II release, the separate raw Windows/macOS binaries are included in the Ed25519-signed release manifest for installation and updates. PR checks validate code without uploading duplicate branch snapshots; alpha/beta release publication requires both tagged Windows/macOS builds and their smoke tests to pass. macOS Gatekeeper and Windows SmartScreen may warn about these binaries. Do not bypass security controls on an untrusted download. A passing CI smoke test verifies that the local pages start; it does not verify real audio capture or Spotify playback on Windows/macOS hardware.
 
 Linux installation, systemd services, Managed Soloist, and Linux asset signing remain unchanged.

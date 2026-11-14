@@ -56,7 +56,6 @@ const settings={
   panelDelayOut:bounded(config.panelDelayOut,0,0,10000)
 };
 const root=document.documentElement;
-root.dataset.backgroundMode=settings.backgroundMode;
 root.dataset.reducedMotion=settings.reducedMotion?'true':'false';
 root.dataset.idleAppearance=['digital-clock','vinyl-clock','vinyl','text','black'].includes(config.idleAppearance)?config.idleAppearance:'digital-clock';
 root.dataset.idleShowDate=config.idleShowDate===false?'false':'true';

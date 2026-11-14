@@ -30,7 +30,7 @@ test('standby fade is adjustable in Motion, including Pure black',()=>{
   assert.match(settings,/title:'Idle motion'/);
   assert.match(settings,/\['idleTransitionStyle','Transition','select',\['fade','off'\]\]/);
   assert.match(settings,/key==='idleFadeDuration'&&draft\.idleTransitionStyle==='off'/);
-  assert.match(settings,/'idleAppearance'.*\.includes\(key\)/);
+  assert.match(settings,/'idleTransitionStyle','idleAppearance'\]\.includes\(key\)/);
   assert.match(settings,/\['idleFadeDuration','Duration','range',0,10000,50,'ms'\]/);
   assert.match(main,/root\.dataset\.idleTransition=config\.idleTransitionStyle==='off'\?'off':'fade'/);
   assert.match(main,/--idle-fade-duration':bounded\(config\.idleFadeDuration,300,0,10000\)\+'ms'/);

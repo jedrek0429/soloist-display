@@ -15,7 +15,7 @@ const TARGETS: [&str; 3] = [
     "aarch64-unknown-linux-gnu",
     "armv7-unknown-linux-gnueabihf",
 ];
-const PORTABLE_TARGETS: [(&str, &str); 2] = [
+const WINDOWS_MACOS_TARGETS: [(&str, &str); 2] = [
     (
         "x86_64-pc-windows-msvc",
         "soloist-display-windows-x86_64.exe",
@@ -223,12 +223,12 @@ fn build_manifest(dist: &Path, tag: &str, version: &str) -> Result<()> {
         }
     }
     if !parsed.pre.is_empty() {
-        for (target, name) in PORTABLE_TARGETS {
+        for (target, name) in WINDOWS_MACOS_TARGETS {
             let file = dist.join(name);
             let sha = digest(&file)?;
             let size = file.metadata()?.len();
-            // Preserve the old "desktop" kind for clients already installed from alpha releases.
-            for kind in ["portable", "desktop"] {
+            // Keep "desktop" only as a compatibility alias for previously signed manifests.
+            for kind in ["display", "desktop"] {
                 artifacts.push(json!({
                     "name": name, "kind": kind, "target": target,
                     "url": format!("{base}/{name}"), "fallback_url": null,
@@ -267,7 +267,7 @@ fn render_bootstrap(template: &Path, manifest: &Path, base: &str) -> Result<()> 
             format!("soloist-display-{}", TARGETS[index])
         } else if let Some(index) = LEGACY_TARGETS.iter().position(|old| *old == target) {
             format!("soloist-display-{}", TARGETS[index])
-        } else if let Some((_, name)) = PORTABLE_TARGETS
+        } else if let Some((_, name)) = WINDOWS_MACOS_TARGETS
             .iter()
             .find(|(selected, _)| *selected == target)
         {
@@ -288,7 +288,7 @@ fn render_bootstrap(template: &Path, manifest: &Path, base: &str) -> Result<()> 
     let expected_count = TARGETS.len()
         + LEGACY_TARGETS.len()
         + if base.contains("-alpha.") || base.contains("-beta.") {
-            PORTABLE_TARGETS.len()
+            WINDOWS_MACOS_TARGETS.len()
         } else {
             0
         };
@@ -490,8 +490,8 @@ mod tests {
                 fs::write(dir.path().join(format!("{prefix}-{target}")), b"test").unwrap();
             }
         }
-        for (_, filename) in PORTABLE_TARGETS {
-            fs::write(dir.path().join(filename), b"signed portable binary fixture").unwrap();
+        for (_, filename) in WINDOWS_MACOS_TARGETS {
+            fs::write(dir.path().join(filename), b"signed Windows/macOS binary fixture").unwrap();
         }
         build_manifest(dir.path(), "v1.0.0-alpha.4", "1.0.0-alpha.4").unwrap();
         let parsed: Value =
@@ -499,8 +499,21 @@ mod tests {
                 .unwrap();
         let artifacts = parsed["artifacts"].as_array().unwrap();
         assert_eq!(artifacts.len(), 16);
-        for kind in ["portable", "desktop"] {
+        for kind in ["display", "desktop"] {
             assert_eq!(artifacts.iter().filter(|a| a["kind"] == kind).count(), 2);
+        }
+        assert!(artifacts.iter().all(|a| a["kind"] != "portable"));
+        for (target, _) in WINDOWS_MACOS_TARGETS {
+            let display = artifacts
+                .iter()
+                .find(|a| a["kind"] == "display" && a["target"] == target)
+                .unwrap();
+            let legacy = artifacts
+                .iter()
+                .find(|a| a["kind"] == "desktop" && a["target"] == target)
+                .unwrap();
+            assert_eq!(display["url"], legacy["url"]);
+            assert_eq!(display["sha256"], legacy["sha256"]);
         }
         for (current, legacy) in TARGETS.into_iter().zip(LEGACY_TARGETS) {
             let new_asset = artifacts

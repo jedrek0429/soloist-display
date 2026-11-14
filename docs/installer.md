@@ -4,7 +4,7 @@
 
 ## Windows and macOS installation
 
-The alpha/beta Windows/macOS builds remain **External-only** for Spotify Soloist. The portable executable now implements its own Display lifecycle, using the same Ed25519-verified release manifest and SHA-256 artifact verification as the Linux manager. Windows installs are bootstrapped by the release-rendered `install.ps1`, and Apple Silicon macOS uses the Darwin branch of `install.sh`. Both bootstraps pin the raw platform binary to an immutable release digest before running `install`.
+The alpha/beta Windows/macOS builds remain **External-only** for Spotify Soloist. The Windows/macOS binaries implement their own per-user Display installation lifecycle, using the same Ed25519-verified release manifest and SHA-256 artifact verification as the Linux manager. Windows installs are bootstrapped by the release-rendered `install.ps1`, and Apple Silicon macOS uses the Darwin branch of `install.sh`. Both bootstraps pin the raw platform binary to an immutable release digest before running `install`.
 
 The signed prerelease manifest records `soloist-display-windows-x86_64.exe` and `soloist-display-macos-arm64` as Windows/macOS artifacts. The unsigned ZIP previews remain available separately. Installed Windows/macOS releases use versioned directories and a thin command shim so updating the selected version does not overwrite a running Windows executable. The installer refuses to replace unowned command shims, verifies the downloaded executable's `--version` before switching and preserves the previous release when activation fails.
 

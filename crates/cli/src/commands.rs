@@ -147,7 +147,9 @@ mod tests {
     fn only_the_settings_subcommand_opens_settings() {
         assert!(Cli::try_parse_from(["soloist-display", "--settings"]).is_err());
         assert!(matches!(
-            Cli::try_parse_from(["soloist-display", "settings"]).unwrap().command,
+            Cli::try_parse_from(["soloist-display", "settings"])
+                .unwrap()
+                .command,
             Some(Command::Settings)
         ));
     }

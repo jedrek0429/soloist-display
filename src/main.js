@@ -212,7 +212,7 @@ function updateItem(item){
   cancelPauseTimer();
   const fromIdle=root.dataset.displayState!=='playing';
   // Idle may retain a paused album internally. It is not a visible outgoing disc.
-  if(fromIdle&&director.started)director.reset();
+  if(fromIdle&&director.started&&!director.artworkChanging&&!director.transitionBusy)director.reset();
   position=0;positionTime=performance.now();
   currentUri=uri;
   const albumKey=albumKeyFor(item);
@@ -220,6 +220,8 @@ function updateItem(item){
   currentAlbumKey=albumKey;
   const artist=artistFor(item);
   const show=()=>{
+    // A delayed panel callback must never publish superseded track metadata.
+    if(currentUri!==uri)return;
     $('track').textContent=name;
     $('artist').textContent=artist;
     root.dataset.metadataReady=name.trim()?'true':'false';

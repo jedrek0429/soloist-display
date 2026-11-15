@@ -493,7 +493,6 @@ mod tests {
                 verbose: false,
             },
             installation: InstallationOptions {
-                mode: "managed".into(),
                 channel: soloist_display_core::release::ReleaseChannel::Alpha,
             },
         };

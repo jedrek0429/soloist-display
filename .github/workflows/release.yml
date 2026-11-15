@@ -217,8 +217,3 @@ jobs:
           git push --force-with-lease="refs/heads/stable:$old" origin "$sha:refs/heads/stable"
           test "$(git ls-remote origin refs/heads/stable | cut -f1)" = "$sha"
 
-  pages:
-    needs: publish
-    uses: ./.github/workflows/pages.yml
-    permissions:
-      contents: write

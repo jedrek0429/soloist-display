@@ -1,4 +1,4 @@
-use crate::paths::Paths;
+use crate::{paths::Paths, release::ReleaseChannel};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 #[cfg(test)]
@@ -45,6 +45,7 @@ impl Default for SoloistState {
 pub struct InstallState {
     pub schema: u32,
     pub version: String,
+    pub channel: ReleaseChannel,
     #[serde(default)]
     pub suppress_updates: bool,
     pub target: String,

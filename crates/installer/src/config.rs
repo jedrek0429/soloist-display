@@ -23,7 +23,6 @@ use std::{
 #[serde(deny_unknown_fields)]
 struct Config {
     soloist: SoloistOptions,
-    installation: InstallationOptions,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,12 +39,6 @@ struct SoloistOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     initial_volume: Option<u8>,
     verbose: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct InstallationOptions {
-    channel: soloist_display_core::release::ReleaseChannel,
 }
 
 const HEADER: &str = "# Soloist Display runtime configuration (Linux).\n# Edit this file, then run: soloist-display reload\n# Appearance settings remain in: soloist-display settings\n# WARNING: Setting ws to 0.0.0.0:9090 exposes the unauthenticated\n# Soloist WebSocket API to other devices. Use a trusted network or firewall.\n\n";
@@ -71,22 +64,14 @@ fn format_config(config: &Config) -> String {
     if let Some(volume) = o.initial_volume {
         out.push_str(&format!("initial_volume = {volume}\n"));
     }
-    out.push_str(&format!(
-        "verbose = {}\n\n[installation]\nchannel = {}\n",
-        o.verbose,
-        quoted(match config.installation.channel {
-            soloist_display_core::release::ReleaseChannel::Stable => "stable",
-            soloist_display_core::release::ReleaseChannel::Alpha => "alpha",
-            soloist_display_core::release::ReleaseChannel::Beta => "beta",
-        })
-    ));
+    out.push_str(&format!("verbose = {}\n", o.verbose));
     out
 }
 
 fn parse_config(contents: &str) -> Result<Config> {
     let doc: toml_edit::DocumentMut = contents.parse().context("invalid TOML syntax")?;
     for (key, _) in doc.iter() {
-        if key != "soloist" && key != "installation" {
+        if key != "soloist" {
             bail!("unknown section: {key}");
         }
     }
@@ -94,10 +79,6 @@ fn parse_config(contents: &str) -> Result<Config> {
         .get("soloist")
         .and_then(|item| item.as_table())
         .context("missing [soloist] table")?;
-    let installation = doc
-        .get("installation")
-        .and_then(|item| item.as_table())
-        .context("missing [installation] table")?;
     for (key, _) in soloist.iter() {
         if ![
             "device_name",
@@ -112,11 +93,6 @@ fn parse_config(contents: &str) -> Result<Config> {
         .contains(&key)
         {
             bail!("unknown soloist option: {key}");
-        }
-    }
-    for (key, _) in installation.iter() {
-        if key != "channel" {
-            bail!("unknown installation option: {key}");
         }
     }
     fn opt_string(table: &toml_edit::Table, key: &str) -> Result<Option<String>> {
@@ -143,12 +119,6 @@ fn parse_config(contents: &str) -> Result<Config> {
             })
             .transpose()
     }
-    let channel = match required_string(installation, "channel")?.as_str() {
-        "stable" => soloist_display_core::release::ReleaseChannel::Stable,
-        "alpha" => soloist_display_core::release::ReleaseChannel::Alpha,
-        "beta" => soloist_display_core::release::ReleaseChannel::Beta,
-        _ => bail!("installation.channel must be stable, alpha, or beta"),
-    };
     let verbose = soloist
         .get("verbose")
         .map(|item| {
@@ -169,9 +139,6 @@ fn parse_config(contents: &str) -> Result<Config> {
                 .map(|v| u8::try_from(v).context("initial_volume must fit in 0..100"))
                 .transpose()?,
             verbose,
-        },
-        installation: InstallationOptions {
-            channel,
         },
     })
 }
@@ -227,7 +194,7 @@ pub fn ensure(paths: &Paths) -> Result<()> {
     if path.exists() {
         return Ok(());
     }
-    let state = InstallState::load(paths)?.context("Soloist Display is not installed")?;
+    InstallState::load(paths)?.context("Soloist Display is not installed")?;
     let runtime = ManagedRuntime::load(paths)?;
     let (name, _) = soloist::configured_credentials(paths)?;
     let config = Config {
@@ -240,11 +207,6 @@ pub fn ensure(paths: &Paths) -> Result<()> {
             pipewire_device: runtime.pipewire_device,
             initial_volume: runtime.initial_volume,
             verbose: runtime.verbose,
-        },
-        installation: InstallationOptions {
-            channel: soloist_display_core::release::ReleaseChannel::for_version(
-                &semver::Version::parse(&state.version).context("invalid installed version")?,
-            )?,
         },
     };
     fs::create_dir_all(&paths.config)?;
@@ -292,66 +254,6 @@ fn read(paths: &Paths) -> Result<Config> {
     }
     client_for_bind(&config.soloist.ws)?;
     Ok(config)
-}
-
-/// The selected release channel is owned by config.toml, not install.json.
-pub fn channel(paths: &Paths) -> Result<soloist_display_core::release::ReleaseChannel> {
-    ensure(paths)?;
-    Ok(read(paths)?.installation.channel)
-}
-
-pub fn set_channel(
-    paths: &Paths,
-    selected: soloist_display_core::release::ReleaseChannel,
-) -> Result<()> {
-    ensure(paths)?;
-    let path = config_path(paths);
-    if path.is_symlink() {
-        bail!("refusing symlinked config.toml");
-    }
-    let original = fs::read_to_string(&path)?;
-    let doc: toml_edit::DocumentMut = original.parse().context("invalid config.toml")?;
-    let channel = match selected {
-        soloist_display_core::release::ReleaseChannel::Stable => "stable",
-        soloist_display_core::release::ReleaseChannel::Alpha => "alpha",
-        soloist_display_core::release::ReleaseChannel::Beta => "beta",
-    };
-    if doc["installation"]["channel"].as_str() == Some(channel) {
-        return Ok(());
-    }
-    let mut in_installation = false;
-    let mut replaced = false;
-    let mut output = String::new();
-    for line in original.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with('[') {
-            in_installation = trimmed == "[installation]";
-        }
-        if in_installation
-            && trimmed
-                .split_once('=')
-                .is_some_and(|(key, _)| key.trim() == "channel")
-        {
-            output.push_str(&format!("channel = \"{channel}\"\n"));
-            replaced = true;
-        } else {
-            output.push_str(line);
-            output.push('\n');
-        }
-    }
-    if !replaced {
-        bail!("missing installation.channel");
-    }
-    let temp = path.with_extension(format!("toml.tmp.{}", std::process::id()));
-    let mut file = fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(&temp)?;
-    file.write_all(output.as_bytes())?;
-    file.sync_all()?;
-    fs::rename(&temp, &path)?;
-    Ok(())
 }
 
 pub fn edit(paths: &Paths) -> Result<()> {
@@ -499,15 +401,12 @@ mod tests {
                 initial_volume: Some(50),
                 verbose: false,
             },
-            installation: InstallationOptions {
-                channel: soloist_display_core::release::ReleaseChannel::Alpha,
-            },
         };
         let parsed = parse_config(&format_config(&original)).unwrap();
         assert_eq!(parsed.soloist.ws, original.soloist.ws);
         assert_eq!(parsed.soloist.initial_volume, Some(50));
         let rendered = format_config(&original);
-        assert!(!rendered.contains("mode ="));
-        assert!(parse_config(&rendered.replace(r#"channel = "alpha""#, "mode = \"managed\"\nchannel = \"alpha\"")).is_err());
+        assert!(!rendered.contains("[installation]"));
+        assert!(parse_config(&format!("{rendered}\n[installation]\nchannel = \"alpha\"\n")).is_err());
     }
 }

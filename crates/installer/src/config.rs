@@ -12,7 +12,7 @@ use std::{
     fs,
     io::Write,
     net::{IpAddr, SocketAddr},
-    os::unix::fs::{OpenOptionsExt, PermissionsExt},
+    os::unix::fs::OpenOptionsExt,
     path::PathBuf,
     process::Command,
     thread,
@@ -50,9 +50,6 @@ struct InstallationOptions {
 }
 
 const HEADER: &str = "# Soloist Display runtime configuration (Linux).\n# Edit this file, then run: soloist-display reload\n# Appearance settings remain in: soloist-display settings\n# WARNING: Setting ws to 0.0.0.0:9090 exposes the unauthenticated\n# Soloist WebSocket API to other devices. Use a trusted network or firewall.\n\n";
-
-/// Map a listening socket to an address that local clients can actually connect to.
-/// Never attempt WebSocket handshakes against 0.0.0.0 or ::.
 
 fn format_config(config: &Config) -> String {
     fn quoted(value: &str) -> String {
@@ -182,6 +179,7 @@ fn parse_config(contents: &str) -> Result<Config> {
     })
 }
 
+/// Resolve a Soloist listener to its reachable local client endpoint.
 pub fn client_for_bind(bind: &str) -> Result<String> {
     let socket: SocketAddr = bind
         .parse()
@@ -256,7 +254,7 @@ pub fn ensure(paths: &Paths) -> Result<()> {
         },
         installation: InstallationOptions {
             mode: mode(&state).to_string(),
-            channel: state.effective_channel(),
+            channel: state.channel,
         },
     };
     fs::create_dir_all(&paths.config)?;
@@ -319,7 +317,7 @@ pub fn sync_channel(paths: &Paths) -> Result<()> {
     let original = fs::read_to_string(&path)?;
     let doc: toml_edit::DocumentMut = original.parse().context("invalid config.toml")?;
     let state = InstallState::load(paths)?.context("Soloist Display is not installed")?;
-    let channel = match state.effective_channel() {
+    let channel = match state.channel {
         soloist_display_core::release::ReleaseChannel::Stable => "stable",
         soloist_display_core::release::ReleaseChannel::Alpha => "alpha",
         soloist_display_core::release::ReleaseChannel::Beta => "beta",
@@ -386,11 +384,11 @@ pub fn reload(paths: &Paths, dry_run: bool) -> Result<()> {
 
     if state.soloist.ownership == SoloistOwnership::Independent {
         // External Soloist is not owned by this application; do not alter its service.
-        if config.installation.channel != state.effective_channel() {
+        if config.installation.channel != state.channel {
             if dry_run {
                 println!("Would change update channel.");
             } else {
-                state.channel = Some(config.installation.channel);
+                state.channel = config.installation.channel;
                 state.save(paths)?;
             }
         } else {
@@ -429,7 +427,7 @@ pub fn reload(paths: &Paths, dry_run: bool) -> Result<()> {
     let name_changed =
         config.soloist.device_name != old_name && config.soloist.device_name.is_some();
     let runtime_changed = serde_json::to_value(&desired)? != serde_json::to_value(&old_runtime)?;
-    let channel_changed = config.installation.channel != state.effective_channel();
+    let channel_changed = config.installation.channel != state.channel;
     if !name_changed && !runtime_changed && !channel_changed {
         println!("Configuration unchanged.");
         return Ok(());
@@ -452,7 +450,7 @@ pub fn reload(paths: &Paths, dry_run: bool) -> Result<()> {
         return Ok(());
     }
     if !runtime_changed && !name_changed {
-        state.channel = Some(config.installation.channel);
+        state.channel = config.installation.channel;
         state.save(paths)?;
         println!("Configuration reloaded.");
         return Ok(());
@@ -486,7 +484,7 @@ pub fn reload(paths: &Paths, dry_run: bool) -> Result<()> {
         if !managed_healthy() {
             bail!("managed Soloist did not become healthy");
         }
-        state.channel = Some(config.installation.channel);
+        state.channel = config.installation.channel;
         state.save(paths)?;
         manager::save_soloist_websocket(paths, &desired.websocket_url)?;
         Ok(())

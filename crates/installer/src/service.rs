@@ -232,10 +232,6 @@ pub fn install_soloist(paths: &Paths, executable: &Path) -> Result<()> {
     systemctl(paths, &["restart", "soloist.service"], true)
 }
 
-pub fn restart_soloist(paths: &Paths) -> Result<()> {
-    systemctl(paths, &["restart", "soloist.service"], true)
-}
-
 pub fn start_display(paths: &Paths) -> Result<()> {
     systemctl(paths, &["start", "soloist-display.service"], true)
 }

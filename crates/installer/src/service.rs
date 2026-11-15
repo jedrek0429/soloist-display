@@ -80,7 +80,7 @@ impl ManagedRuntime {
     }
 
     fn path(paths: &Paths) -> PathBuf {
-        paths.state.join("soloist-runtime.json")
+        paths.state.join("applied-soloist-runtime.json")
     }
 
     pub fn load(paths: &Paths) -> Result<Self> {

@@ -416,7 +416,11 @@ pub fn reload(paths: &Paths, dry_run: bool) -> Result<()> {
         return Ok(());
     }
     if dry_run {
-        println!("Would update: {}{}", if runtime_changed { "Soloist runtime " } else { "" }, if name_changed { "device name" } else { "" });
+        println!(
+            "Would update: {}{}",
+            if runtime_changed { "Soloist runtime " } else { "" },
+            if name_changed { "device name" } else { "" }
+        );
         return Ok(());
     }
 
@@ -504,6 +508,6 @@ mod tests {
         assert_eq!(parsed.soloist.initial_volume, Some(50));
         let rendered = format_config(&original);
         assert!(!rendered.contains("mode ="));
-        assert!(parse_config(&rendered.replace("channel = \\"alpha\\"", "mode = \\"managed\\"\\nchannel = \\"alpha\\"")).is_err());
+        assert!(parse_config(&rendered.replace(r#"channel = "alpha""#, "mode = \"managed\"\nchannel = \"alpha\"")).is_err());
     }
 }

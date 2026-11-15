@@ -108,7 +108,6 @@ cache_dir = "/home/user/.cache/soloist"
 # pipewire_device = "..."
 # initial_volume = 50
 verbose = false
-
 ```
 
 Edit it with `soloist-display config` (uses `$VISUAL`, then `$EDITOR`, then `vi`)
@@ -117,15 +116,12 @@ or any text editor, then execute `soloist-display reload`. Run
 Changes to Soloist runtime flags require a service restart and briefly interrupt playback.
 Malformed or unknown TOML entries are rejected without changing the service.
 A failed restart attempts to restore the previously applied runtime configuration.
-The release channel and Managed/External ownership remain installation settings, managed as before.
-`config.toml` contains only Spotify Soloist runtime settings. The internal
-`applied-soloist-runtime.json` snapshot supports change detection and rollback.
 
 The `ws` value is a listening address, not a WebSocket URL. Binding to
 `0.0.0.0:9090` permits access from other devices on the LAN (subject to firewall rules).
 **The Soloist WebSocket API is unauthenticated.** Configure a firewall if network access
 is required. The local Display connects to `127.0.0.1:9090` even for a wildcard bind.
-IPv6 wildcard `[::]:9090` is also accepted. External mode never changes the existing Soloist process. Managed/External ownership is tracked by the installer, not configurable via TOML.
+IPv6 wildcard `[::]:9090` is also accepted.
 
 ## Optional MPRIS bridge
 

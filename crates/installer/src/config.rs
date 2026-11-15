@@ -300,7 +300,10 @@ pub fn channel(paths: &Paths) -> Result<soloist_display_core::release::ReleaseCh
     Ok(read(paths)?.installation.channel)
 }
 
-pub fn set_channel(paths: &Paths, selected: soloist_display_core::release::ReleaseChannel) -> Result<()> {
+pub fn set_channel(
+    paths: &Paths,
+    selected: soloist_display_core::release::ReleaseChannel,
+) -> Result<()> {
     ensure(paths)?;
     let path = config_path(paths);
     if path.is_symlink() {

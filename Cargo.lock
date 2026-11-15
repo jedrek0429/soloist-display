@@ -2135,6 +2135,7 @@ dependencies = [
  "tar",
  "tempfile",
  "tiny_http",
+ "toml_edit",
  "tungstenite",
  "url",
 ]

@@ -54,6 +54,8 @@ pub struct ManagedRuntime {
     pub cache_dir: PathBuf,
     pub websocket_url: String,
     #[serde(default)]
+    pub websocket_bind: Option<String>,
+    #[serde(default)]
     pub cache_size_mb: Option<u64>,
     #[serde(default)]
     pub pipewire_device: Option<String>,
@@ -69,6 +71,7 @@ impl ManagedRuntime {
             data_dir: paths.soloist_data.clone(),
             cache_dir: paths.soloist_cache.clone(),
             websocket_url: "ws://127.0.0.1:9090/".into(),
+            websocket_bind: None,
             cache_size_mb: None,
             pipewire_device: None,
             initial_volume: None,
@@ -77,7 +80,7 @@ impl ManagedRuntime {
     }
 
     fn path(paths: &Paths) -> PathBuf {
-        paths.state.join("soloist-runtime.json")
+        paths.state.join("applied-soloist-runtime.json")
     }
 
     pub fn load(paths: &Paths) -> Result<Self> {
@@ -93,6 +96,9 @@ impl ManagedRuntime {
             anyhow::bail!("Soloist runtime paths must be absolute");
         }
         crate::soloist::validate_websocket_url(&self.websocket_url)?;
+        if let Some(bind) = &self.websocket_bind {
+            crate::config::client_for_bind(bind)?;
+        }
         self.extra_arguments()?;
         crate::state::atomic_json(&Self::path(paths), self, Some(0o600))
     }
@@ -127,6 +133,10 @@ impl ManagedRuntime {
     }
 
     fn websocket_bind(&self) -> Result<String> {
+        if let Some(bind) = &self.websocket_bind {
+            crate::config::client_for_bind(bind)?;
+            return Ok(bind.clone());
+        }
         let url = url::Url::parse(&self.websocket_url)?;
         let host = url.host_str().context("missing WebSocket hostname")?;
         let port = url.port().context("missing WebSocket port")?;

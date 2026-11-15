@@ -1,4 +1,5 @@
 use soloist_display_cli::{arguments as cli_arguments, output as cli_output};
+mod config;
 mod dependencies;
 mod legacy;
 mod lock;
@@ -94,6 +95,7 @@ fn run() -> Result<i32> {
                     },
                 )
             })?;
+            config::ensure(&paths)?;
         }
         Command::Mpris { command } => match command {
             MprisCommand::Enable { data_dir } => {
@@ -106,6 +108,8 @@ fn run() -> Result<i32> {
         },
         Command::Launch => manager::launch(&paths, false)?,
         Command::Settings => manager::launch(&paths, true)?,
+        Command::Config => config::edit(&paths)?,
+        Command::Reload { dry_run } => locked(&paths, || config::reload(&paths, dry_run))?,
         Command::Completions { .. } => unreachable!("handled before path discovery"),
         Command::Update {
             channel,

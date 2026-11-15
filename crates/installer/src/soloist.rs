@@ -312,6 +312,10 @@ fn read_credentials(path: &Path) -> Result<(Option<String>, Option<String>)> {
     Ok((name, key))
 }
 
+pub fn configured_credentials(paths: &Paths) -> Result<(Option<String>, Option<String>)> {
+    read_credentials(&paths.soloist_env)
+}
+
 pub fn configure(paths: &Paths, name: Option<String>, api_key: Option<String>) -> Result<()> {
     let (previous_name, previous_key) = read_credentials(&paths.soloist_env)?;
     if name.is_none()
@@ -514,7 +518,7 @@ pub fn install(
 ) -> Result<SoloistState> {
     configure(paths, name, api_key)?;
     let runtime = service::ManagedRuntime::load(paths)?;
-    if !paths.state.join("soloist-runtime.json").exists() {
+    if !paths.state.join("applied-soloist-runtime.json").exists() {
         runtime.save(paths)?;
     }
     let data_owned =

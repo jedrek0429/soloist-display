@@ -625,7 +625,7 @@ fn recover_install(paths: &Paths, previous: &InstallRecovery) -> Result<()> {
         0o600,
     )?;
     restore_snapshot_file(
-        &paths.state.join("soloist-runtime.json"),
+        &paths.state.join("applied-soloist-runtime.json"),
         previous.previous_runtime.as_deref(),
         0o600,
     )?;
@@ -775,7 +775,7 @@ fn select_external_soloist(discovered: &crate::state::SoloistState, yes: bool) -
     }
 }
 
-fn save_soloist_websocket(paths: &Paths, endpoint: &str) -> Result<()> {
+pub(crate) fn save_soloist_websocket(paths: &Paths, endpoint: &str) -> Result<()> {
     let config_path = paths.config.join("config.json");
     if config_path.is_symlink() {
         bail!("refusing to replace symlinked display settings");
@@ -858,7 +858,7 @@ pub fn install(
         } else {
             None
         };
-    let original_runtime = fs::read(paths.state.join("soloist-runtime.json")).ok();
+    let original_runtime = fs::read(paths.state.join("applied-soloist-runtime.json")).ok();
     let original_current = fs::read_link(&paths.managed_soloist_current).ok();
     let original_settings = fs::read(paths.config.join("config.json")).ok();
     let original_metadata = fs::read(&paths.install_state).ok();
@@ -1611,7 +1611,7 @@ pub fn doctor(paths: &Paths) -> Result<bool> {
         );
         match state.soloist.ownership {
             SoloistOwnership::Installer => {
-                let runtime_path = paths.state.join("soloist-runtime.json");
+                let runtime_path = paths.state.join("applied-soloist-runtime.json");
                 let runtime = service::ManagedRuntime::load(paths);
                 check!(
                     "Runtime configuration",
@@ -1994,11 +1994,15 @@ mod tests {
         fs::write(&config, b"partial settings").unwrap();
         fs::create_dir_all(paths.soloist_service.parent().unwrap()).unwrap();
         fs::write(&paths.soloist_service, b"new managed service").unwrap();
-        fs::write(paths.state.join("soloist-runtime.json"), b"new runtime").unwrap();
+        fs::write(
+            paths.state.join("applied-soloist-runtime.json"),
+            b"new runtime",
+        )
+        .unwrap();
         recover(&paths).unwrap();
         assert_eq!(fs::read(&config).unwrap(), b"original settings");
         assert!(!paths.soloist_service.exists());
-        assert!(!paths.state.join("soloist-runtime.json").exists());
+        assert!(!paths.state.join("applied-soloist-runtime.json").exists());
         recover(&paths).unwrap();
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }

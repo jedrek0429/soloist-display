@@ -85,6 +85,16 @@ pub enum Command {
     Launch,
     /// Open display settings.
     Settings,
+    /// Edit the installation configuration in $EDITOR.
+    #[cfg(target_os = "linux")]
+    Config,
+    /// Validate and reload the installation configuration.
+    #[cfg(target_os = "linux")]
+    Reload {
+        /// Preview changes without restarting services.
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Update to the latest release on the selected channel or a specific version.
     Update {
         #[arg(long, value_enum, conflicts_with = "version")]
@@ -164,5 +174,7 @@ mod tests {
             Some(Command::RenewSoloist { force: true })
         ));
         assert!(Cli::try_parse_from(["soloist-display", "mpris", "status"]).is_ok());
+        assert!(Cli::try_parse_from(["soloist-display", "config"]).is_ok());
+        assert!(Cli::try_parse_from(["soloist-display", "reload", "--dry-run"]).is_ok());
     }
 }

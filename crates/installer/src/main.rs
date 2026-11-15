@@ -127,7 +127,6 @@ fn run() -> Result<i32> {
                     allow_downgrade,
                 )
             })?;
-            config::sync_channel(&paths)?;
         }
         Command::RenewSoloist { force } => {
             let platform = Platform::detect()?;

@@ -1994,7 +1994,11 @@ mod tests {
         fs::write(&config, b"partial settings").unwrap();
         fs::create_dir_all(paths.soloist_service.parent().unwrap()).unwrap();
         fs::write(&paths.soloist_service, b"new managed service").unwrap();
-        fs::write(paths.state.join("applied-soloist-runtime.json"), b"new runtime").unwrap();
+        fs::write(
+            paths.state.join("applied-soloist-runtime.json"),
+            b"new runtime",
+        )
+        .unwrap();
         recover(&paths).unwrap();
         assert_eq!(fs::read(&config).unwrap(), b"original settings");
         assert!(!paths.soloist_service.exists());

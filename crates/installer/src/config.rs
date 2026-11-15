@@ -45,7 +45,6 @@ struct SoloistOptions {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct InstallationOptions {
-    mode: String,
     channel: soloist_display_core::release::ReleaseChannel,
 }
 
@@ -73,9 +72,8 @@ fn format_config(config: &Config) -> String {
         out.push_str(&format!("initial_volume = {volume}\n"));
     }
     out.push_str(&format!(
-        "verbose = {}\n\n[installation]\nmode = {}\nchannel = {}\n",
+        "verbose = {}\n\n[installation]\nchannel = {}\n",
         o.verbose,
-        quoted(&config.installation.mode),
         quoted(match config.installation.channel {
             soloist_display_core::release::ReleaseChannel::Stable => "stable",
             soloist_display_core::release::ReleaseChannel::Alpha => "alpha",
@@ -117,7 +115,7 @@ fn parse_config(contents: &str) -> Result<Config> {
         }
     }
     for (key, _) in installation.iter() {
-        if !["mode", "channel"].contains(&key) {
+        if key != "channel" {
             bail!("unknown installation option: {key}");
         }
     }
@@ -173,7 +171,6 @@ fn parse_config(contents: &str) -> Result<Config> {
             verbose,
         },
         installation: InstallationOptions {
-            mode: required_string(installation, "mode")?,
             channel,
         },
     })
@@ -218,14 +215,6 @@ fn bind_from_runtime(runtime: &ManagedRuntime) -> Result<String> {
     })
 }
 
-fn mode(state: &InstallState) -> &'static str {
-    match state.soloist.ownership {
-        SoloistOwnership::Installer => "managed",
-        SoloistOwnership::Independent => "external",
-        SoloistOwnership::None => "none",
-    }
-}
-
 fn config_path(paths: &Paths) -> PathBuf {
     paths.config.join("config.toml")
 }
@@ -253,8 +242,9 @@ pub fn ensure(paths: &Paths) -> Result<()> {
             verbose: runtime.verbose,
         },
         installation: InstallationOptions {
-            mode: mode(&state).to_string(),
-            channel: state.channel,
+            channel: soloist_display_core::release::ReleaseChannel::for_version(
+                &semver::Version::parse(&state.version).context("invalid installed version")?,
+            )?,
         },
     };
     fs::create_dir_all(&paths.config)?;
@@ -278,10 +268,6 @@ fn read(paths: &Paths) -> Result<Config> {
         &fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?,
     )
     .context("invalid config.toml")?;
-    let expected = InstallState::load(paths)?.context("Soloist Display is not installed")?;
-    if config.installation.mode != mode(&expected) {
-        bail!("changing installation.mode requires reinstalling in the selected mode");
-    }
     if let Some(name) = &config.soloist.device_name {
         if name.trim().is_empty() || name.contains(['\n', '\r', '\0']) {
             bail!("invalid soloist.device_name");
@@ -308,7 +294,13 @@ fn read(paths: &Paths) -> Result<Config> {
     Ok(config)
 }
 
-pub fn sync_channel(paths: &Paths) -> Result<()> {
+/// The selected release channel is owned by config.toml, not install.json.
+pub fn channel(paths: &Paths) -> Result<soloist_display_core::release::ReleaseChannel> {
+    ensure(paths)?;
+    Ok(read(paths)?.installation.channel)
+}
+
+pub fn set_channel(paths: &Paths, selected: soloist_display_core::release::ReleaseChannel) -> Result<()> {
     ensure(paths)?;
     let path = config_path(paths);
     if path.is_symlink() {
@@ -316,8 +308,7 @@ pub fn sync_channel(paths: &Paths) -> Result<()> {
     }
     let original = fs::read_to_string(&path)?;
     let doc: toml_edit::DocumentMut = original.parse().context("invalid config.toml")?;
-    let state = InstallState::load(paths)?.context("Soloist Display is not installed")?;
-    let channel = match state.channel {
+    let channel = match selected {
         soloist_display_core::release::ReleaseChannel::Stable => "stable",
         soloist_display_core::release::ReleaseChannel::Alpha => "alpha",
         soloist_display_core::release::ReleaseChannel::Beta => "beta",
@@ -383,17 +374,7 @@ pub fn reload(paths: &Paths, dry_run: bool) -> Result<()> {
     let old_name = soloist::configured_credentials(paths)?.0;
 
     if state.soloist.ownership == SoloistOwnership::Independent {
-        // External Soloist is not owned by this application; do not alter its service.
-        if config.installation.channel != state.channel {
-            if dry_run {
-                println!("Would change update channel.");
-            } else {
-                state.channel = config.installation.channel;
-                state.save(paths)?;
-            }
-        } else {
-            println!("No installation changes.");
-        }
+        println!("External Soloist is managed independently.");
         return Ok(());
     }
     if state.soloist.ownership != SoloistOwnership::Installer {
@@ -427,32 +408,12 @@ pub fn reload(paths: &Paths, dry_run: bool) -> Result<()> {
     let name_changed =
         config.soloist.device_name != old_name && config.soloist.device_name.is_some();
     let runtime_changed = serde_json::to_value(&desired)? != serde_json::to_value(&old_runtime)?;
-    let channel_changed = config.installation.channel != state.channel;
-    if !name_changed && !runtime_changed && !channel_changed {
+    if !name_changed && !runtime_changed {
         println!("Configuration unchanged.");
         return Ok(());
     }
     if dry_run {
-        println!(
-            "Would update: {}{}{}",
-            if runtime_changed {
-                "Soloist runtime "
-            } else {
-                ""
-            },
-            if name_changed { "device name " } else { "" },
-            if channel_changed {
-                "release channel"
-            } else {
-                ""
-            }
-        );
-        return Ok(());
-    }
-    if !runtime_changed && !name_changed {
-        state.channel = config.installation.channel;
-        state.save(paths)?;
-        println!("Configuration reloaded.");
+        println!("Would update: {}{}", if runtime_changed { "Soloist runtime " } else { "" }, if name_changed { "device name" } else { "" });
         return Ok(());
     }
 
@@ -484,7 +445,6 @@ pub fn reload(paths: &Paths, dry_run: bool) -> Result<()> {
         if !managed_healthy() {
             bail!("managed Soloist did not become healthy");
         }
-        state.channel = config.installation.channel;
         state.save(paths)?;
         manager::save_soloist_websocket(paths, &desired.websocket_url)?;
         Ok(())

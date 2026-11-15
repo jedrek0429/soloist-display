@@ -119,6 +119,10 @@ or any text editor, then execute `soloist-display reload`. Run
 Changes to Soloist runtime flags require a service restart and briefly interrupt playback.
 Malformed or unknown TOML entries are rejected without changing the service.
 A failed restart attempts to restore the previously applied runtime configuration.
+The selected update channel is read directly from TOML by update checks and `soloist-display update`;
+changing it does not require restarting Soloist. `update --channel` saves the selected
+channel to TOML after a successful update. `install.json` tracks installation metadata,
+while `applied-soloist-runtime.json` is an internal snapshot for change detection and rollback.
 
 The `ws` value is a listening address, not a WebSocket URL. Binding to
 `0.0.0.0:9090` permits access from other devices on the LAN (subject to firewall rules).

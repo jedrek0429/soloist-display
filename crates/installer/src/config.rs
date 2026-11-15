@@ -320,7 +320,11 @@ pub fn reload(paths: &Paths, dry_run: bool) -> Result<()> {
     if dry_run {
         println!(
             "Would update: {}{}",
-            if runtime_changed { "Soloist runtime " } else { "" },
+            if runtime_changed {
+                "Soloist runtime "
+            } else {
+                ""
+            },
             if name_changed { "device name" } else { "" }
         );
         return Ok(());
@@ -407,6 +411,9 @@ mod tests {
         assert_eq!(parsed.soloist.initial_volume, Some(50));
         let rendered = format_config(&original);
         assert!(!rendered.contains("[installation]"));
-        assert!(parse_config(&format!("{rendered}\n[installation]\nchannel = \"alpha\"\n")).is_err());
+        assert!(parse_config(&format!(
+            "{rendered}\n[installation]\nchannel = \"alpha\"\n"
+        ))
+        .is_err());
     }
 }

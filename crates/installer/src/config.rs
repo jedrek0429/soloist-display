@@ -499,5 +499,8 @@ mod tests {
         let parsed = parse_config(&format_config(&original)).unwrap();
         assert_eq!(parsed.soloist.ws, original.soloist.ws);
         assert_eq!(parsed.soloist.initial_volume, Some(50));
+        let rendered = format_config(&original);
+        assert!(!rendered.contains("mode ="));
+        assert!(parse_config(&rendered.replace("channel = \\"alpha\\"", "mode = \\"managed\\"\\nchannel = \\"alpha\\"")).is_err());
     }
 }

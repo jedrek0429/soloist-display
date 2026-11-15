@@ -3,7 +3,6 @@ on:
   push:
     branches: [main]
     paths: ['site/**', 'index.html', 'styles.css', 'src/motion.js', 'src/backdrop-colour.js', 'src/spectrum.js', 'install.sh', 'install.ps1', '.github/workflows/pages.yml']
-  workflow_call:
   workflow_dispatch:
 permissions:
   contents: write

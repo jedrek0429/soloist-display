@@ -30,7 +30,7 @@ export class DiscDirector{
     this.discs=discs;this.backdrops=backdrops;this.info=info;
     this.current=0;this.token=0;this.started=false;this.angle=0;
     this.velocity=0;this.playing=false;this.changing=false;this.last=performance.now();
-    this.pendingShow=null;this.fadeTimer=null;this.animations=new Set();this.transitionBusy=false;this.queuedChange=null;this.transitionEpoch=0;this.panelAnimation=null;this.panelToken=0;
+    this.pendingShow=null;this.fadeTimer=null;this.animations=new Set();this.transitionBusy=false;this.queuedChange=null;this.transitionEpoch=0;this.panelBusy=false;this.queuedPanel=null;this.panelAnimation=null;this.panelToken=0;
     this.pauseRetractTimer=null;this.pauseStartedAt=null;this.pauseRetracted=false;this.artworkChanging=false;this.playbackKnown=false;
     this.panelPauseTimer=null;this.panelPauseStartedAt=null;this.panelPauseHidden=false;this.pendingPanelShow=null;
     requestAnimationFrame(t=>this.spin(t));
@@ -64,6 +64,8 @@ export class DiscDirector{
     ++this.transitionEpoch;
     this.transitionBusy=false;
     this.queuedChange=null;
+    this.panelBusy=false;
+    this.queuedPanel=null;
     ++this.panelToken;
     for(const animation of this.animations)animation.cancel();
     this.animations.clear();
@@ -265,6 +267,19 @@ export class DiscDirector{
     });
   }
   async transitionPanel(show){
+    if(this.panelBusy){this.queuedPanel=show;return;}
+    this.panelBusy=true;
+    const epoch=this.transitionEpoch;
+    try{await this.performPanelTransition(show)}finally{
+      if(epoch===this.transitionEpoch){
+        this.panelBusy=false;
+        const next=this.queuedPanel;
+        this.queuedPanel=null;
+        if(next)void this.transitionPanel(next);
+      }
+    }
+  }
+  async performPanelTransition(show){
     const token=++this.panelToken;
     this.pendingPanelShow=show;
     const commit=()=>{

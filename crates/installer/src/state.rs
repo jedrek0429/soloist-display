@@ -1,4 +1,4 @@
-use crate::{paths::Paths, release::ReleaseChannel};
+use crate::paths::Paths;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 #[cfg(test)]

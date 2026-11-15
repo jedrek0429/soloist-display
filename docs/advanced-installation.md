@@ -91,6 +91,43 @@ The WebSocket must respond to Soloist's protocol. If the service is stopped, int
 
 For a supported existing user service, Managed saves its unit and clones its session. The original stays put. Unsupported systemd settings, drop-ins and startup flags stop migration.
 
+## Linux configuration file
+
+The managed Soloist process is configured in `~/.config/soloist-display/config.toml`.
+The file is generated on installation (existing installations generate it when first running `config` or `reload`).
+Appearance settings remain in `soloist-display settings`. Spotify API credentials
+stay in the protected `soloist.env`, not in TOML.
+
+```toml
+[soloist]
+device_name = "Living Room"
+ws = "127.0.0.1:9090"
+data_dir = "/home/user/.local/share/soloist"
+cache_dir = "/home/user/.cache/soloist"
+# cache_size = 500
+# pipewire_device = "..."
+# initial_volume = 50
+verbose = false
+
+[installation]
+mode = "managed"
+channel = "alpha"
+```
+
+Edit it with `soloist-display config` (uses `$VISUAL`, then `$EDITOR`, then `vi`)
+or any text editor, then execute `soloist-display reload`. Run
+`soloist-display reload --dry-run` to validate and preview service changes.
+Changes to Soloist runtime flags require a service restart and briefly interrupt playback.
+Malformed or unknown TOML entries are rejected without changing the service.
+A failed restart attempts to restore the previously applied runtime configuration.
+
+The `ws` value is a listening address, not a WebSocket URL. Binding to
+`0.0.0.0:9090` permits access from other devices on the LAN (subject to firewall rules).
+**The Soloist WebSocket API is unauthenticated.** Configure a firewall if network access
+is required. The local Display connects to `127.0.0.1:9090` even for a wildcard bind.
+IPv6 wildcard `[::]:9090` is also accepted. External mode never changes the
+existing Soloist process; mode switching requires explicit reinstallation.
+
 ## Optional MPRIS bridge
 
 [soloist-mpris](https://github.com/TobiasVeiga00/soloist-mpris) is an **optional** MIT-licensed bridge between Soloist's WebSocket and the Linux session D-Bus (`org.mpris.MediaPlayer2.soloist`). It supports `playerctl`, media keys bound by your desktop or window manager, and MPRIS-compatible bars. Soloist Display does not need the bridge to play or display music.

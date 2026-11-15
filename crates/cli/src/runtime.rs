@@ -111,7 +111,9 @@ pub fn parse(args: &[String]) -> Result<Command, String> {
             | SharedCommand::Repair
             | SharedCommand::Uninstall { .. }
             | SharedCommand::Mpris { .. }
-            | SharedCommand::RenewSoloist { .. },
+            | SharedCommand::RenewSoloist { .. }
+            | SharedCommand::Config
+            | SharedCommand::Reload { .. },
         ) => {
             return Err(
                 "lifecycle management must be invoked through the installed Linux manager".into(),

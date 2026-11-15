@@ -775,7 +775,7 @@ fn select_external_soloist(discovered: &crate::state::SoloistState, yes: bool) -
     }
 }
 
-fn save_soloist_websocket(paths: &Paths, endpoint: &str) -> Result<()> {
+pub(crate) fn save_soloist_websocket(paths: &Paths, endpoint: &str) -> Result<()> {
     let config_path = paths.config.join("config.json");
     if config_path.is_symlink() {
         bail!("refusing to replace symlinked display settings");

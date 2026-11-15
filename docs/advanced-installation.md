@@ -94,7 +94,7 @@ For a supported existing user service, Managed saves its unit and clones its ses
 ## Linux configuration file
 
 The managed Soloist process is configured in `~/.config/soloist-display/config.toml`.
-The file is generated on installation (existing installations generate it when first running `config` or `reload`).
+The file is generated on installation.
 Appearance settings remain in `soloist-display settings`. Spotify API credentials
 stay in the protected `soloist.env`, not in TOML.
 
@@ -110,7 +110,6 @@ cache_dir = "/home/user/.cache/soloist"
 verbose = false
 
 [installation]
-mode = "managed"
 channel = "alpha"
 ```
 
@@ -125,8 +124,7 @@ The `ws` value is a listening address, not a WebSocket URL. Binding to
 `0.0.0.0:9090` permits access from other devices on the LAN (subject to firewall rules).
 **The Soloist WebSocket API is unauthenticated.** Configure a firewall if network access
 is required. The local Display connects to `127.0.0.1:9090` even for a wildcard bind.
-IPv6 wildcard `[::]:9090` is also accepted. External mode never changes the
-existing Soloist process; mode switching requires explicit reinstallation.
+IPv6 wildcard `[::]:9090` is also accepted. External mode never changes the existing Soloist process. Managed/External ownership is tracked by the installer, not configurable via TOML.
 
 ## Optional MPRIS bridge
 

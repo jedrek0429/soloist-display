@@ -30,7 +30,7 @@ export class DiscDirector{
     this.discs=discs;this.backdrops=backdrops;this.info=info;
     this.current=0;this.token=0;this.started=false;this.angle=0;
     this.velocity=0;this.playing=false;this.changing=false;this.last=performance.now();
-    this.pendingShow=null;this.fadeTimer=null;this.animations=new Set();this.panelAnimation=null;this.panelToken=0;
+    this.pendingShow=null;this.fadeTimer=null;this.animations=new Set();this.transitionBusy=false;this.queuedChange=null;this.transitionEpoch=0;this.panelAnimation=null;this.panelToken=0;
     this.pauseRetractTimer=null;this.pauseStartedAt=null;this.pauseRetracted=false;this.artworkChanging=false;this.playbackKnown=false;
     this.panelPauseTimer=null;this.panelPauseStartedAt=null;this.panelPauseHidden=false;this.pendingPanelShow=null;
     requestAnimationFrame(t=>this.spin(t));
@@ -61,6 +61,9 @@ export class DiscDirector{
     this.wasRetractedAtChange=false;
     this.playbackKnown=false;
     ++this.token;
+    ++this.transitionEpoch;
+    this.transitionBusy=false;
+    this.queuedChange=null;
     ++this.panelToken;
     for(const animation of this.animations)animation.cancel();
     this.animations.clear();
@@ -439,6 +442,21 @@ export class DiscDirector{
     if(token===this.token)commit();
   }
   async change(url,onShow){
+    // Keep the currently rendered transition intact. Intermediate skips are
+    // coalesced rather than cancelling WAAPI animations and resetting transforms.
+    if(this.transitionBusy){this.queuedChange={url,onShow};return;}
+    this.transitionBusy=true;
+    const epoch=this.transitionEpoch;
+    try{await this.performChange(url,onShow)}finally{
+      if(epoch===this.transitionEpoch){
+        this.transitionBusy=false;
+        const next=this.queuedChange;
+        this.queuedChange=null;
+        if(next)void this.change(next.url,next.onShow);
+      }
+    }
+  }
+  async performChange(url,onShow){
     this.pendingShow=null;
     for(const overlay of document.querySelectorAll('.cover-overlay'))overlay.remove();
     const token=++this.token;

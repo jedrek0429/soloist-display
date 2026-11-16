@@ -222,7 +222,6 @@ mod tests {
     use crate::test_support::paths;
     use clap::CommandFactory;
     use soloist_display_cli::linux::Cli;
-    use std::path::PathBuf;
 
     #[test]
     fn no_addons_installed_means_no_uninstall_plans() {

@@ -63,7 +63,7 @@ export class DiscDirector{
     ++this.token;
     ++this.transitionEpoch;
     this.fastHandoff=false;
-    for(const finish of [...this.activeWaits])finish();
+    for(const wait of [...this.activeWaits])wait.finish();
     for(const motion of [...this.activeMotions])motion.cancel();
     this.transitionBusy=false;
     this.queuedChange=null;
@@ -234,22 +234,29 @@ export class DiscDirector{
     this.started=true;
   }
   wait(ms){
-    if(ms<=0||this.fastHandoff)return Promise.resolve();
+    if(ms<=0)return Promise.resolve();
     return new Promise(resolve=>{
       let timer;
-      const finish=()=>{
-        clearTimeout(timer);
-        this.activeWaits.delete(finish);
-        resolve();
+      const wait={
+        finish:()=>{
+          clearTimeout(timer);
+          this.activeWaits.delete(wait);
+          resolve();
+        },
+        accelerate:()=>{
+          clearTimeout(timer);
+          // Preserve the ordering of sleeve retraction and incoming reveal.
+          timer=setTimeout(wait.finish,Math.min(ms,160));
+        }
       };
-      this.activeWaits.add(finish);
-      timer=setTimeout(finish,ms);
+      this.activeWaits.add(wait);
+      timer=setTimeout(wait.finish,this.fastHandoff?Math.min(ms,160):ms);
     });
   }
   accelerateHandoff(){
     if(this.fastHandoff)return;
     this.fastHandoff=true;
-    for(const finish of [...this.activeWaits])finish();
+    for(const wait of [...this.activeWaits])wait.accelerate();
     for(const motion of [...this.activeMotions])motion.accelerate();
     if(this.panelAnimation){
       if(typeof this.panelAnimation.updatePlaybackRate==='function')this.panelAnimation.updatePlaybackRate(12);

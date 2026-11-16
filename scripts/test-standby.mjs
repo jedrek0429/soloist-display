@@ -247,6 +247,40 @@ test('rapid first metadata updates never animate an outgoing placeholder',async(
   }
 });
 
+test('rapid skips accelerate active motion without resetting existing keyframes',async()=>{
+  const previousDoc=globalThis.document,previousFrame=globalThis.requestAnimationFrame;
+  globalThis.requestAnimationFrame=callback=>{queueMicrotask(()=>callback(0));return 0};
+  try{
+    for(const appearance of ['basic','cd','vinyl','vinyl-cover','cd-cover','album-cover']){
+      const log=[];
+      globalThis.document={documentElement:{dataset:{discAppearance:appearance}},querySelectorAll:()=>[]};
+      const discs=[element('disc-a',log),element('disc-b',log)];
+      const director=new DiscDirector({
+        discs,backdrops:[element('bg-a',log),element('bg-b',log)],info:element('info',log),
+        settings:{transitionStyle:'slide',transitionDuration:1200,transitionDelay:0,
+          backdropTransitionStyle:'off',panelTransitionStyle:'off',
+          sleeveTransitionStyle:'in-out',sleeveDuration:400,sleeveDelayIn:0,sleeveDelayOut:0}
+      });
+      const first=director.change('',()=>{});
+      await new Promise(resolve=>setTimeout(resolve,10));
+      const skip=director.change('',()=>{});
+      const latest=director.change('',()=>{});
+      assert.equal(director.fastHandoff,true,appearance);
+      const t=performance.now();
+      await Promise.all([first,skip,latest]);
+      assert.ok(performance.now()-t<1100,'rapid skips must not wait for two full transitions: '+appearance);
+      assert.equal(director.transitionBusy,false,appearance);
+      assert.equal(director.activeMotions.size,0,appearance);
+      assert.equal(director.activeWaits.size,0,appearance);
+      assert.equal(discs.filter(d=>d.classList.contains('active')).length,1,appearance);
+      director.reset();
+    }
+  }finally{
+    globalThis.document=previousDoc;
+    globalThis.requestAnimationFrame=previousFrame;
+  }
+});
+
 test('idle to new track drops hidden artwork and waits for the arriving disc',()=>{
   const source=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
   const code=source.slice(source.indexOf('function isCurrentTrack('),source.indexOf('function syncPosition('));

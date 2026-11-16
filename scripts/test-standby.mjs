@@ -225,16 +225,56 @@ test('rapid first metadata updates never animate an outgoing placeholder',async(
           settings:{transitionStyle:style,transitionDuration:1,transitionDelay:0,
             sleeveTransitionStyle:'in-out',sleeveDuration:1,sleeveDelayIn:0,sleeveDelayOut:0}
         });
-        const first=director.change('',()=>{});
+        const shown=[];
+        const first=director.change('',()=>shown.push('first'));
         await Promise.resolve(); // The first disc is still arriving.
         assert.equal(director.started,false,appearance+':'+style);
-        const second=director.change('',()=>{});
-        await Promise.all([first,second]);
+        const second=director.change('',()=>shown.push('superseded'));
+        const third=director.change('',()=>shown.push('latest'));
+        await Promise.all([first,second,third]);
+        assert.equal(shown.at(-1),'latest',appearance+':'+style);
+        assert.ok(!shown.includes('superseded'),appearance+':'+style);
+        assert.equal(director.transitionBusy,false,appearance+':'+style);
         assert.equal(director.started,true,appearance+':'+style);
         assert.equal(director.current,0,appearance+':'+style);
         assert.equal(discs.filter(d=>d.classList.contains('active')).length,1);
         assert.ok(log.every(entry=>entry.name==='disc-a'),appearance+':'+style);
       }
+    }
+  }finally{
+    globalThis.document=previousDoc;
+    globalThis.requestAnimationFrame=previousFrame;
+  }
+});
+
+test('rapid skips accelerate active motion without resetting existing keyframes',async()=>{
+  const previousDoc=globalThis.document,previousFrame=globalThis.requestAnimationFrame;
+  // Suppress the director's perpetual spin loop in this deterministic test.
+  globalThis.requestAnimationFrame=()=>0;
+  try{
+    for(const appearance of ['basic','cd','vinyl','vinyl-cover','cd-cover','album-cover']){
+      const log=[];
+      globalThis.document={documentElement:{dataset:{discAppearance:appearance}},querySelectorAll:()=>[]};
+      const discs=[element('disc-a',log),element('disc-b',log)];
+      const director=new DiscDirector({
+        discs,backdrops:[element('bg-a',log),element('bg-b',log)],info:element('info',log),
+        settings:{transitionStyle:'slide',transitionDuration:1200,transitionDelay:0,
+          backdropTransitionStyle:'off',panelTransitionStyle:'off',
+          sleeveTransitionStyle:'in-out',sleeveDuration:400,sleeveDelayIn:0,sleeveDelayOut:0}
+      });
+      const first=director.change('',()=>{});
+      await new Promise(resolve=>setTimeout(resolve,10));
+      const skip=director.change('',()=>{});
+      const latest=director.change('',()=>{});
+      assert.equal(director.fastHandoff,true,appearance);
+      const t=performance.now();
+      await Promise.all([first,skip,latest]);
+      assert.ok(performance.now()-t<1100,'rapid skips must not wait for two full transitions: '+appearance);
+      assert.equal(director.transitionBusy,false,appearance);
+      assert.equal(director.activeMotions.size,0,appearance);
+      assert.equal(director.activeWaits.size,0,appearance);
+      assert.equal(discs.filter(d=>d.classList.contains('active')).length,1,appearance);
+      director.reset();
     }
   }finally{
     globalThis.document=previousDoc;

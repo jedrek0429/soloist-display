@@ -30,7 +30,7 @@ export class DiscDirector{
     this.discs=discs;this.backdrops=backdrops;this.info=info;
     this.current=0;this.token=0;this.started=false;this.angle=0;
     this.velocity=0;this.playing=false;this.changing=false;this.last=performance.now();
-    this.pendingShow=null;this.fadeTimer=null;this.animations=new Set();this.panelAnimation=null;this.panelToken=0;
+    this.pendingShow=null;this.fadeTimer=null;this.animations=new Set();this.transitionBusy=false;this.queuedChange=null;this.changeWaiters=[];this.transitionEpoch=0;this.fastHandoff=false;this.activeWaits=new Set();this.activeMotions=new Set();this.panelBusy=false;this.queuedPanel=null;this.panelAnimation=null;this.panelToken=0;
     this.pauseRetractTimer=null;this.pauseStartedAt=null;this.pauseRetracted=false;this.artworkChanging=false;this.playbackKnown=false;
     this.panelPauseTimer=null;this.panelPauseStartedAt=null;this.panelPauseHidden=false;this.pendingPanelShow=null;
     requestAnimationFrame(t=>this.spin(t));
@@ -61,6 +61,15 @@ export class DiscDirector{
     this.wasRetractedAtChange=false;
     this.playbackKnown=false;
     ++this.token;
+    ++this.transitionEpoch;
+    this.fastHandoff=false;
+    for(const wait of [...this.activeWaits])wait.finish();
+    for(const motion of [...this.activeMotions])motion.cancel();
+    this.transitionBusy=false;
+    this.queuedChange=null;
+    for(const resolve of this.changeWaiters.splice(0))resolve();
+    this.panelBusy=false;
+    this.queuedPanel=null;
     ++this.panelToken;
     for(const animation of this.animations)animation.cancel();
     this.animations.clear();
@@ -212,7 +221,7 @@ export class DiscDirector{
     backdrop.style.opacity='1';
     onShow();
     if(style!=='off'){
-      if(wait>0)await delay(wait);
+      if(wait>0)await this.wait(wait);
       if(token!==this.token)return;
       if(style==='fade')await this.animate(incoming,[{opacity:0},{opacity:1}],duration,token);
       else await this.animate(incoming,[{transform:from},{transform:to}],duration,token);
@@ -224,8 +233,38 @@ export class DiscDirector{
     // A second state update during the first arrival must not send a placeholder away.
     this.started=true;
   }
+  wait(ms){
+    if(ms<=0)return Promise.resolve();
+    return new Promise(resolve=>{
+      let timer;
+      const wait={
+        finish:()=>{
+          clearTimeout(timer);
+          this.activeWaits.delete(wait);
+          resolve();
+        },
+        accelerate:()=>{
+          clearTimeout(timer);
+          // Preserve the ordering of sleeve retraction and incoming reveal.
+          timer=setTimeout(wait.finish,Math.min(ms,160));
+        }
+      };
+      this.activeWaits.add(wait);
+      timer=setTimeout(wait.finish,this.fastHandoff?Math.min(ms,160):ms);
+    });
+  }
+  accelerateHandoff(){
+    if(this.fastHandoff)return;
+    this.fastHandoff=true;
+    for(const wait of [...this.activeWaits])wait.accelerate();
+    for(const motion of [...this.activeMotions])motion.accelerate();
+    if(this.panelAnimation){
+      if(typeof this.panelAnimation.updatePlaybackRate==='function')this.panelAnimation.updatePlaybackRate(12);
+      else if('playbackRate' in this.panelAnimation)this.panelAnimation.playbackRate=12;
+    }
+  }
   async after(wait,token,work){
-    if(wait>0)await delay(wait);
+    if(wait>0)await this.wait(wait);
     if(token!==this.token)return false;
     return work();
   }
@@ -234,34 +273,97 @@ export class DiscDirector{
     return new Promise(resolve=>{
       const animation=element.animate(keyframes,{duration,easing:'ease-in-out',fill:'forwards'});
       this.animations.add(animation);
+      let completed=false;
+      let timer;
       const finish=()=>{
+        if(completed)return;
+        completed=true;
+        clearTimeout(timer);
+        this.activeMotions.delete(motion);
         this.animations.delete(animation);
-        if(token===this.token){Object.assign(element.style,keyframes.at(-1));animation.cancel();resolve(true)}
-        else{animation.cancel();resolve(false)}
+        if(token===this.token){
+          Object.assign(element.style,keyframes.at(-1));
+          animation.cancel();
+          resolve(true);
+        }else{
+          animation.cancel();
+          resolve(false);
+        }
       };
-      // A timer rather than animation.finished avoids compositor stalls on CRT browsers.
-      setTimeout(finish,duration+35);
+      const motion={
+        accelerate:()=>{
+          if(completed)return;
+          if(typeof animation.updatePlaybackRate==='function')animation.updatePlaybackRate(Math.max(1,duration/120));
+          else if('playbackRate' in animation)animation.playbackRate=Math.max(1,duration/120);
+          clearTimeout(timer);
+          timer=setTimeout(finish,155);
+        },
+        cancel:finish
+      };
+      this.activeMotions.add(motion);
+      timer=setTimeout(finish,duration+35);
+      if(this.fastHandoff)motion.accelerate();
     });
   }
   fadeBackdrop(outgoing,incoming,duration,token){
     if(duration<=0){incoming.style.opacity='1';return Promise.resolve(true)}
     return new Promise(resolve=>{
-      // CSS crossfade keeps the old image fully opaque beneath the incoming one.
-      // Avoid WAAPI commitStyles()/cancel(), which can expose a frame of the wrong image.
       incoming.style.transition='none';
       incoming.style.opacity='0';
       outgoing.style.transition='none';
       outgoing.style.opacity='1';
       void incoming.offsetWidth;
+      let completed=false;
+      let timer;
+      const finish=()=>{
+        if(completed)return;
+        completed=true;
+        clearTimeout(timer);
+        this.activeMotions.delete(motion);
+        resolve(token===this.token);
+      };
+      const motion={
+        accelerate:()=>{
+          if(completed)return;
+          if(typeof getComputedStyle==='function'){
+            const opacity=getComputedStyle(incoming).opacity;
+            incoming.style.transition='none';
+            incoming.style.opacity=opacity;
+            void incoming.offsetWidth;
+          }
+          incoming.style.transition='opacity 120ms ease-out';
+          incoming.style.opacity='1';
+          clearTimeout(timer);
+          timer=setTimeout(finish,155);
+        },
+        cancel:finish
+      };
+      this.activeMotions.add(motion);
       requestAnimationFrame(()=>requestAnimationFrame(()=>{
-        if(token!==this.token){resolve(false);return}
+        if(completed)return;
+        if(token!==this.token){finish();return}
+        if(this.fastHandoff){motion.accelerate();return}
         incoming.style.transition=`opacity ${duration}ms ease-in-out`;
         incoming.style.opacity='1';
       }));
-      setTimeout(()=>resolve(token===this.token),duration+60);
+      timer=setTimeout(finish,duration+60);
+      if(this.fastHandoff)motion.accelerate();
     });
   }
   async transitionPanel(show){
+    if(this.panelBusy){this.queuedPanel=show;return;}
+    this.panelBusy=true;
+    const epoch=this.transitionEpoch;
+    try{await this.performPanelTransition(show)}finally{
+      if(epoch===this.transitionEpoch){
+        this.panelBusy=false;
+        const next=this.queuedPanel;
+        this.queuedPanel=null;
+        if(next)void this.transitionPanel(next);
+      }
+    }
+  }
+  async performPanelTransition(show){
     const token=++this.panelToken;
     this.pendingPanelShow=show;
     const commit=()=>{
@@ -279,7 +381,7 @@ export class DiscDirector{
     const duration=this.motionEnabled?this.settings.panelTransitionDuration:0;
     if(style==='off'||duration<=0){commit();return}
     const wait=this.motionEnabled?this.settings.panelDelayIn:0;
-    if(wait>0)await delay(wait);
+    if(wait>0)await this.wait(wait);
     if(token!==this.panelToken)return;
     const half=duration/2;
     const distance='calc(100% + 6vh + 60px)';
@@ -292,6 +394,10 @@ export class DiscDirector{
     const run=frames=>new Promise(resolve=>{
       const animation=this.info.animate(frames,{duration:half,easing:'ease-in-out',fill:'forwards'});
       this.panelAnimation=animation;
+      if(this.fastHandoff){
+        if(typeof animation.updatePlaybackRate==='function')animation.updatePlaybackRate(12);
+        else if('playbackRate' in animation)animation.playbackRate=12;
+      }
       animation.onfinish=()=>resolve(true);
       animation.oncancel=()=>resolve(false);
     });
@@ -299,7 +405,7 @@ export class DiscDirector{
     // Swap the text only after the old panel has fully left the screen.
     commit();
     const outWait=this.motionEnabled?this.settings.panelDelayOut:0;
-    if(outWait>0)await delay(outWait);
+    if(outWait>0)await this.wait(outWait);
     if(token!==this.panelToken)return;
     this.panelAnimation?.cancel();
     await run(enter);
@@ -405,7 +511,7 @@ export class DiscDirector{
         const discArrival=this.motionEnabled&&['fly','slide'].includes(this.settings.transitionStyle)
           ?transitionDelay+duration/2:0;
         const retractWait=this.wasRetractedAtChange?0:sleeveDelayIn+sleeveDuration/2;
-        await delay(Math.max(retractWait,discArrival)+sleeveDelayOut);
+        await this.wait(Math.max(retractWait,discArrival)+sleeveDelayOut);
         if(token!==this.token)return false;
         const opening=[this.animate(newTrack,[{transform:'translateX(0)'},{transform:'translateX(50%)'}],sleeveDuration/2,token)];
         if(align){
@@ -428,7 +534,7 @@ export class DiscDirector{
       incoming.style.transform='translate(55%,-115%) scale(.72) rotateX(65deg)';
       jobs.push(this.after(transitionDelay,token,()=>this.animate(outgoing,[{transform:'translate(-50%,-50%) scale(1) rotateX(0deg)'},{transform:'translate(-145%,-98%) scale(.72) rotateX(65deg)'}],duration/2,token)));
       jobs.push((async()=>{
-        await delay(transitionDelay+duration/2);
+        await this.wait(transitionDelay+duration/2);
         if(token!==this.token)return false;
         return this.animate(incoming,[{transform:'translate(55%,-115%) scale(.72) rotateX(65deg)'},{transform:'translate(-50%,-50%) scale(1) rotateX(0deg)'}],duration/2,token);
       })());
@@ -439,6 +545,54 @@ export class DiscDirector{
     if(token===this.token)commit();
   }
   async change(url,onShow){
+    // Keep the currently rendered transition intact. Intermediate skips are
+    // coalesced rather than cancelling WAAPI animations and resetting transforms.
+    // One transition owns the DOM at a time. All callers settle after the
+    // newest requested track has been installed, including during first entry.
+    if(this.transitionBusy){
+      this.queuedChange={url,onShow};
+      this.accelerateHandoff();
+      return new Promise(resolve=>this.changeWaiters.push(resolve));
+    }
+    this.transitionBusy=true;
+    const epoch=this.transitionEpoch;
+    const firstArrival=!this.started;
+    try{
+      await this.performChange(url,onShow);
+      while(epoch===this.transitionEpoch&&this.queuedChange){
+        ({url,onShow}=this.queuedChange);
+        this.queuedChange=null;
+        if(firstArrival&&this.started){
+          // A second first-entry animation would eject a placeholder disc.
+          // Replace artwork in place, including later updates during preload.
+          await this.replaceFirstArtwork(url,onShow,epoch);
+        }else{
+          await this.performChange(url,onShow);
+        }
+      }
+    }finally{
+      if(epoch===this.transitionEpoch){
+        this.fastHandoff=false;
+        this.transitionBusy=false;
+        for(const resolve of this.changeWaiters.splice(0))resolve();
+      }
+    }
+  }
+  async replaceFirstArtwork(url,onShow,epoch){
+    const forColour=this.settings.backgroundMode==='dominant-colour';
+    const artwork=await preload(url,{forColour});
+    if(epoch!==this.transitionEpoch)return;
+    const disc=this.discs[this.current];
+    const backdrop=this.backdrops[this.current];
+    const image=imageStyle(url);
+    disc.querySelector('.disc-image').style.backgroundImage=image;
+    disc.querySelector('.disc-label').style.backgroundImage=image;
+    disc.querySelector('.record-sleeve').style.backgroundImage=image;
+    disc.style.setProperty('--cd-cover-art',image);
+    this.setBackdrop(backdrop,url,forColour?dominantColourForArtwork(url,artwork):null);
+    onShow();
+  }
+  async performChange(url,onShow){
     this.pendingShow=null;
     for(const overlay of document.querySelectorAll('.cover-overlay'))overlay.remove();
     const token=++this.token;
@@ -517,7 +671,7 @@ export class DiscDirector{
     if(discStyle==='fly'){
       jobs.push(this.after(this.settings.transitionDelay,token,()=>this.animate(outgoing,[{transform:'translate(-50%,-50%) scale(1) rotateX(0deg)'},{transform:'translate(-145%,-98%) scale(.72) rotateX(65deg)'}],duration*.5,token)));
       jobs.push((async()=>{
-        await delay(this.settings.transitionDelay+duration*.5);
+        await this.wait(this.settings.transitionDelay+duration*.5);
         if(token!==this.token)return false;
         return this.animate(incoming,[{transform:'translate(55%,-115%) scale(.72) rotateX(65deg)'},{transform:'translate(-50%,-50%) scale(1) rotateX(0deg)'}],duration*.5,token);
       })());

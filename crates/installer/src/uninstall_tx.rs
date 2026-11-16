@@ -5,7 +5,7 @@ use soloist_display_core::lifecycle::{self, StagedPath as MovedPath, Transaction
 use std::{
     fs, io,
     os::unix::fs::OpenOptionsExt,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AddonServiceSnapshot {
@@ -160,6 +160,16 @@ impl UninstallTransaction {
         atomic_json(&journal_path(paths), self, Some(0o600))
     }
     pub fn stage(&mut self, paths: &Paths, original: &Path) -> Result<()> {
+        if !original.is_absolute()
+            || original
+                .components()
+                .any(|component| matches!(component, Component::ParentDir | Component::CurDir))
+        {
+            bail!(
+                "refusing to stage non-normalized path {}",
+                original.display()
+            );
+        }
         if ![
             &paths.config_home,
             &paths.data_home,
@@ -528,6 +538,37 @@ mod tests {
         assert_eq!(fs::read(&state_file).unwrap(), b"owned state");
         assert!(!pending(&paths));
 
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+    #[test]
+    #[serial]
+    fn rejects_path_traversal_outside_owned_directory() {
+        let (_directory, paths) = crate::test_support::paths();
+
+        let foreign = paths.state_home.join("important.json");
+        fs::write(&foreign, b"do not remove").unwrap();
+
+        let traversal = paths.state.join("../../important.json");
+
+        let mut tx = UninstallTransaction::begin(&paths, false).unwrap();
+
+        assert!(tx.stage(&paths, &traversal).is_err());
+        assert_eq!(fs::read(&foreign).unwrap(), b"do not remove");
+
+        recover(&paths).unwrap();
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
+    #[serial]
+    fn rejects_relative_and_dot_component_paths() {
+        let (_directory, paths) = crate::test_support::paths();
+        let mut tx = UninstallTransaction::begin(&paths, false).unwrap();
+
+        assert!(tx.stage(&paths, Path::new("relative/file")).is_err());
+        assert!(tx.stage(&paths, &paths.state.join("../other")).is_err());
+
+        recover(&paths).unwrap();
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
 }

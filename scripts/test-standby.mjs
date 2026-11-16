@@ -225,11 +225,16 @@ test('rapid first metadata updates never animate an outgoing placeholder',async(
           settings:{transitionStyle:style,transitionDuration:1,transitionDelay:0,
             sleeveTransitionStyle:'in-out',sleeveDuration:1,sleeveDelayIn:0,sleeveDelayOut:0}
         });
-        const first=director.change('',()=>{});
+        const shown=[];
+        const first=director.change('',()=>shown.push('first'));
         await Promise.resolve(); // The first disc is still arriving.
         assert.equal(director.started,false,appearance+':'+style);
-        const second=director.change('',()=>{});
-        await Promise.all([first,second]);
+        const second=director.change('',()=>shown.push('superseded'));
+        const third=director.change('',()=>shown.push('latest'));
+        await Promise.all([first,second,third]);
+        assert.equal(shown.at(-1),'latest',appearance+':'+style);
+        assert.ok(!shown.includes('superseded'),appearance+':'+style);
+        assert.equal(director.transitionBusy,false,appearance+':'+style);
         assert.equal(director.started,true,appearance+':'+style);
         assert.equal(director.current,0,appearance+':'+style);
         assert.equal(discs.filter(d=>d.classList.contains('active')).length,1);

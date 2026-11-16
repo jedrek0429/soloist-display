@@ -165,6 +165,7 @@ impl UninstallTransaction {
             &paths.data_home,
             &paths.cache_home,
             &paths.bin_dir,
+            &paths.state,
         ]
         .iter()
         .any(|root| original.starts_with(root))
@@ -434,6 +435,99 @@ mod tests {
         assert!(tx.stage(&paths, &foreign).is_err());
         recover(&paths).unwrap();
         assert_eq!(fs::read(foreign).unwrap(), b"session");
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
+    #[serial]
+    fn installed_mpris_is_discovered_and_restored_after_interruption() {
+        let (_directory, paths) = crate::test_support::paths();
+
+        // Create a real MPRIS installation-state fixture.
+        crate::addons::mpris::create_installed_test_fixture(&paths).unwrap();
+
+        let unit = crate::addons::mpris::unit_path(&paths);
+        let addon_dir = paths.root.join("addons/mpris");
+        let binary = addon_dir.join("soloist-mpris");
+        let state = paths.state.join("mpris.json");
+
+        let original_unit = fs::read(&unit).unwrap();
+        let original_binary = fs::read(&binary).unwrap();
+        let original_state = fs::read(&state).unwrap();
+
+        // The transaction must discover MPRIS on its own.
+        let mut tx = UninstallTransaction::begin(&paths, false).unwrap();
+
+        assert_eq!(tx.addons.len(), 1);
+
+        let mpris = &tx.addons[0];
+
+        assert_eq!(mpris.id, "mpris");
+        assert!(mpris.files.contains(&unit));
+        assert!(mpris.files.contains(&addon_dir));
+        assert!(mpris.files.contains(&state));
+
+        assert_eq!(mpris.services.len(), 1);
+
+        let service = &mpris.services[0];
+
+        assert_eq!(service.name, "soloist-display-mpris.service");
+        assert_eq!(service.unit_path, unit);
+        assert_eq!(
+            service.previous_unit.as_deref(),
+            Some(original_unit.as_slice())
+        );
+
+        // Stage exactly the files declared by the registry.
+        let plan_files = mpris.files.clone();
+
+        for file in plan_files {
+            tx.stage(&paths, &file).unwrap();
+        }
+
+        assert!(!unit.exists());
+        assert!(!addon_dir.exists());
+        assert!(!state.exists());
+        assert!(pending(&paths));
+
+        // Simulate the process terminating before commit.
+        drop(tx);
+
+        // Recovery reads the persisted journal, not the old tx object.
+        recover(&paths).unwrap();
+
+        assert_eq!(fs::read(&unit).unwrap(), original_unit);
+        assert_eq!(fs::read(&binary).unwrap(), original_binary);
+        assert_eq!(fs::read(&state).unwrap(), original_state);
+
+        assert!(!pending(&paths));
+
+        // The restored installation is still discoverable.
+        let plans = crate::addons::uninstall_plans(&paths).unwrap();
+
+        assert_eq!(plans.len(), 1);
+        assert_eq!(plans[0].0, "mpris");
+
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+    #[test]
+    #[serial]
+    fn allows_staging_owned_installation_state() {
+        let (_directory, paths) = crate::test_support::paths();
+
+        let state_file = paths.state.join("test-addon.json");
+        fs::write(&state_file, b"owned state").unwrap();
+
+        let mut tx = UninstallTransaction::begin(&paths, false).unwrap();
+
+        tx.stage(&paths, &state_file).unwrap();
+        assert!(!state_file.exists());
+
+        recover(&paths).unwrap();
+
+        assert_eq!(fs::read(&state_file).unwrap(), b"owned state");
+        assert!(!pending(&paths));
+
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
 }

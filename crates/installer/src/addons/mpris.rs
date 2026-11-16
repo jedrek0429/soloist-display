@@ -533,6 +533,27 @@ impl Addon for MprisAddon {
 }
 
 #[cfg(test)]
+pub(crate) fn create_installed_test_fixture(paths: &Paths) -> Result<()> {
+    let data_dir = paths.soloist_data.clone();
+
+    fs::create_dir_all(addon_dir(paths))?;
+    fs::write(binary_path(paths), b"test MPRIS binary")?;
+
+    let unit = unit_path(paths);
+    fs::create_dir_all(unit.parent().context("missing unit directory")?)?;
+    fs::write(&unit, render_unit(paths, &data_dir)?)?;
+
+    save_state(
+        paths,
+        &MprisState {
+            version: VERSION.into(),
+            data_dir,
+            phase: Phase::Installed,
+        },
+    )
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 

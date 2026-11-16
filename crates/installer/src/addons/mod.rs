@@ -5,6 +5,7 @@ use clap::{builder::PossibleValuesParser, Command};
 use std::path::PathBuf;
 
 pub(crate) mod mpris;
+mod release;
 use mpris::MprisAddon;
 
 #[derive(Debug, Clone, Copy)]
@@ -64,13 +65,6 @@ pub trait Addon: Sync {
         self.enable(paths, platform)
     }
 
-    // Optional CLI command
-    fn command(&self) -> Option<clap::Command> {
-        None
-    }
-    fn run_command(&self, _matches: &clap::ArgMatches, _paths: &Paths) -> Result<()> {
-        anyhow::bail!("this add-on does not provide CLI commands")
-    }
 }
 
 static MPRIS: MprisAddon = MprisAddon;
@@ -82,14 +76,6 @@ pub fn find(id: &str) -> Option<&'static dyn Addon> {
         .iter()
         .copied()
         .find(|addon| addon.metadata().id == id)
-}
-
-pub fn command_owner(name: &str) -> Option<&'static dyn Addon> {
-    ADDONS.iter().copied().find(|addon| {
-        addon
-            .command()
-            .is_some_and(|command| command.get_name() == name)
-    })
 }
 
 pub fn list() {
@@ -176,12 +162,6 @@ pub fn configure_cli(mut command: Command) -> Command {
             enable.subcommand_required(true)
         })
     });
-
-    for addon in ADDONS {
-        if let Some(addon_command) = addon.command() {
-            command = command.subcommand(addon_command);
-        }
-    }
 
     command
 }

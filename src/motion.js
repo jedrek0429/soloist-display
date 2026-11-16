@@ -30,7 +30,7 @@ export class DiscDirector{
     this.discs=discs;this.backdrops=backdrops;this.info=info;
     this.current=0;this.token=0;this.started=false;this.angle=0;
     this.velocity=0;this.playing=false;this.changing=false;this.last=performance.now();
-    this.pendingShow=null;this.fadeTimer=null;this.animations=new Set();this.transitionBusy=false;this.queuedChange=null;this.transitionEpoch=0;this.panelBusy=false;this.queuedPanel=null;this.panelAnimation=null;this.panelToken=0;
+    this.pendingShow=null;this.fadeTimer=null;this.animations=new Set();this.transitionBusy=false;this.queuedChange=null;this.changeWaiters=[];this.transitionEpoch=0;this.panelBusy=false;this.queuedPanel=null;this.panelAnimation=null;this.panelToken=0;
     this.pauseRetractTimer=null;this.pauseStartedAt=null;this.pauseRetracted=false;this.artworkChanging=false;this.playbackKnown=false;
     this.panelPauseTimer=null;this.panelPauseStartedAt=null;this.panelPauseHidden=false;this.pendingPanelShow=null;
     requestAnimationFrame(t=>this.spin(t));
@@ -64,6 +64,7 @@ export class DiscDirector{
     ++this.transitionEpoch;
     this.transitionBusy=false;
     this.queuedChange=null;
+    for(const resolve of this.changeWaiters.splice(0))resolve();
     this.panelBusy=false;
     this.queuedPanel=null;
     ++this.panelToken;
@@ -459,17 +460,52 @@ export class DiscDirector{
   async change(url,onShow){
     // Keep the currently rendered transition intact. Intermediate skips are
     // coalesced rather than cancelling WAAPI animations and resetting transforms.
-    if(this.transitionBusy){this.queuedChange={url,onShow};return;}
+    // One transition owns the DOM at a time. All callers settle after the
+    // newest requested track has been installed, including during first entry.
+    if(this.transitionBusy){
+      this.queuedChange={url,onShow};
+      return new Promise(resolve=>this.changeWaiters.push(resolve));
+    }
     this.transitionBusy=true;
     const epoch=this.transitionEpoch;
-    try{await this.performChange(url,onShow)}finally{
-      if(epoch===this.transitionEpoch){
-        this.transitionBusy=false;
+    let firstArrival=!this.started;
+    try{
+      do{
+        await this.performChange(url,onShow);
+        if(epoch!==this.transitionEpoch)return;
         const next=this.queuedChange;
         this.queuedChange=null;
-        if(next)void this.change(next.url,next.onShow);
+        if(!next)break;
+        ({url,onShow}=next);
+        if(firstArrival&&this.started){
+          // A second first-entry animation would eject a placeholder disc.
+          // Replace the artwork on the arriving disc without moving it again.
+          await this.replaceFirstArtwork(url,onShow,epoch);
+          // Continue to accept newer metadata while the image is preloaded.
+          continue;
+        }
+        firstArrival=false;
+      }while(true);
+    }finally{
+      if(epoch===this.transitionEpoch){
+        this.transitionBusy=false;
+        for(const resolve of this.changeWaiters.splice(0))resolve();
       }
     }
+  }
+  async replaceFirstArtwork(url,onShow,epoch){
+    const forColour=this.settings.backgroundMode==='dominant-colour';
+    const artwork=await preload(url,{forColour});
+    if(epoch!==this.transitionEpoch)return;
+    const disc=this.discs[this.current];
+    const backdrop=this.backdrops[this.current];
+    const image=imageStyle(url);
+    disc.querySelector('.disc-image').style.backgroundImage=image;
+    disc.querySelector('.disc-label').style.backgroundImage=image;
+    disc.querySelector('.record-sleeve').style.backgroundImage=image;
+    disc.style.setProperty('--cd-cover-art',image);
+    this.setBackdrop(backdrop,url,forColour?dominantColourForArtwork(url,artwork):null);
+    onShow();
   }
   async performChange(url,onShow){
     this.pendingShow=null;

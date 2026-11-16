@@ -1,4 +1,4 @@
-use super::{Addon, AddonInstallState, AddonMetadata, AddonStatus, AddonUninstallPlan};
+use super::{release::{self, ReleaseSpec}, Addon, AddonInstallState, AddonMetadata, AddonStatus, AddonUninstallPlan};
 use crate::{
     paths::Paths,
     platform::{Architecture, Platform},
@@ -6,28 +6,30 @@ use crate::{
     state::{atomic_json, InstallState, SoloistOwnership},
 };
 use anyhow::{anyhow, bail, Context, Result};
-use flate2::read::GzDecoder;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::{
     fs,
-    io::{Read, Write},
+    io::Write,
     os::unix::fs::OpenOptionsExt,
     path::{Path, PathBuf},
     process::Command,
     thread,
     time::Duration,
 };
-use tar::Archive;
 
 pub struct MprisAddon;
 
 const VERSION: &str = "0.2.2";
-const UPSTREAM: &str = "https://github.com/TobiasVeiga00/soloist-mpris";
 const UNIT: &str = "soloist-display-mpris.service";
 const BUS_NAME: &str = "org.mpris.MediaPlayer2.soloist";
-const MAX_ARCHIVE: u64 = 64 * 1024 * 1024;
-const MAX_BINARY: u64 = 32 * 1024 * 1024;
+const RELEASE: ReleaseSpec = ReleaseSpec {
+    repository: "TobiasVeiga00/soloist-mpris",
+    version: VERSION,
+    binary: "soloist-mpris",
+    asset: release_asset,
+    max_archive_bytes: 64 * 1024 * 1024,
+    max_binary_bytes: 32 * 1024 * 1024,
+};
 const LICENSE: &str = include_str!("../../licenses/soloist-mpris.LICENSE");
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -193,94 +195,6 @@ fn release_asset(architecture: &Architecture) -> Result<&'static str> {
     }
 }
 
-fn get(client: &reqwest::blocking::Client, url: &str, maximum: u64) -> Result<Vec<u8>> {
-    let response = client
-        .get(url)
-        .send()
-        .with_context(|| format!("download {url}"))?
-        .error_for_status()
-        .with_context(|| format!("download {url}"))?;
-    let mut body = Vec::new();
-    response.take(maximum + 1).read_to_end(&mut body)?;
-    if body.len() as u64 > maximum {
-        bail!("MPRIS release asset exceeds its size limit");
-    }
-    Ok(body)
-}
-
-fn verify_checksum(archive: &[u8], content: &str, name: &str) -> Result<()> {
-    let mut fields = content.split_whitespace();
-    let digest = fields.next().context("missing MPRIS checksum")?;
-    let filename = fields.next().context("missing MPRIS checksum filename")?;
-    if fields.next().is_some()
-        || digest.len() != 64
-        || !digest.bytes().all(|byte| byte.is_ascii_hexdigit())
-        || filename.trim_start_matches('*') != name
-    {
-        bail!("invalid upstream MPRIS checksum file");
-    }
-    let actual = hex::encode(Sha256::digest(archive));
-    if !actual.eq_ignore_ascii_case(digest) {
-        bail!("MPRIS release checksum mismatch");
-    }
-    Ok(())
-}
-
-fn unpack_binary(archive: &[u8], architecture: &Architecture) -> Result<Vec<u8>> {
-    let decoder = GzDecoder::new(archive);
-    let mut tar = Archive::new(decoder);
-    let mut binary = None;
-    for entry in tar.entries().context("read upstream MPRIS archive")? {
-        let mut entry = entry?;
-        if entry.path()?.as_ref() != Path::new("soloist-mpris") {
-            continue;
-        }
-        if !entry.header().entry_type().is_file() || binary.is_some() {
-            bail!("invalid or duplicate MPRIS executable in archive");
-        }
-        if entry.size() > MAX_BINARY {
-            bail!("MPRIS executable exceeds its size limit");
-        }
-        let mut bytes = Vec::new();
-        entry.read_to_end(&mut bytes)?;
-        verify_binary(&bytes, architecture)?;
-        binary = Some(bytes);
-    }
-    binary.context("MPRIS archive does not contain soloist-mpris")
-}
-
-fn verify_binary(binary: &[u8], architecture: &Architecture) -> Result<()> {
-    if binary.len() < 40 || &binary[..4] != b"\x7fELF" || binary[5] != 1 {
-        bail!("upstream MPRIS executable is not a little-endian ELF");
-    }
-    let machine = u16::from_le_bytes([binary[18], binary[19]]);
-    let expected = match architecture {
-        Architecture::X86_64 => (2, 62),
-        Architecture::Aarch64 => (2, 183),
-        Architecture::Armv7 => (1, 40),
-    };
-    if (binary[4], machine) != expected {
-        bail!("upstream MPRIS executable has the wrong architecture");
-    }
-    Ok(())
-}
-
-fn download_binary(architecture: &Architecture) -> Result<Vec<u8>> {
-    let asset = release_asset(architecture)?;
-    let root = format!("{UPSTREAM}/releases/download/v{VERSION}");
-    let client = reqwest::blocking::Client::builder()
-        .timeout(Duration::from_secs(40))
-        .build()?;
-    let archive = get(&client, &format!("{root}/{asset}"), MAX_ARCHIVE)?;
-    let checksum = get(&client, &format!("{root}/{asset}.sha256"), 4096)?;
-    verify_checksum(
-        &archive,
-        std::str::from_utf8(&checksum).context("invalid checksum encoding")?,
-        asset,
-    )?;
-    unpack_binary(&archive, architecture)
-}
-
 fn create_file(path: &Path, bytes: &[u8], mode: u32) -> Result<()> {
     let mut file = fs::OpenOptions::new()
         .write(true)
@@ -362,7 +276,7 @@ pub fn enable(paths: &Paths, platform: &Platform, requested: Option<PathBuf>) ->
     }
     let data_dir = resolve_data_dir(paths, requested)?;
     check_conflicts(paths)?;
-    let binary = download_binary(&platform.architecture)?;
+    let binary = release::download_binary(&RELEASE, &platform.architecture)?;
     let state = MprisState {
         version: VERSION.into(),
         data_dir,
@@ -597,27 +511,6 @@ mod tests {
     }
 
     #[test]
-    fn checksum_is_exact_and_filename_bound() {
-        let archive = b"archive";
-        let digest = hex::encode(Sha256::digest(archive));
-        assert!(verify_checksum(
-            archive,
-            &format!("{digest}  bridge.tar.gz"),
-            "bridge.tar.gz"
-        )
-        .is_ok());
-        assert!(
-            verify_checksum(archive, &format!("{digest}  other.tar.gz"), "bridge.tar.gz").is_err()
-        );
-        assert!(verify_checksum(
-            b"wrong",
-            &format!("{digest}  bridge.tar.gz"),
-            "bridge.tar.gz"
-        )
-        .is_err());
-    }
-
-    #[test]
     fn armv7_requires_upstream_support() {
         assert!(release_asset(&Architecture::Armv7).is_err());
         assert!(release_asset(&Architecture::X86_64).is_ok());
@@ -692,14 +585,4 @@ mod tests {
         result.unwrap();
     }
 
-    #[test]
-    fn binary_rejects_wrong_architecture() {
-        let mut binary = vec![0; 40];
-        binary[..4].copy_from_slice(b"\x7fELF");
-        binary[4] = 2;
-        binary[5] = 1;
-        binary[18..20].copy_from_slice(&62u16.to_le_bytes());
-        assert!(verify_binary(&binary, &Architecture::X86_64).is_ok());
-        assert!(verify_binary(&binary, &Architecture::Aarch64).is_err());
-    }
 }

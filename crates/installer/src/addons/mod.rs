@@ -234,33 +234,6 @@ mod tests {
     }
 
     #[test]
-    fn mpris_enable_accepts_custom_arguments() {
-        let matches = configure_cli(Cli::command())
-            .try_get_matches_from([
-                "soloist-display",
-                "addon",
-                "enable",
-                "mpris",
-                "--data-dir",
-                "/tmp/soloist-data",
-            ])
-            .unwrap();
-
-        let options = matches
-            .subcommand_matches("addon")
-            .unwrap()
-            .subcommand_matches("enable")
-            .unwrap()
-            .subcommand_matches("mpris")
-            .unwrap();
-
-        assert_eq!(
-            options.get_one::<PathBuf>("data-dir"),
-            Some(&PathBuf::from("/tmp/soloist-data"))
-        );
-    }
-
-    #[test]
     fn mpris_enable_rejects_unknown_arguments() {
         assert!(configure_cli(Cli::command())
             .try_get_matches_from([

@@ -387,6 +387,10 @@ export class DiscDirector{
     const run=frames=>new Promise(resolve=>{
       const animation=this.info.animate(frames,{duration:half,easing:'ease-in-out',fill:'forwards'});
       this.panelAnimation=animation;
+      if(this.fastHandoff){
+        if(typeof animation.updatePlaybackRate==='function')animation.updatePlaybackRate(12);
+        else if('playbackRate' in animation)animation.playbackRate=12;
+      }
       animation.onfinish=()=>resolve(true);
       animation.oncancel=()=>resolve(false);
     });

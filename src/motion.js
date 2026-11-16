@@ -468,24 +468,20 @@ export class DiscDirector{
     }
     this.transitionBusy=true;
     const epoch=this.transitionEpoch;
-    let firstArrival=!this.started;
+    const firstArrival=!this.started;
     try{
-      do{
-        await this.performChange(url,onShow);
-        if(epoch!==this.transitionEpoch)return;
-        const next=this.queuedChange;
+      await this.performChange(url,onShow);
+      while(epoch===this.transitionEpoch&&this.queuedChange){
+        ({url,onShow}=this.queuedChange);
         this.queuedChange=null;
-        if(!next)break;
-        ({url,onShow}=next);
         if(firstArrival&&this.started){
           // A second first-entry animation would eject a placeholder disc.
-          // Replace the artwork on the arriving disc without moving it again.
+          // Replace artwork in place, including later updates during preload.
           await this.replaceFirstArtwork(url,onShow,epoch);
-          // Continue to accept newer metadata while the image is preloaded.
-          continue;
+        }else{
+          await this.performChange(url,onShow);
         }
-        firstArrival=false;
-      }while(true);
+      }
     }finally{
       if(epoch===this.transitionEpoch){
         this.transitionBusy=false;

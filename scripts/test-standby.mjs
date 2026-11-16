@@ -249,7 +249,8 @@ test('rapid first metadata updates never animate an outgoing placeholder',async(
 
 test('rapid skips accelerate active motion without resetting existing keyframes',async()=>{
   const previousDoc=globalThis.document,previousFrame=globalThis.requestAnimationFrame;
-  globalThis.requestAnimationFrame=callback=>{queueMicrotask(()=>callback(0));return 0};
+  // Suppress the director's perpetual spin loop in this deterministic test.
+  globalThis.requestAnimationFrame=()=>0;
   try{
     for(const appearance of ['basic','cd','vinyl','vinyl-cover','cd-cover','album-cover']){
       const log=[];

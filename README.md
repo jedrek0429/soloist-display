@@ -52,7 +52,7 @@ Windows x86_64 and macOS Apple Silicon preview builds support an **External-only
 
 ## Media keys (optional)
 
-Enable MPRIS support for media keys and `playerctl` with `soloist-display mpris enable`. See [MPRIS setup](docs/advanced-installation.md#optional-mpris-bridge).
+Enable MPRIS support for media keys and `playerctl` with `soloist-display addon enable mpris`. See [MPRIS setup](docs/advanced-installation.md#optional-mpris-bridge).
 
 Thanks to [@TobiasVeiga00](https://github.com/TobiasVeiga00) for creating [soloist-mpris](https://github.com/TobiasVeiga00/soloist-mpris), the bridge behind this integration.
 

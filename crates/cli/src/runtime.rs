@@ -110,7 +110,7 @@ pub fn parse(args: &[String]) -> Result<Command, String> {
             | SharedCommand::Notifications { .. }
             | SharedCommand::Repair
             | SharedCommand::Uninstall { .. }
-            | SharedCommand::Mpris { .. }
+            | SharedCommand::Addon { .. }
             | SharedCommand::RenewSoloist { .. }
             | SharedCommand::Config
             | SharedCommand::Reload { .. },

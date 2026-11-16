@@ -638,16 +638,9 @@ pub fn start_existing(paths: &Paths, state: &SoloistState) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::paths;
     use serial_test::serial;
 
-    fn paths() -> (tempfile::TempDir, Paths) {
-        let directory = tempfile::tempdir().unwrap();
-        std::env::set_var("HOME", directory.path());
-        std::env::set_var("SOLOIST_DISPLAY_TEST_ROOT", directory.path().join("root"));
-        let paths = Paths::discover().unwrap();
-        paths.ensure_management_dirs().unwrap();
-        (directory, paths)
-    }
     #[test]
     #[serial]
     fn managed_session_copy_cannot_modify_previous_session() {
@@ -801,12 +794,22 @@ mod tests {
     #[serial]
     fn empty_legacy_credentials_do_not_mask_environment_key() {
         let (_directory, paths) = paths();
+
+        std::env::set_var("SOLOIST_NAME", "Test Speaker");
         std::env::set_var("SOLOIST_API_KEY", "environment-key");
+
         let result = configure(&paths, Some(String::new()), Some(String::new()));
+
+        std::env::remove_var("SOLOIST_NAME");
         std::env::remove_var("SOLOIST_API_KEY");
+
         result.unwrap();
-        let (_, key) = read_credentials(&paths.soloist_env).unwrap();
+
+        let (name, key) = read_credentials(&paths.soloist_env).unwrap();
+
+        assert_eq!(name.as_deref(), Some("Test Speaker"));
         assert_eq!(key.as_deref(), Some("environment-key"));
+
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
 

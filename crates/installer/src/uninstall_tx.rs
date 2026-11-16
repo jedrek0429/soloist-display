@@ -1,13 +1,26 @@
-use crate::{mpris, paths::Paths, service, state::atomic_json};
+use crate::{addons, paths::Paths, service, state::atomic_json};
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use soloist_display_core::lifecycle::{self, StagedPath as MovedPath, TransactionPhase as Phase};
 use std::{
     fs, io,
     os::unix::fs::OpenOptionsExt,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
-
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AddonServiceSnapshot {
+    pub name: String,
+    pub unit_path: PathBuf,
+    pub previous_unit: Option<Vec<u8>>,
+    pub enabled: bool,
+    pub active: bool,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AddonUninstallSnapshot {
+    pub id: String,
+    pub files: Vec<PathBuf>,
+    pub services: Vec<AddonServiceSnapshot>,
+}
 #[derive(Serialize, Deserialize)]
 pub struct UninstallTransaction {
     phase: Phase,
@@ -18,13 +31,7 @@ pub struct UninstallTransaction {
     previous_timer_unit: Option<Vec<u8>>,
     previous_timer_service: Option<Vec<u8>>,
     #[serde(default)]
-    previous_mpris_unit: Option<Vec<u8>>,
-    #[serde(default)]
-    mpris_owned: bool,
-    #[serde(default)]
-    mpris_active: bool,
-    #[serde(default)]
-    mpris_enabled: bool,
+    addons: Vec<AddonUninstallSnapshot>,
     managed: bool,
     display_active: bool,
     display_enabled: bool,
@@ -33,15 +40,12 @@ pub struct UninstallTransaction {
     timer_active: bool,
     timer_enabled: bool,
 }
-
 fn journal_path(paths: &Paths) -> PathBuf {
     paths.state_home.join(".soloist-display-uninstall.json")
 }
-
 pub fn pending(paths: &Paths) -> bool {
     journal_path(paths).exists()
 }
-
 fn bytes(path: &Path) -> Result<Option<Vec<u8>>> {
     match fs::read(path) {
         Ok(content) => Ok(Some(content)),
@@ -49,7 +53,6 @@ fn bytes(path: &Path) -> Result<Option<Vec<u8>>> {
         Err(error) => Err(error).with_context(|| format!("read {}", path.display())),
     }
 }
-
 fn restore_file(path: &Path, contents: Option<&[u8]>, mode: u32) -> Result<()> {
     if let Some(contents) = contents {
         let parent = path.parent().context("missing parent directory")?;
@@ -72,7 +75,6 @@ fn restore_file(path: &Path, contents: Option<&[u8]>, mode: u32) -> Result<()> {
     }
     Ok(())
 }
-
 fn staged_name(path: &Path) -> Result<PathBuf> {
     let original = path.file_name().context("cannot stage filesystem root")?;
     Ok(path.with_file_name(format!(
@@ -81,7 +83,6 @@ fn staged_name(path: &Path) -> Result<PathBuf> {
         original.to_string_lossy()
     )))
 }
-
 impl UninstallTransaction {
     pub fn begin(paths: &Paths, managed: bool) -> Result<Self> {
         let journal = journal_path(paths);
@@ -92,7 +93,39 @@ impl UninstallTransaction {
             .soloist_service
             .parent()
             .context("missing systemd unit directory")?;
-        let mpris_owned = mpris::is_installed(paths)?;
+        // Capture each add-on's rollback state before any service is stopped.
+        let addons = addons::uninstall_plans(paths)?
+            .into_iter()
+            .map(|(id, plan)| -> Result<AddonUninstallSnapshot> {
+                let services = plan
+                    .services
+                    .into_iter()
+                    .map(|name| -> Result<AddonServiceSnapshot> {
+                        let unit_path = unit_dir.join(&name);
+                        // Reject arbitrary units supplied by a broken add-on plan.
+                        if Path::new(&name).file_name().and_then(|n| n.to_str())
+                            != Some(name.as_str())
+                            || !plan.files.contains(&unit_path)
+                        {
+                            bail!("invalid service unit in add-on uninstall plan: {name}");
+                        }
+                        let previous_unit = bytes(&unit_path)?;
+                        Ok(AddonServiceSnapshot {
+                            enabled: service::enabled(paths, &name),
+                            active: !paths.is_test() && service::active(paths, &name),
+                            name,
+                            unit_path,
+                            previous_unit,
+                        })
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(AddonUninstallSnapshot {
+                    id: id.to_owned(),
+                    files: plan.files,
+                    services,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
         let result = Self {
             phase: Phase::Preparing,
             moved: Vec::new(),
@@ -109,16 +142,7 @@ impl UninstallTransaction {
             },
             previous_timer_unit: bytes(&unit_dir.join("soloist-display-renew.timer"))?,
             previous_timer_service: bytes(&unit_dir.join("soloist-display-renew.service"))?,
-            previous_mpris_unit: if mpris_owned {
-                bytes(&mpris::unit_path(paths))?
-            } else {
-                None
-            },
-            mpris_owned,
-            mpris_active: mpris_owned
-                && !paths.is_test()
-                && service::active(paths, "soloist-display-mpris.service"),
-            mpris_enabled: mpris_owned && service::enabled(paths, "soloist-display-mpris.service"),
+            addons,
             managed,
             display_active: !paths.is_test() && service::active(paths, "soloist-display.service"),
             display_enabled: service::enabled(paths, "soloist-display.service"),
@@ -132,17 +156,26 @@ impl UninstallTransaction {
         result.persist(paths)?;
         Ok(result)
     }
-
     fn persist(&self, paths: &Paths) -> Result<()> {
         atomic_json(&journal_path(paths), self, Some(0o600))
     }
-
     pub fn stage(&mut self, paths: &Paths, original: &Path) -> Result<()> {
+        if !original.is_absolute()
+            || original
+                .components()
+                .any(|component| matches!(component, Component::ParentDir | Component::CurDir))
+        {
+            bail!(
+                "refusing to stage non-normalized path {}",
+                original.display()
+            );
+        }
         if ![
             &paths.config_home,
             &paths.data_home,
             &paths.cache_home,
             &paths.bin_dir,
+            &paths.state,
         ]
         .iter()
         .any(|root| original.starts_with(root))
@@ -186,18 +219,15 @@ impl UninstallTransaction {
         lifecycle::rename_staged(original, &staged)?;
         Ok(())
     }
-
     pub fn commit(&mut self, paths: &Paths) -> Result<()> {
         self.phase = Phase::Committed;
         self.persist(paths)?;
         finish_cleanup(paths, self)
     }
 }
-
 fn restore_moved(tx: &UninstallTransaction) -> Result<()> {
     lifecycle::restore_staged(&tx.moved)
 }
-
 fn restore_services(paths: &Paths, tx: &UninstallTransaction) -> Result<()> {
     let unit_dir = paths
         .soloist_service
@@ -225,21 +255,19 @@ fn restore_services(paths: &Paths, tx: &UninstallTransaction) -> Result<()> {
         tx.previous_timer_service.as_deref(),
         0o644,
     )?;
-    if tx.mpris_owned {
-        restore_file(
-            &mpris::unit_path(paths),
-            tx.previous_mpris_unit.as_deref(),
-            0o644,
-        )?;
+    // Restore all add-on unit files before reloading systemd.
+    for addon in &tx.addons {
+        for unit in &addon.services {
+            restore_file(&unit.unit_path, unit.previous_unit.as_deref(), 0o644)?;
+        }
     }
     service::daemon_reload(paths)?;
-    if tx.mpris_owned && tx.previous_mpris_unit.is_some() {
-        service::restore_unit_state(
-            paths,
-            "soloist-display-mpris.service",
-            tx.mpris_enabled,
-            tx.mpris_active,
-        )?;
+    for addon in &tx.addons {
+        for unit in &addon.services {
+            if unit.previous_unit.is_some() {
+                service::restore_unit_state(paths, &unit.name, unit.enabled, unit.active)?;
+            }
+        }
     }
     if tx.managed && tx.previous_soloist_unit.is_some() {
         service::restore_unit_state(
@@ -267,7 +295,6 @@ fn restore_services(paths: &Paths, tx: &UninstallTransaction) -> Result<()> {
     }
     Ok(())
 }
-
 fn finish_cleanup(paths: &Paths, tx: &UninstallTransaction) -> Result<()> {
     lifecycle::cleanup_staged(&tx.moved)?;
     if paths.state.exists() {
@@ -281,7 +308,6 @@ fn finish_cleanup(paths: &Paths, tx: &UninstallTransaction) -> Result<()> {
     fs::remove_file(journal_path(paths))?;
     Ok(())
 }
-
 pub fn recover(paths: &Paths) -> Result<()> {
     let path = journal_path(paths);
     if !path.exists() {
@@ -297,13 +323,11 @@ pub fn recover(paths: &Paths) -> Result<()> {
     fs::remove_file(path)?;
     Ok(())
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use serial_test::serial;
     use std::os::unix::fs::PermissionsExt;
-
     fn setup() -> (tempfile::TempDir, Paths) {
         let directory = tempfile::tempdir().unwrap();
         std::env::set_var("HOME", directory.path());
@@ -312,7 +336,6 @@ mod tests {
         paths.ensure_management_dirs().unwrap();
         (directory, paths)
     }
-
     #[test]
     #[serial]
     fn interruption_before_commit_restores_every_staged_file() {
@@ -327,7 +350,44 @@ mod tests {
         assert!(!pending(&paths));
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
-
+    #[test]
+    #[serial]
+    fn interrupted_uninstall_restores_addon_unit_and_file() {
+        let (_directory, paths) = setup();
+        let unit_path = paths
+            .soloist_service
+            .parent()
+            .unwrap()
+            .join("test-addon.service");
+        fs::create_dir_all(unit_path.parent().unwrap()).unwrap();
+        fs::write(&unit_path, b"[Service]\nExecStart=/bin/true\n").unwrap();
+        let addon_file = paths.root.join("addons/test-addon/data");
+        fs::create_dir_all(addon_file.parent().unwrap()).unwrap();
+        fs::write(&addon_file, b"addon data").unwrap();
+        let mut tx = UninstallTransaction::begin(&paths, false).unwrap();
+        tx.addons.push(AddonUninstallSnapshot {
+            id: "test-addon".into(),
+            files: vec![unit_path.clone(), addon_file.clone()],
+            services: vec![AddonServiceSnapshot {
+                name: "test-addon.service".into(),
+                unit_path: unit_path.clone(),
+                previous_unit: Some(fs::read(&unit_path).unwrap()),
+                enabled: false,
+                active: false,
+            }],
+        });
+        tx.persist(&paths).unwrap();
+        tx.stage(&paths, &unit_path).unwrap();
+        tx.stage(&paths, &addon_file).unwrap();
+        recover(&paths).unwrap();
+        assert_eq!(
+            fs::read(&unit_path).unwrap(),
+            b"[Service]\nExecStart=/bin/true\n"
+        );
+        assert_eq!(fs::read(&addon_file).unwrap(), b"addon data");
+        assert!(!pending(&paths));
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
     #[test]
     #[serial]
     fn interruption_after_commit_finishes_cleanup() {
@@ -343,7 +403,6 @@ mod tests {
         assert!(!pending(&paths));
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
-
     #[test]
     #[serial]
     fn rollback_does_not_overwrite_concurrent_shell_edits() {
@@ -361,7 +420,6 @@ mod tests {
         );
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
-
     #[test]
     #[serial]
     fn rejects_owned_path_under_symlinked_ancestor() {
@@ -377,7 +435,6 @@ mod tests {
         assert_eq!(fs::read(foreign.join("settings")).unwrap(), b"keep this");
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
-
     #[test]
     #[serial]
     fn rejects_staging_external_soloist_data() {
@@ -388,6 +445,130 @@ mod tests {
         assert!(tx.stage(&paths, &foreign).is_err());
         recover(&paths).unwrap();
         assert_eq!(fs::read(foreign).unwrap(), b"session");
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
+    #[serial]
+    fn installed_mpris_is_discovered_and_restored_after_interruption() {
+        let (_directory, paths) = crate::test_support::paths();
+
+        // Create a real MPRIS installation-state fixture.
+        crate::addons::mpris::create_installed_test_fixture(&paths).unwrap();
+
+        let unit = crate::addons::mpris::unit_path(&paths);
+        let addon_dir = paths.root.join("addons/mpris");
+        let binary = addon_dir.join("soloist-mpris");
+        let state = paths.state.join("mpris.json");
+
+        let original_unit = fs::read(&unit).unwrap();
+        let original_binary = fs::read(&binary).unwrap();
+        let original_state = fs::read(&state).unwrap();
+
+        // The transaction must discover MPRIS on its own.
+        let mut tx = UninstallTransaction::begin(&paths, false).unwrap();
+
+        assert_eq!(tx.addons.len(), 1);
+
+        let mpris = &tx.addons[0];
+
+        assert_eq!(mpris.id, "mpris");
+        assert!(mpris.files.contains(&unit));
+        assert!(mpris.files.contains(&addon_dir));
+        assert!(mpris.files.contains(&state));
+
+        assert_eq!(mpris.services.len(), 1);
+
+        let service = &mpris.services[0];
+
+        assert_eq!(service.name, "soloist-display-mpris.service");
+        assert_eq!(service.unit_path, unit);
+        assert_eq!(
+            service.previous_unit.as_deref(),
+            Some(original_unit.as_slice())
+        );
+
+        // Stage exactly the files declared by the registry.
+        let plan_files = mpris.files.clone();
+
+        for file in plan_files {
+            tx.stage(&paths, &file).unwrap();
+        }
+
+        assert!(!unit.exists());
+        assert!(!addon_dir.exists());
+        assert!(!state.exists());
+        assert!(pending(&paths));
+
+        // Simulate the process terminating before commit.
+        drop(tx);
+
+        // Recovery reads the persisted journal, not the old tx object.
+        recover(&paths).unwrap();
+
+        assert_eq!(fs::read(&unit).unwrap(), original_unit);
+        assert_eq!(fs::read(&binary).unwrap(), original_binary);
+        assert_eq!(fs::read(&state).unwrap(), original_state);
+
+        assert!(!pending(&paths));
+
+        // The restored installation is still discoverable.
+        let plans = crate::addons::uninstall_plans(&paths).unwrap();
+
+        assert_eq!(plans.len(), 1);
+        assert_eq!(plans[0].0, "mpris");
+
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+    #[test]
+    #[serial]
+    fn allows_staging_owned_installation_state() {
+        let (_directory, paths) = crate::test_support::paths();
+
+        let state_file = paths.state.join("test-addon.json");
+        fs::write(&state_file, b"owned state").unwrap();
+
+        let mut tx = UninstallTransaction::begin(&paths, false).unwrap();
+
+        tx.stage(&paths, &state_file).unwrap();
+        assert!(!state_file.exists());
+
+        recover(&paths).unwrap();
+
+        assert_eq!(fs::read(&state_file).unwrap(), b"owned state");
+        assert!(!pending(&paths));
+
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+    #[test]
+    #[serial]
+    fn rejects_path_traversal_outside_owned_directory() {
+        let (_directory, paths) = crate::test_support::paths();
+
+        let foreign = paths.state_home.join("important.json");
+        fs::write(&foreign, b"do not remove").unwrap();
+
+        let traversal = paths.state.join("../../important.json");
+
+        let mut tx = UninstallTransaction::begin(&paths, false).unwrap();
+
+        assert!(tx.stage(&paths, &traversal).is_err());
+        assert_eq!(fs::read(&foreign).unwrap(), b"do not remove");
+
+        recover(&paths).unwrap();
+        std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
+    }
+
+    #[test]
+    #[serial]
+    fn rejects_relative_and_dot_component_paths() {
+        let (_directory, paths) = crate::test_support::paths();
+        let mut tx = UninstallTransaction::begin(&paths, false).unwrap();
+
+        assert!(tx.stage(&paths, Path::new("relative/file")).is_err());
+        assert!(tx.stage(&paths, &paths.state.join("../other")).is_err());
+
+        recover(&paths).unwrap();
         std::env::remove_var("SOLOIST_DISPLAY_TEST_ROOT");
     }
 }

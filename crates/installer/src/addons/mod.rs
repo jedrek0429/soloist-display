@@ -272,4 +272,46 @@ mod tests {
             ])
             .is_err());
     }
+
+    #[test]
+    fn addon_enable_accepts_mpris_options() {
+        let matches = configure_cli(Cli::command())
+            .try_get_matches_from([
+                "soloist-display",
+                "addon",
+                "enable",
+                "mpris",
+                "--data-dir",
+                "/tmp/soloist-test",
+            ])
+            .unwrap();
+
+        let options = matches
+            .subcommand_matches("addon")
+            .unwrap()
+            .subcommand_matches("enable")
+            .unwrap()
+            .subcommand_matches("mpris")
+            .unwrap();
+
+        assert_eq!(
+            options.get_one::<std::path::PathBuf>("data-dir"),
+            Some(&std::path::PathBuf::from("/tmp/soloist-test"))
+        );
+    }
+
+    #[test]
+    fn addon_cli_rejects_invalid_commands() {
+        for arguments in [
+            vec!["addon", "enable", "nonexistent"],
+            vec!["addon", "status", "nonexistent"],
+            vec!["addon", "enable", "mpris", "--unknown"],
+            vec!["mpris", "status"],
+        ] {
+            let result = configure_cli(Cli::command())
+                .try_get_matches_from(std::iter::once("soloist-display").chain(arguments));
+
+            assert!(result.is_err());
+        }
+    }
 }

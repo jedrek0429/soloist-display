@@ -69,25 +69,6 @@ fn run() -> Result<i32> {
         }
     }
 
-    // Handle add-on optional CLI command definitions
-    if let Some(addon) = matches.subcommand_name().and_then(addons::command_owner) {
-        let mut root_matches = matches.clone();
-        let (_, addon_matches) = root_matches
-            .remove_subcommand()
-            .expect("registered add-on command");
-
-        let cli = Cli::from_arg_matches(&root_matches)?;
-
-        terminal::configure(cli.flags.quiet, cli.flags.verbose);
-        cli.flags.configure_color();
-
-        let paths = Paths::discover()?;
-
-        locked(&paths, || addon.run_command(&addon_matches, &paths))?;
-
-        return Ok(0);
-    }
-
     let cli = Cli::from_arg_matches(&matches)?;
     terminal::configure(cli.flags.quiet, cli.flags.verbose);
     cli.flags.configure_color();

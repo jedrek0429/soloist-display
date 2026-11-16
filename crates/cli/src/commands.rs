@@ -4,8 +4,6 @@ use clap::{Parser, Subcommand};
 use clap_complete::Shell;
 use soloist_display_core::release::ReleaseChannel;
 #[cfg(target_os = "linux")]
-use std::path::PathBuf;
-
 #[cfg(target_os = "linux")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub enum SoloistRemoval {
@@ -41,19 +39,21 @@ pub enum NotificationSetting {
 
 #[cfg(target_os = "linux")]
 #[derive(Subcommand, Debug)]
-pub enum MprisCommand {
-    /// Install or start the optional MPRIS bridge.
-    Enable {
-        /// Soloist data directory, needed for non-default External installations.
-        #[arg(long)]
-        data_dir: Option<PathBuf>,
-    },
-    /// Stop the bridge and disable it at login without removing its files.
-    Disable,
-    /// Report the bridge version and service state.
-    Status,
-    /// Remove only the Soloist Display-owned bridge.
-    Remove,
+pub enum AddonCommand {
+    /// List available add-ons.
+    List,
+
+    /// Show the status of an add-on.
+    Status { id: String },
+
+    /// Install if necessary and enable an add-on.
+    Enable,
+
+    /// Disable an add-on without removing it.
+    Disable { id: String },
+
+    /// Uninstall an add-on and remove its managed files.
+    Remove { id: String },
 }
 
 #[derive(Subcommand, Debug)]
@@ -74,12 +74,6 @@ pub enum Command {
         soloist_ws: Option<String>,
         #[arg(long, requires = "external_soloist")]
         start_external: bool,
-    },
-    /// Manage the optional Linux MPRIS bridge (media keys and playerctl).
-    #[cfg(target_os = "linux")]
-    Mpris {
-        #[command(subcommand)]
-        command: MprisCommand,
     },
     /// Open the now-playing display.
     Launch,
@@ -134,6 +128,12 @@ pub enum Command {
         #[arg(long, value_enum)]
         data: Option<DisplayDataRemoval>,
     },
+    /// Manage optional add-ons.
+    #[cfg(target_os = "linux")]
+    Addon {
+        #[command(subcommand)]
+        command: AddonCommand,
+    },
 }
 
 #[cfg(test)]
@@ -173,8 +173,19 @@ mod tests {
                 .command,
             Some(Command::RenewSoloist { force: true })
         ));
-        assert!(Cli::try_parse_from(["soloist-display", "mpris", "status"]).is_ok());
         assert!(Cli::try_parse_from(["soloist-display", "config"]).is_ok());
         assert!(Cli::try_parse_from(["soloist-display", "reload", "--dry-run"]).is_ok());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_only_addon_commands_parse() {
+        assert!(Cli::try_parse_from(["soloist-display", "addon", "list",]).is_ok());
+
+        assert!(Cli::try_parse_from(["soloist-display", "addon", "enable",]).is_ok());
+
+        for action in ["status", "disable", "remove"] {
+            assert!(Cli::try_parse_from(["soloist-display", "addon", action, "mpris",]).is_ok());
+        }
     }
 }

@@ -1,10 +1,10 @@
 use soloist_display_cli::{arguments as cli_arguments, output as cli_output};
+mod addons;
 mod config;
 mod dependencies;
 mod legacy;
 mod lock;
 mod manager;
-mod mpris;
 mod paths;
 mod platform;
 mod process;
@@ -17,14 +17,14 @@ mod terminal;
 mod uninstall_tx;
 
 use anyhow::{bail, Result};
-use clap::{CommandFactory, Parser};
+use clap::{CommandFactory, FromArgMatches};
 use clap_complete::generate;
 use cli_arguments::DeviceCommand;
 use lock::InstallLock;
 use manager::UninstallOptions;
 use paths::Paths;
 use platform::Platform;
-use soloist_display_cli::linux::{Cli, Command, MprisCommand, NotificationSetting};
+use soloist_display_cli::linux::{AddonCommand, Cli, Command, NotificationSetting};
 use std::{
     fs,
     io::{IsTerminal, Write},
@@ -38,23 +38,72 @@ fn locked<T>(paths: &Paths, operation: impl FnOnce() -> Result<T>) -> Result<T> 
     uninstall_tx::recover(paths)?;
     manager::recover(paths)?;
     renewal::recover(paths)?;
-    mpris::recover(paths)?;
+    addons::recover_all(paths)?;
     operation()
 }
 
 fn run() -> Result<i32> {
-    let cli = Cli::parse();
+    let matches = addons::configure_cli(Cli::command()).get_matches();
+
+    // Handle add-on optional enable-command definitions
+    if let Some(("addon", addon_matches)) = matches.subcommand() {
+        if let Some(("enable", enable_matches)) = addon_matches.subcommand() {
+            let (id, options) = enable_matches.subcommand().expect("an add-on is required");
+
+            let addon = addons::find(id).expect("Clap accepted an unregistered add-on");
+
+            let mut root_matches = matches.clone();
+            root_matches.remove_subcommand();
+
+            let cli = Cli::from_arg_matches(&root_matches)?;
+
+            terminal::configure(cli.flags.quiet, cli.flags.verbose);
+            cli.flags.configure_color();
+
+            let paths = Paths::discover()?;
+            let platform = Platform::detect()?;
+
+            locked(&paths, || addon.enable_with(&paths, &platform, options))?;
+
+            return Ok(0);
+        }
+    }
+
+    // Handle add-on optional CLI command definitions
+    if let Some(addon) = matches.subcommand_name().and_then(addons::command_owner) {
+        let mut root_matches = matches.clone();
+        let (_, addon_matches) = root_matches
+            .remove_subcommand()
+            .expect("registered add-on command");
+
+        let cli = Cli::from_arg_matches(&root_matches)?;
+
+        terminal::configure(cli.flags.quiet, cli.flags.verbose);
+        cli.flags.configure_color();
+
+        let paths = Paths::discover()?;
+
+        locked(&paths, || addon.run_command(&addon_matches, &paths))?;
+
+        return Ok(0);
+    }
+
+    let cli = Cli::from_arg_matches(&matches)?;
     terminal::configure(cli.flags.quiet, cli.flags.verbose);
     cli.flags.configure_color();
     if let Some(Command::Completions { shell }) = &cli.command {
+        let mut command = addons::configure_cli(Cli::command());
+
         generate(
             *shell,
-            &mut Cli::command(),
+            &mut command,
             "soloist-display",
             &mut std::io::stdout(),
         );
+
         return Ok(0);
     }
+
     let paths = Paths::discover()?;
     if uninstall_tx::pending(&paths) {
         locked(&paths, || Ok(()))?;
@@ -97,14 +146,16 @@ fn run() -> Result<i32> {
             })?;
             config::ensure(&paths)?;
         }
-        Command::Mpris { command } => match command {
-            MprisCommand::Enable { data_dir } => {
-                let platform = Platform::detect()?;
-                locked(&paths, || mpris::enable(&paths, &platform, data_dir))?;
+        Command::Addon { command } => match command {
+            AddonCommand::List => addons::list(),
+            AddonCommand::Status { id } => addons::status(&id, &paths)?,
+            AddonCommand::Enable => unreachable!("handled during CLI parsing"),
+            AddonCommand::Disable { id } => {
+                locked(&paths, || addons::disable(&id, &paths))?;
             }
-            MprisCommand::Disable => locked(&paths, || mpris::disable(&paths))?,
-            MprisCommand::Status => mpris::status(&paths)?,
-            MprisCommand::Remove => locked(&paths, || mpris::remove(&paths))?,
+            AddonCommand::Remove { id } => {
+                locked(&paths, || addons::remove(&id, &paths))?;
+            }
         },
         Command::Launch => manager::launch(&paths, false)?,
         Command::Settings => manager::launch(&paths, true)?,
@@ -234,6 +285,9 @@ fn main() {
         }
     }
 }
+
+#[cfg(test)]
+mod test_support;
 
 #[cfg(test)]
 mod tests {

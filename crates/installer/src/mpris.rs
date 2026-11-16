@@ -1,4 +1,5 @@
 use crate::{
+    addons::{AddonStatus, AddonInstallState},
     paths::Paths,
     platform::{Architecture, Platform},
     service,
@@ -448,6 +449,35 @@ pub fn status(paths: &Paths) -> Result<()> {
         }
     }
     Ok(())
+}
+
+pub fn get_status(paths: &Paths) -> Result<AddonStatus> {
+    let Some(state) = read_state(paths)? else {
+        return Ok(AddonStatus {
+            installation: AddonInstallState::NotInstalled,
+            enabled: false,
+            running: None,
+            version: None,
+            details: vec![],
+        });
+    };
+
+    Ok(AddonStatus {
+        installation: match state.phase {
+            Phase::Pending => AddonInstallState::Pending,
+            Phase::Installed => AddonInstallState::Installed,
+        },
+        enabled: service::enabled(paths, UNIT),
+        running: Some(service::active(paths, UNIT)),
+        version: Some(state.version),
+        details: vec![
+            ("Soloist data".into(), state.data_dir.display().to_string()),
+            (
+                "Executable".into(),
+                binary_path(paths).display().to_string(),
+            ),
+        ],
+    })
 }
 
 #[cfg(test)]

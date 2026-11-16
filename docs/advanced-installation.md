@@ -128,19 +128,19 @@ IPv6 wildcard `[::]:9090` is also accepted.
 [soloist-mpris](https://github.com/TobiasVeiga00/soloist-mpris) is an **optional** MIT-licensed bridge between Soloist's WebSocket and the Linux session D-Bus (`org.mpris.MediaPlayer2.soloist`). It supports `playerctl`, media keys bound by your desktop or window manager, and MPRIS-compatible bars. Soloist Display does not need the bridge to play or display music.
 
 ```sh
-soloist-display mpris enable
-soloist-display mpris status
+soloist-display addon enable mpris
+soloist-display addon status mpris
 playerctl -p soloist play-pause
 playerctl -p soloist next
-soloist-display mpris disable      # keep files, stop the bridge
-soloist-display mpris enable       # start it again
-soloist-display mpris remove       # uninstall just the bridge
+soloist-display addon disable mpris      # keep files, stop the bridge
+soloist-display addon enable mpris       # start it again
+soloist-display addon remove mpris       # uninstall just the bridge
 ```
 
 For External Soloist using a non-default data directory, specify the directory containing Soloist's `ws.addr` and `ws.port` files:
 
 ```sh
-soloist-display mpris enable --data-dir /absolute/path/to/soloist-data
+soloist-display addon enable mpris --data-dir /absolute/path/to/soloist-data
 ```
 
 Alternatively, you can install Soloist and its MPRIS bridge with the [soloist-mpris installer](https://github.com/TobiasVeiga00/soloist-mpris) by TobiasVeiga00, then connect Soloist Display in **External** mode. The upstream installer already runs `soloist-mpris.service`, so **do not enable** `soloist-display mpris` as well. Upstream Soloist uses a dynamically assigned WebSocket port (`--ws 127.0.0.1:0`); pass its current address from `ws.addr` and `ws.port` using `--soloist-ws`, not the default port `9090`. Soloist Display currently stores that address, so a restart that changes the port requires updating the External connection.

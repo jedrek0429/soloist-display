@@ -251,6 +251,10 @@ export class DiscDirector{
     this.fastHandoff=true;
     for(const finish of [...this.activeWaits])finish();
     for(const motion of [...this.activeMotions])motion.accelerate();
+    if(this.panelAnimation){
+      if(typeof this.panelAnimation.updatePlaybackRate==='function')this.panelAnimation.updatePlaybackRate(12);
+      else if('playbackRate' in this.panelAnimation)this.panelAnimation.playbackRate=12;
+    }
   }
   async after(wait,token,work){
     if(wait>0)await this.wait(wait);
@@ -329,6 +333,7 @@ export class DiscDirector{
       };
       this.activeMotions.add(motion);
       requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        if(completed)return;
         if(token!==this.token){finish();return}
         if(this.fastHandoff){motion.accelerate();return}
         incoming.style.transition=`opacity ${duration}ms ease-in-out`;
@@ -546,7 +551,6 @@ export class DiscDirector{
       while(epoch===this.transitionEpoch&&this.queuedChange){
         ({url,onShow}=this.queuedChange);
         this.queuedChange=null;
-        this.fastHandoff=false;
         if(firstArrival&&this.started){
           // A second first-entry animation would eject a placeholder disc.
           // Replace artwork in place, including later updates during preload.
